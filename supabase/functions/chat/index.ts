@@ -17,26 +17,10 @@ import { loadRules, ALL_DOMAINS } from "../_shared/rules.ts";
 
 const TZ = "Asia/Ho_Chi_Minh";
 
-const RESPONSE_SCHEMA = {
-  type: "object",
-  properties: {
-    reply_to_user: { type: "string" },
-    domains: { type: "array", items: { type: "string" } },
-    actions: {
-      type: "array",
-      items: {
-        type: "object",
-        properties: {
-          type: { type: "string" },
-          data: { type: "object" },
-        },
-        required: ["type", "data"],
-      },
-    },
-    needs_confirmation: { type: "boolean" },
-  },
-  required: ["reply_to_user", "actions", "needs_confirmation"],
-};
+// Note: we intentionally do NOT pass responseSchema to Gemini — when we do,
+// Gemini interprets `data: {type: "object"}` as "empty object satisfies schema"
+// and refuses to emit concrete fields. responseMimeType=application/json is
+// enough to get clean JSON back, and the few-shot examples enforce the shape.
 
 Deno.serve(async (req) => {
   const pre = preflight(req);
@@ -72,6 +56,12 @@ Deno.serve(async (req) => {
 
   // 2. Pull context: open sessions and today snapshot
   const today = new Intl.DateTimeFormat("en-CA", { timeZone: TZ }).format(new Date());
+  const nowTime = new Intl.DateTimeFormat("en-GB", {
+    timeZone: TZ,
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).format(new Date());
   const [openSessions, todayDay, todaySessions] = await Promise.all([
     db.from("open_sessions").select("*"),
     db.from("days").select("*").eq("date", today).maybeSingle(),
@@ -80,6 +70,7 @@ Deno.serve(async (req) => {
 
   const context = {
     today,
+    now_time: nowTime,
     timezone: TZ,
     open_sessions: openSessions.data || [],
     today_summary: {
@@ -109,10 +100,74 @@ Available action types (use in actions[].type):
 
 Conventions:
   - Use ISO date (YYYY-MM-DD) and 24h time (HH:MM).
-  - For "сейчас" use the current local time.
-  - For "сегодня" use ${today}.
+  - For "сейчас", "только что", "сегодня" use the values from CURRENT CONTEXT: today=${today}, now_time=${nowTime}.
+  - NEVER emit literal placeholders like "<HH:MM>" — always resolve to actual values.
   - reply_to_user must be a short Russian confirmation prompt like "Понял: ... . Записать?"
   - needs_confirmation=true unless this is a simple substance/body_metric.
+  - actions[].data MUST contain concrete fields, never empty {}. Always include "date".
+
+EXAMPLES (input → output):
+
+Input: "75 мг модафинила"
+Output:
+{
+  "reply_to_user": "Записал: модафинил 75 мг.",
+  "actions": [
+    { "type": "create_substance", "data": { "date": "${today}", "name": "modafinil", "amount": 75, "unit": "mg" } }
+  ],
+  "needs_confirmation": false
+}
+
+Input: "вес 82.4"
+Output:
+{
+  "reply_to_user": "Записал: вес 82.4 кг.",
+  "actions": [
+    { "type": "create_body_metric", "data": { "date": "${today}", "metric": "weight_kg", "value": 82.4, "unit": "kg" } }
+  ],
+  "needs_confirmation": false
+}
+
+Input: "начал приложение"   (assume now_time=${nowTime})
+Output:
+{
+  "reply_to_user": "Понял: открываю рабочую сессию «приложение» с ${nowTime}. Подтвердить?",
+  "actions": [
+    { "type": "create_work_session_open", "data": { "date": "${today}", "start_time": "${nowTime}", "project": "child_app", "category": "work_paid" } }
+  ],
+  "needs_confirmation": true
+}
+
+Input: "закончил приложение, иду гулять"   (assume now_time=${nowTime})
+Output:
+{
+  "reply_to_user": "Закрываю «приложение» в ${nowTime} и открываю прогулку. Подтвердить?",
+  "actions": [
+    { "type": "close_work_session", "data": { "end_time": "${nowTime}" } },
+    { "type": "create_session", "data": { "date": "${today}", "start_time": "${nowTime}", "end_time": "${nowTime}", "type": "walk", "category": "walk" } }
+  ],
+  "needs_confirmation": true
+}
+
+Input: "поел пасту с тунцом и манго, посчитай"
+Output:
+{
+  "reply_to_user": "Понял: паста с тунцом + манго. ≈850 ккал (Б45/Ж25/У110). Записать?",
+  "actions": [
+    { "type": "create_meal", "data": { "date": "${today}", "name": "паста с тунцом и манго", "kcal": 850, "protein_g": 45, "fat_g": 25, "carbs_g": 110, "confidence": "low", "slot": "lunch" } }
+  ],
+  "needs_confirmation": true
+}
+
+Input: "потратил 120к донгов на кофе"
+Output:
+{
+  "reply_to_user": "Расход: 120 000 VND, категория food, merchant: кофейня. Записать?",
+  "actions": [
+    { "type": "create_finance_transaction", "data": { "date": "${today}", "amount": 120000, "currency": "VND", "category": "food", "merchant": "кофе", "txn_type": "expense" } }
+  ],
+  "needs_confirmation": true
+}
 
 CURRENT CONTEXT (JSON):
 ${JSON.stringify(context, null, 2)}
@@ -143,7 +198,6 @@ ${JSON.stringify(context, null, 2)}
       generationConfig: {
         temperature: 0.2,
         responseMimeType: "application/json",
-        responseSchema: RESPONSE_SCHEMA,
       },
     });
     if (!out.json || typeof out.json !== "object") {
