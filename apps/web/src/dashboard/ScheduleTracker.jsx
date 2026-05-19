@@ -161,6 +161,8 @@ function download(filename, content, mime = "text/plain;charset=utf-8") {
 const I = {
   search: () => svgIcon("M11 19a8 8 0 1 1 5.3-14 8 8 0 0 1-5.3 14Zm10 2-4.35-4.35"),
   chevron: () => svgIcon("m9 6 6 6-6 6"),
+  chevronLeft: () => svgIcon("m15 18-6-6 6-6"),
+  chevronRight: () => svgIcon("m9 6 6 6-6 6"),
   download: () => svgIcon("M12 3v12m0 0 4-4m-4 4-4-4M5 21h14"),
   sortAsc: () => svgIcon("m6 15 6-6 6 6"),
   sortDesc: () => svgIcon("m6 9 6 6 6-6"),
@@ -192,21 +194,42 @@ function svgIcon(d) {
 
 // ---------------- root app ----------------
 
-function App() {
-  const initial = loadState() || {
-    days: SEED_DAYS.map(ensureId),
-    sessions: SEED_SESSIONS.map(ensureId),
-    events: SEED_EVENTS.map(ensureId),
-  };
+function App(props = {}) {
+  // Live mode: props.liveData is passed in. We do NOT use localStorage in live mode —
+  // the source of truth is Supabase, edits remain in-memory until reload.
+  const liveData = props.liveData || null;
+  const sourceBadge = props.sourceBadge || null;
+  const onReload = props.onReload || null;
+
+  const initial = liveData
+    ? {
+        days: liveData.days.map(ensureId),
+        sessions: liveData.sessions.map(ensureId),
+        events: SEED_EVENTS.map(ensureId),
+      }
+    : (loadState() || {
+        days: SEED_DAYS.map(ensureId),
+        sessions: SEED_SESSIONS.map(ensureId),
+        events: SEED_EVENTS.map(ensureId),
+      });
 
   const [days, setDays] = useState(initial.days);
   const [sessions, setSessions] = useState(initial.sessions);
   const [events, setEvents] = useState(initial.events);
   const [tab, setTab] = useState(localStorage.getItem("schedule-tracker:tab") || "days");
 
+  // When liveData changes (e.g. after a chat confirm), refresh local state.
   useEffect(() => {
+    if (!liveData) return;
+    setDays(liveData.days.map(ensureId));
+    setSessions(liveData.sessions.map(ensureId));
+  }, [liveData]);
+
+  useEffect(() => {
+    // Only persist edits in demo mode; live mode is sourced from Supabase.
+    if (liveData) return;
     saveState({ days, sessions, events });
-  }, [days, sessions, events]);
+  }, [days, sessions, events, liveData]);
 
   useEffect(() => {
     localStorage.setItem("schedule-tracker:tab", tab);
@@ -259,18 +282,26 @@ function App() {
           <div class="app-header__title-wrap">
             <div class="app-header__title">
               <span>schedule</span>
-              <span class="app-header__subtitle">/ 20 апр – 18 мая 2026 / ${days.length} дней</span>
+              <span class="app-header__subtitle">${days.length} day${days.length === 1 ? "" : "s"}</span>
+              ${sourceBadge && html`<span class=${`source-badge source-badge--${sourceBadge.toLowerCase()}`}>${sourceBadge}</span>`}
             </div>
           </div>
           <div class="app-header__actions">
+            ${onReload && html`
+              <button class="btn btn--ghost" onClick=${onReload} title="refresh from Supabase">
+                <span class="btn__text-wrap">refresh</span>
+              </button>
+            `}
             <button class="btn" onClick=${exportJson}>
               <span class="btn__icon-wrap">${I.download()}</span>
               <span class="btn__text-wrap">JSON</span>
             </button>
-            <button class="btn btn--ghost" onClick=${resetAll} title="reset local edits">
-              <span class="btn__icon-wrap">${I.reset()}</span>
-              <span class="btn__text-wrap">reset</span>
-            </button>
+            ${!liveData && html`
+              <button class="btn btn--ghost" onClick=${resetAll} title="reset local edits">
+                <span class="btn__icon-wrap">${I.reset()}</span>
+                <span class="btn__text-wrap">reset</span>
+              </button>
+            `}
           </div>
         </div>
         <${StatBar} totals=${totals} days=${days} />
@@ -278,6 +309,8 @@ function App() {
 
       <nav class="tabbar">
         <${TabBtn} id="days" active=${tab} onClick=${setTab} label="Days" count=${days.length} />
+        <${TabBtn} id="calendar" active=${tab} onClick=${setTab} label="Calendar" count=${null} />
+        <${TabBtn} id="kanban" active=${tab} onClick=${setTab} label="Kanban" count=${null} />
         <${TabBtn} id="sessions" active=${tab} onClick=${setTab} label="Sessions" count=${sessions.length} />
         <${TabBtn} id="events" active=${tab} onClick=${setTab} label="Events" count=${events.length} />
         <${TabBtn} id="insights" active=${tab} onClick=${setTab} label="Insights" count=${null} />
@@ -290,6 +323,8 @@ function App() {
         setDays=${setDays}
         setSessions=${setSessions}
       />`}
+      ${tab === "calendar" && html`<${CalendarTab} days=${days} sessions=${sessions} />`}
+      ${tab === "kanban" && html`<${KanbanTab} days=${days} sessions=${sessions} />`}
       ${tab === "sessions" && html`<${SessionsTab} sessions=${sessions} setSessions=${setSessions} />`}
       ${tab === "events" && html`<${EventsTab} events=${events} setEvents=${setEvents} />`}
       ${tab === "insights" && html`<${InsightsTab} days=${days} sessions=${sessions} />`}
@@ -1788,6 +1823,248 @@ function LineChart({ categories, series }) {
             </div>
           `,
         )}
+      </div>
+    </div>
+  `;
+}
+
+// ---------------- calendar view ----------------
+
+function CalendarTab({ days, sessions }) {
+  const byDate = useMemo(() => {
+    const map = new Map();
+    for (const d of days) map.set(d.date, d);
+    return map;
+  }, [days]);
+
+  const sessionsByDate = useMemo(() => {
+    const map = new Map();
+    for (const s of sessions) {
+      if (!map.has(s.date)) map.set(s.date, []);
+      map.get(s.date).push(s);
+    }
+    return map;
+  }, [sessions]);
+
+  // Default cursor: the most recent month in data (or current month).
+  const todayMonth = useMemo(() => {
+    if (days.length) {
+      const sorted = [...days].sort((a, b) => a.date.localeCompare(b.date));
+      const last = sorted[sorted.length - 1].date;
+      return last.slice(0, 7); // YYYY-MM
+    }
+    const now = new Date();
+    return `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, "0")}`;
+  }, [days]);
+
+  const [cursor, setCursor] = useState(todayMonth);
+  const [selected, setSelected] = useState(null);
+
+  useEffect(() => {
+    setCursor(todayMonth);
+  }, [todayMonth]);
+
+  const [year, monthIdx] = cursor.split("-").map(Number);
+  const firstOfMonth = new Date(Date.UTC(year, monthIdx - 1, 1));
+  const lastOfMonth = new Date(Date.UTC(year, monthIdx, 0));
+  // Monday=0, Sunday=6 (we render mon-first weeks)
+  const startDow = (firstOfMonth.getUTCDay() + 6) % 7;
+  const daysInMonth = lastOfMonth.getUTCDate();
+
+  const cells = [];
+  for (let i = 0; i < startDow; i++) cells.push(null);
+  for (let d = 1; d <= daysInMonth; d++) {
+    const date = `${cursor}-${String(d).padStart(2, "0")}`;
+    cells.push({ date, day: d });
+  }
+  while (cells.length % 7 !== 0) cells.push(null);
+
+  const monthLabel = firstOfMonth.toLocaleString("en", { month: "long", year: "numeric", timeZone: "UTC" });
+
+  const shift = (delta) => {
+    const nextMonth = new Date(Date.UTC(year, monthIdx - 1 + delta, 1));
+    setCursor(`${nextMonth.getUTCFullYear()}-${String(nextMonth.getUTCMonth() + 1).padStart(2, "0")}`);
+  };
+
+  return html`
+    <div class="cal-wrap">
+      <div class="cal-toolbar-wrap">
+        <button class="btn btn--ghost btn--icon" onClick=${() => shift(-1)} title="previous month">
+          <span class="btn__icon-wrap">${I.chevronLeft()}</span>
+        </button>
+        <div class="cal-month-title-wrap">
+          <span class="cal-month-title">${monthLabel.toLowerCase()}</span>
+        </div>
+        <button class="btn btn--ghost btn--icon" onClick=${() => shift(1)} title="next month">
+          <span class="btn__icon-wrap">${I.chevronRight()}</span>
+        </button>
+      </div>
+
+      <div class="cal-grid-wrap">
+        <div class="cal-grid-head">
+          ${["mon", "tue", "wed", "thu", "fri", "sat", "sun"].map(
+            (d) => html`<div class="cal-grid-head__cell"><span>${d}</span></div>`,
+          )}
+        </div>
+        <div class="cal-grid-body">
+          ${cells.map((c, i) => {
+            if (!c) return html`<div class="cal-cell cal-cell--empty"></div>`;
+            const row = byDate.get(c.date);
+            const list = sessionsByDate.get(c.date) || [];
+            const businessMin = list
+              .filter((s) => BUSINESS_CATS.has(s.category))
+              .reduce((a, s) => a + (s.min || 0), 0);
+            const isSelected = selected === c.date;
+            return html`
+              <button
+                key=${i}
+                class=${`cal-cell ${row ? "cal-cell--has" : ""} ${isSelected ? "cal-cell--selected" : ""}`}
+                onClick=${() => setSelected(isSelected ? null : c.date)}
+              >
+                <div class="cal-cell__head-wrap">
+                  <span class="cal-cell__day">${c.day}</span>
+                  ${row && row.modafinil_mg > 0 && html`<span class="cal-cell__mod">${row.modafinil_mg}</span>`}
+                </div>
+                ${row && html`
+                  <div class="cal-cell__body-wrap">
+                    ${row.sleep_h !== null && html`<div class="cal-cell__line"><span>😴 ${fmt(row.sleep_h, 1)}h</span></div>`}
+                    ${businessMin > 0 && html`<div class="cal-cell__line"><span>💼 ${fmtHours(businessMin)}h</span></div>`}
+                    ${list.length > 0 && html`<div class="cal-cell__line cal-cell__line--muted"><span>${list.length} sessions</span></div>`}
+                  </div>
+                `}
+              </button>
+            `;
+          })}
+        </div>
+      </div>
+
+      ${selected && html`
+        <div class="cal-detail-wrap">
+          <div class="cal-detail-head-wrap">
+            <span class="cal-detail-title">${selected}</span>
+            <button class="btn btn--ghost btn--icon" onClick=${() => setSelected(null)} title="close">
+              <span class="btn__icon-wrap">${I.x()}</span>
+            </button>
+          </div>
+          <${CalendarDayDetail} date=${selected} day=${byDate.get(selected)} sessions=${sessionsByDate.get(selected) || []} />
+        </div>
+      `}
+    </div>
+  `;
+}
+
+function CalendarDayDetail({ date, day, sessions }) {
+  const sorted = useMemo(() => {
+    if (!day) return [...sessions];
+    return [...sessions].sort(
+      (a, b) => wakeRelativeMin(a.start, day.wake || "00:00") - wakeRelativeMin(b.start, day.wake || "00:00"),
+    );
+  }, [sessions, day]);
+
+  if (!day) {
+    return html`<div class="cal-detail-empty-wrap"><span>нет записи на этот день</span></div>`;
+  }
+
+  return html`
+    <div class="cal-detail-body-wrap">
+      <div class="cal-detail-meta-wrap">
+        ${day.wake && html`<span class="cal-detail-meta">wake ${day.wake}</span>`}
+        ${day.sleep_start && html`<span class="cal-detail-meta">sleep ${day.sleep_start}</span>`}
+        ${day.sleep_h !== null && html`<span class="cal-detail-meta">${fmt(day.sleep_h, 1)}h</span>`}
+        ${day.modafinil_mg > 0 && html`<span class="cal-detail-meta">mod ${day.modafinil_mg}mg</span>`}
+        ${day.day_type && html`<span class="cal-detail-meta">${day.day_type}</span>`}
+        ${day.weight_kg && html`<span class="cal-detail-meta">${fmt(day.weight_kg, 1)}kg</span>`}
+      </div>
+      ${day.notes && html`<div class="cal-detail-notes-wrap"><span>${day.notes}</span></div>`}
+      <div class="cal-detail-sessions-wrap">
+        ${sorted.length === 0 && html`<div class="cal-detail-empty-wrap"><span>сессии не записаны</span></div>`}
+        ${sorted.map((s) => html`
+          <div class="cal-detail-session" key=${s.id}>
+            <span class="cal-detail-session__time">${s.start}–${s.end}</span>
+            <span class="cal-detail-session__cat">${s.category}</span>
+            ${s.project && html`<span class="cal-detail-session__proj">${s.project}</span>`}
+            ${s.note && html`<span class="cal-detail-session__note">${s.note}</span>`}
+          </div>
+        `)}
+      </div>
+    </div>
+  `;
+}
+
+// ---------------- kanban view ----------------
+
+function KanbanTab({ days, sessions }) {
+  const byDate = useMemo(() => {
+    const map = new Map();
+    for (const d of days) map.set(d.date, d);
+    return map;
+  }, [days]);
+
+  const sortedDates = useMemo(() => {
+    const set = new Set(days.map((d) => d.date));
+    for (const s of sessions) set.add(s.date);
+    return [...set].sort();
+  }, [days, sessions]);
+
+  const sessionsByDate = useMemo(() => {
+    const map = new Map();
+    for (const s of sessions) {
+      if (!map.has(s.date)) map.set(s.date, []);
+      map.get(s.date).push(s);
+    }
+    return map;
+  }, [sessions]);
+
+  if (sortedDates.length === 0) {
+    return html`
+      <div class="kanban-empty-wrap">
+        <span class="kanban-empty">Нет дней. Логи через чат — и появятся колонки.</span>
+      </div>
+    `;
+  }
+
+  return html`
+    <div class="kanban-wrap">
+      <div class="kanban-scroll-wrap">
+        ${sortedDates.map((date) => {
+          const day = byDate.get(date);
+          const list = sessionsByDate.get(date) || [];
+          const sorted = day
+            ? [...list].sort(
+                (a, b) => wakeRelativeMin(a.start, day.wake || "00:00") - wakeRelativeMin(b.start, day.wake || "00:00"),
+              )
+            : [...list].sort((a, b) => a.start.localeCompare(b.start));
+          return html`
+            <div class="kanban-col-wrap" key=${date}>
+              <div class="kanban-col-head-wrap">
+                <span class="kanban-col-head__date">${date}</span>
+                ${day && html`<span class="kanban-col-head__dow">${day.dow}</span>`}
+                ${day && day.modafinil_mg > 0 && html`<span class="kanban-col-head__mod">${day.modafinil_mg}mg</span>`}
+              </div>
+              ${day && html`
+                <div class="kanban-col-meta-wrap">
+                  ${day.wake && html`<span class="kanban-col-meta">↑${day.wake}</span>`}
+                  ${day.sleep_start && html`<span class="kanban-col-meta">↓${day.sleep_start}</span>`}
+                  ${day.sleep_h !== null && html`<span class="kanban-col-meta">${fmt(day.sleep_h, 1)}h</span>`}
+                </div>
+              `}
+              <div class="kanban-col-body-wrap">
+                ${sorted.length === 0 && html`<div class="kanban-empty-col"><span>—</span></div>`}
+                ${sorted.map((s) => html`
+                  <div class=${`kanban-card kanban-card--${(s.category || "x").replace(/[^a-z0-9_]/gi, "_")}`} key=${s.id}>
+                    <div class="kanban-card__time-wrap">
+                      <span class="kanban-card__time">${s.start}–${s.end}</span>
+                      <span class="kanban-card__dur">${s.min}m</span>
+                    </div>
+                    <span class="kanban-card__cat">${s.category}</span>
+                    ${s.project && html`<span class="kanban-card__proj">${s.project}</span>`}
+                    ${s.note && html`<span class="kanban-card__note">${s.note}</span>`}
+                  </div>
+                `)}
+              </div>
+            </div>
+          `;
+        })}
       </div>
     </div>
   `;

@@ -88,6 +88,19 @@ export default function ChatSidebar({ open, onClose }: { open: boolean; onClose:
         ts: Date.now(),
       };
       setMessages((m) => [...m, assistantMsg]);
+
+      // When the model marked needs_confirmation=false (substances, body metrics,
+      // simple things), auto-execute the actions and refresh the dashboard.
+      if (!res.needs_confirmation && res.raw_log_id) {
+        try {
+          await call("confirm", { raw_log_id: res.raw_log_id, decision: "confirm" });
+          window.dispatchEvent(new CustomEvent("schedule:data-changed"));
+        } catch (_) {
+          setMessages((arr) =>
+            arr.map((m) => (m.id === assistantMsg.id ? { ...m, status: "error" } : m)),
+          );
+        }
+      }
     } catch (err) {
       const text = err instanceof ApiError ? `error ${err.status}: ${JSON.stringify(err.body)}` : (err instanceof Error ? err.message : "unknown error");
       setMessages((m) => [
@@ -113,6 +126,9 @@ export default function ChatSidebar({ open, onClose }: { open: boolean; onClose:
           m.id === msgId ? { ...m, status: accept ? "saved" : "rejected" } : m,
         ),
       );
+      if (accept) {
+        window.dispatchEvent(new CustomEvent("schedule:data-changed"));
+      }
     } catch (err) {
       setMessages((arr) =>
         arr.map((m) => (m.id === msgId ? { ...m, status: "error" } : m)),

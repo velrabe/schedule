@@ -33,3 +33,6 @@ verify_jwt = false
 
 [functions.confirm]
 verify_jwt = false
+
+[functions.data]
+verify_jwt = false

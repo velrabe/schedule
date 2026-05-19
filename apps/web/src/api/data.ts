@@ -1,0 +1,150 @@
+import { call } from "./client";
+
+export type Resource =
+  | "days"
+  | "sessions"
+  | "meals"
+  | "activities"
+  | "substances"
+  | "body_metrics"
+  | "finance_transactions"
+  | "events"
+  | "raw_logs";
+
+type DataResponse<T> = { rows: T[]; resource: Resource; count: number };
+
+export type DayRow = {
+  date: string;
+  wake_time: string | null;
+  sleep_time: string | null;
+  sleep_hours: number | null;
+  modafinil_mg: number;
+  mood: number | null;
+  energy: number | null;
+  focus: number | null;
+  weight_kg: number | null;
+  day_type: string | null;
+  tags: string[];
+  notes: string | null;
+  updated_at: string;
+};
+
+export type SessionRow = {
+  id: string;
+  date: string;
+  start_time: string;
+  end_time: string;
+  duration_min: number;
+  type: string;
+  category: string | null;
+  project: string | null;
+  intensity: number | null;
+  quality: number | null;
+  notes: string | null;
+  source_log_id: string | null;
+  created_at: string;
+};
+
+export type MealRow = {
+  id: string;
+  date: string;
+  time: string | null;
+  slot: string | null;
+  name: string;
+  portion_grams: number | null;
+  kcal: number | null;
+  protein_g: number | null;
+  fat_g: number | null;
+  carbs_g: number | null;
+  confidence: string | null;
+  notes: string | null;
+  photo_url: string | null;
+  created_at: string;
+};
+
+export type SubstanceRow = {
+  id: string;
+  date: string;
+  time: string | null;
+  name: string;
+  amount: number | null;
+  unit: string | null;
+  notes: string | null;
+};
+
+export type BodyMetricRow = {
+  id: string;
+  date: string;
+  time: string | null;
+  metric: string;
+  value: number;
+  unit: string | null;
+};
+
+export type FinanceRow = {
+  id: string;
+  date: string;
+  time: string | null;
+  amount: number;
+  currency: string;
+  account: string | null;
+  category: string | null;
+  merchant: string | null;
+  txn_type: string;
+  notes: string | null;
+};
+
+export type ActivityRow = {
+  id: string;
+  date: string;
+  time: string | null;
+  type: string;
+  duration_min: number | null;
+  calories_burned: number | null;
+  intensity: number | null;
+  source: string | null;
+  notes: string | null;
+};
+
+export type EventRow = {
+  id: string;
+  date: string;
+  kind: string;
+  detail: string | null;
+  severity: string;
+};
+
+export type RawLogRow = {
+  id: string;
+  occurred_at: string;
+  source: string;
+  raw_text: string | null;
+  parsed_json: unknown;
+  reply_text: string | null;
+  status: string;
+  status_reason: string | null;
+};
+
+export async function fetchRows<T = unknown>(
+  resource: Resource,
+  opts: { from?: string; to?: string; limit?: number; order?: "asc" | "desc" } = {},
+): Promise<T[]> {
+  const res = await call<DataResponse<T>>("data", { resource, ...opts });
+  return res.rows ?? [];
+}
+
+// Bulk fetcher for the dashboard's initial load.
+export async function fetchDashboardSnapshot(opts: { from?: string; to?: string } = {}) {
+  const [days, sessions, meals, substances, body_metrics, finance, activities, events] =
+    await Promise.all([
+      fetchRows<DayRow>("days", { ...opts, limit: 1000, order: "asc" }),
+      fetchRows<SessionRow>("sessions", { ...opts, limit: 5000, order: "asc" }),
+      fetchRows<MealRow>("meals", { ...opts, limit: 2000, order: "asc" }),
+      fetchRows<SubstanceRow>("substances", { ...opts, limit: 2000, order: "asc" }),
+      fetchRows<BodyMetricRow>("body_metrics", { ...opts, limit: 2000, order: "asc" }),
+      fetchRows<FinanceRow>("finance_transactions", { ...opts, limit: 2000, order: "asc" }),
+      fetchRows<ActivityRow>("activities", { ...opts, limit: 2000, order: "asc" }),
+      fetchRows<EventRow>("events", { ...opts, limit: 1000, order: "asc" }),
+    ]);
+  return { days, sessions, meals, substances, body_metrics, finance, activities, events };
+}
