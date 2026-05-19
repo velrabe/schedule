@@ -1,0 +1,19 @@
+{
+  "name": "schedule",
+  "private": true,
+  "version": "0.0.1",
+  "description": "Personal life-logging tracker — chat → AI parser → Supabase → dashboard",
+  "workspaces": [
+    "apps/*"
+  ],
+  "scripts": {
+    "dev": "npm run dev --workspace=apps/web",
+    "build": "npm run build --workspace=apps/web",
+    "preview": "npm run preview --workspace=apps/web",
+    "typecheck": "npm run typecheck --workspace=apps/web",
+    "supabase:start": "supabase start",
+    "supabase:stop": "supabase stop",
+    "supabase:reset": "supabase db reset",
+    "supabase:deploy:functions": "supabase functions deploy --no-verify-jwt"
+  }
+}

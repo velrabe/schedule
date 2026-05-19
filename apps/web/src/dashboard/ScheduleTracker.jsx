@@ -1,0 +1,1798 @@
+import { h } from "preact";
+import { useState, useEffect, useMemo, useCallback } from "preact/hooks";
+import htm from "htm";
+import {
+  DAYS as SEED_DAYS,
+  SESSIONS as SEED_SESSIONS,
+  EVENTS as SEED_EVENTS,
+  CATEGORIES,
+  DAY_TYPES,
+} from "./seed.js";
+
+const html = htm.bind(h);
+const STORE_KEY = "schedule-tracker:v1";
+
+// ---------------- helpers ----------------
+
+function loadState() {
+  try {
+    const raw = localStorage.getItem(STORE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!parsed.days || !parsed.sessions || !parsed.events) return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+function saveState(state) {
+  try {
+    localStorage.setItem(STORE_KEY, JSON.stringify(state));
+  } catch {}
+}
+
+function uid() {
+  return Math.random().toString(36).slice(2, 10);
+}
+
+function ensureId(item) {
+  return item.id ? item : { ...item, id: uid() };
+}
+
+function fmt(n, digits = 1) {
+  if (n === null || n === undefined || Number.isNaN(n)) return "";
+  if (Number.isInteger(n) && digits > 0) return n.toFixed(0);
+  return Number(n).toFixed(digits);
+}
+
+function fmtHours(min) {
+  if (!min) return "0";
+  return (min / 60).toFixed(min % 60 === 0 ? 0 : 1);
+}
+
+// Categories the user considers "business work" (work_h aggregate per day).
+const BUSINESS_CATS = new Set(["work_paid", "portfolio", "planning"]);
+const SPORT_CATS = new Set([
+  "sport_surf",
+  "sport_pickleball",
+  "sport_muay_thai",
+  "sport_bouldering",
+  "sport_gym",
+  "sport_hike",
+  "sport_run",
+]);
+
+function categoryTone(cat) {
+  if (cat === "work_paid") return "success";
+  if (cat === "portfolio") return "info";
+  if (cat === "planning") return "info";
+  if (SPORT_CATS.has(cat)) return "warning";
+  if (cat === "walk") return "warning";
+  if (cat === "chill" || cat === "sleep") return "danger";
+  return "neutral";
+}
+
+function dayTypeTone(t) {
+  switch (t) {
+    case "work":
+      return "success";
+    case "mixed":
+      return "info";
+    case "sport":
+      return "warning";
+    case "social":
+      return "info";
+    case "travel":
+      return "neutral";
+    case "recovery":
+      return "warning";
+    case "burnout":
+      return "danger";
+    default:
+      return "neutral";
+  }
+}
+
+function timeToMin(t) {
+  if (!t) return 0;
+  const [h, m] = t.split(":").map(Number);
+  if (Number.isNaN(h) || Number.isNaN(m)) return 0;
+  return h * 60 + m;
+}
+
+// Returns minutes-since-wake for a session start. Sessions that take place
+// after midnight (e.g. 00:30 when wake was 10:00) get a value greater than
+// the morning sessions, so they sort to the end of the day.
+function wakeRelativeMin(start, wake) {
+  const s = timeToMin(start);
+  const w = timeToMin(wake);
+  return (s - w + 24 * 60) % (24 * 60);
+}
+
+function aggregateDay(date, sessions) {
+  const ds = sessions.filter((s) => s.date === date);
+  const sum = (pred) => ds.filter(pred).reduce((a, s) => a + (s.min || 0), 0);
+  const work_paid_h = sum((s) => s.category === "work_paid") / 60;
+  const portfolio_h = sum((s) => s.category === "portfolio") / 60;
+  const planning_h = sum((s) => s.category === "planning") / 60;
+  const business_h = work_paid_h + portfolio_h + planning_h;
+  const sport_h = sum((s) => SPORT_CATS.has(s.category)) / 60;
+  const walk_h = sum((s) => s.category === "walk") / 60;
+  const social_h = sum((s) => s.category === "social") / 60;
+  const chill_h = sum((s) => s.category === "chill") / 60;
+  return {
+    work_paid_h,
+    portfolio_h,
+    planning_h,
+    business_h,
+    sport_h,
+    walk_h,
+    social_h,
+    chill_h,
+    sessions: ds.length,
+  };
+}
+
+function toCsv(rows) {
+  const escape = (v) => {
+    if (v === null || v === undefined) return "";
+    const s = Array.isArray(v) ? v.join("|") : String(v);
+    if (/[",\n]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
+    return s;
+  };
+  return rows.map((r) => r.map(escape).join(",")).join("\n");
+}
+
+function download(filename, content, mime = "text/plain;charset=utf-8") {
+  const blob = new Blob([content], { type: mime });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+// ---------------- icons ----------------
+
+const I = {
+  search: () => svgIcon("M11 19a8 8 0 1 1 5.3-14 8 8 0 0 1-5.3 14Zm10 2-4.35-4.35"),
+  chevron: () => svgIcon("m9 6 6 6-6 6"),
+  download: () => svgIcon("M12 3v12m0 0 4-4m-4 4-4-4M5 21h14"),
+  sortAsc: () => svgIcon("m6 15 6-6 6 6"),
+  sortDesc: () => svgIcon("m6 9 6 6 6-6"),
+  sort: () => svgIcon("M8 7h12M8 12h9M8 17h6"),
+  plus: () => svgIcon("M12 5v14M5 12h14"),
+  x: () => svgIcon("M18 6 6 18M6 6l12 12"),
+  reset: () => svgIcon("M3 12a9 9 0 1 0 3-6.7M3 4v5h5"),
+  filter: () => svgIcon("M3 5h18l-7 9v6l-4-2v-4z"),
+};
+
+function svgIcon(d) {
+  return html`
+    <span class="icon" aria-hidden="true">
+      <svg
+        width="14"
+        height="14"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="1.8"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      >
+        <path d=${d}></path>
+      </svg>
+    </span>
+  `;
+}
+
+// ---------------- root app ----------------
+
+function App() {
+  const initial = loadState() || {
+    days: SEED_DAYS.map(ensureId),
+    sessions: SEED_SESSIONS.map(ensureId),
+    events: SEED_EVENTS.map(ensureId),
+  };
+
+  const [days, setDays] = useState(initial.days);
+  const [sessions, setSessions] = useState(initial.sessions);
+  const [events, setEvents] = useState(initial.events);
+  const [tab, setTab] = useState(localStorage.getItem("schedule-tracker:tab") || "days");
+
+  useEffect(() => {
+    saveState({ days, sessions, events });
+  }, [days, sessions, events]);
+
+  useEffect(() => {
+    localStorage.setItem("schedule-tracker:tab", tab);
+  }, [tab]);
+
+  const resetAll = useCallback(() => {
+    if (!confirm("Сбросить все локальные правки и вернуться к исходным данным из data.js?")) return;
+    localStorage.removeItem(STORE_KEY);
+    setDays(SEED_DAYS.map(ensureId));
+    setSessions(SEED_SESSIONS.map(ensureId));
+    setEvents(SEED_EVENTS.map(ensureId));
+  }, []);
+
+  const exportJson = useCallback(() => {
+    const data = JSON.stringify({ days, sessions, events }, null, 2);
+    download(`schedule-${new Date().toISOString().slice(0, 10)}.json`, data, "application/json");
+  }, [days, sessions, events]);
+
+  const totals = useMemo(() => {
+    const businessMin = sessions
+      .filter((s) => BUSINESS_CATS.has(s.category))
+      .reduce((a, s) => a + (s.min || 0), 0);
+    const paidMin = sessions
+      .filter((s) => s.category === "work_paid")
+      .reduce((a, s) => a + (s.min || 0), 0);
+    const portMin = sessions
+      .filter((s) => s.category === "portfolio")
+      .reduce((a, s) => a + (s.min || 0), 0);
+    const planMin = sessions
+      .filter((s) => s.category === "planning")
+      .reduce((a, s) => a + (s.min || 0), 0);
+    const sleepValues = days.map((d) => d.sleep_h).filter((v) => v !== null && v !== undefined);
+    const avgSleep = sleepValues.length ? sleepValues.reduce((a, b) => a + b, 0) / sleepValues.length : 0;
+    const modDays = days.filter((d) => d.modafinil_mg > 0).length;
+    return {
+      businessH: businessMin / 60,
+      paidH: paidMin / 60,
+      portH: portMin / 60,
+      planH: planMin / 60,
+      avgSleep,
+      modDays,
+      avgBusinessPerDay: days.length ? businessMin / 60 / days.length : 0,
+    };
+  }, [days, sessions]);
+
+  return html`
+    <div class="app-shell">
+      <header class="app-header">
+        <div class="app-header__row">
+          <div class="app-header__title-wrap">
+            <div class="app-header__title">
+              <span>schedule</span>
+              <span class="app-header__subtitle">/ 20 апр – 18 мая 2026 / ${days.length} дней</span>
+            </div>
+          </div>
+          <div class="app-header__actions">
+            <button class="btn" onClick=${exportJson}>
+              <span class="btn__icon-wrap">${I.download()}</span>
+              <span class="btn__text-wrap">JSON</span>
+            </button>
+            <button class="btn btn--ghost" onClick=${resetAll} title="reset local edits">
+              <span class="btn__icon-wrap">${I.reset()}</span>
+              <span class="btn__text-wrap">reset</span>
+            </button>
+          </div>
+        </div>
+        <${StatBar} totals=${totals} days=${days} />
+      </header>
+
+      <nav class="tabbar">
+        <${TabBtn} id="days" active=${tab} onClick=${setTab} label="Days" count=${days.length} />
+        <${TabBtn} id="sessions" active=${tab} onClick=${setTab} label="Sessions" count=${sessions.length} />
+        <${TabBtn} id="events" active=${tab} onClick=${setTab} label="Events" count=${events.length} />
+        <${TabBtn} id="insights" active=${tab} onClick=${setTab} label="Insights" count=${null} />
+      </nav>
+
+      ${tab === "days" &&
+      html`<${DaysTab}
+        days=${days}
+        sessions=${sessions}
+        setDays=${setDays}
+        setSessions=${setSessions}
+      />`}
+      ${tab === "sessions" && html`<${SessionsTab} sessions=${sessions} setSessions=${setSessions} />`}
+      ${tab === "events" && html`<${EventsTab} events=${events} setEvents=${setEvents} />`}
+      ${tab === "insights" && html`<${InsightsTab} days=${days} sessions=${sessions} />`}
+    </div>
+  `;
+}
+
+function TabBtn({ id, active, onClick, label, count }) {
+  return html`
+    <button
+      class=${`tab ${active === id ? "tab--active" : ""}`}
+      onClick=${() => onClick(id)}
+      type="button"
+    >
+      <span>${label}</span>
+      ${count !== null &&
+      html`<span class="tab__count"><span>${count}</span></span>`}
+    </button>
+  `;
+}
+
+function StatBar({ totals, days }) {
+  const burnouts = days.filter((d) => d.day_type === "burnout").length;
+  return html`
+    <div class="stat-bar">
+      <${StatCell} label="avg business/day" value=${fmt(totals.avgBusinessPerDay)} unit="ч" tone="info" />
+      <${StatCell} label="total business" value=${fmt(totals.businessH, 0)} unit="ч" />
+      <${StatCell} label="paid" value=${fmt(totals.paidH, 0)} unit="ч" tone="success" />
+      <${StatCell} label="portfolio" value=${fmt(totals.portH, 0)} unit="ч" tone="info" />
+      <${StatCell} label="planning" value=${fmt(totals.planH, 0)} unit="ч" />
+      <${StatCell} label="avg sleep" value=${fmt(totals.avgSleep)} unit="ч" />
+      <${StatCell} label="mod days" value=${`${totals.modDays}/${days.length}`} unit="" tone="warning" />
+      <${StatCell} label="burnouts" value=${burnouts} unit="" tone=${burnouts > 0 ? "danger" : null} />
+    </div>
+  `;
+}
+
+function StatCell({ label, value, unit, tone }) {
+  const cls = tone ? `stat-cell__value stat-cell__value--${tone}` : "stat-cell__value";
+  return html`
+    <div class="stat-cell">
+      <div class=${cls}>
+        <span>${value}</span>
+        ${unit && html`<span class="stat-cell__unit">${unit}</span>`}
+      </div>
+      <div class="stat-cell__label">${label}</div>
+    </div>
+  `;
+}
+
+// ---------------- sortable+filterable sheet ----------------
+
+function useSheetState(key, initialSort) {
+  const [sort, setSort] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem(`schedule-tracker:sort:${key}`)) || initialSort;
+    } catch {
+      return initialSort;
+    }
+  });
+  const [filters, setFilters] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem(`schedule-tracker:filter:${key}`)) || {};
+    } catch {
+      return {};
+    }
+  });
+  const [search, setSearch] = useState("");
+
+  useEffect(() => {
+    localStorage.setItem(`schedule-tracker:sort:${key}`, JSON.stringify(sort));
+  }, [sort, key]);
+  useEffect(() => {
+    localStorage.setItem(`schedule-tracker:filter:${key}`, JSON.stringify(filters));
+  }, [filters, key]);
+
+  const toggleSort = useCallback((id) => {
+    setSort((prev) => {
+      if (prev?.id !== id) return { id, dir: "asc" };
+      if (prev.dir === "asc") return { id, dir: "desc" };
+      return null;
+    });
+  }, []);
+
+  const setFilter = useCallback((id, value) => {
+    setFilters((prev) => {
+      const next = { ...prev };
+      if (!value) delete next[id];
+      else next[id] = value;
+      return next;
+    });
+  }, []);
+
+  return { sort, toggleSort, filters, setFilter, search, setSearch };
+}
+
+function applySheet(rows, sort, filters, search, columns) {
+  const q = search.trim().toLowerCase();
+  let out = rows;
+
+  if (q) {
+    out = out.filter((row) =>
+      columns.some((c) => {
+        const v = c.accessor ? c.accessor(row) : row[c.id];
+        if (v === null || v === undefined) return false;
+        return String(v).toLowerCase().includes(q);
+      }),
+    );
+  }
+
+  for (const [id, val] of Object.entries(filters)) {
+    if (!val) continue;
+    const col = columns.find((c) => c.id === id);
+    if (!col) continue;
+    if (col.filterMode === "exact") {
+      out = out.filter((row) => {
+        const v = col.accessor ? col.accessor(row) : row[col.id];
+        return String(v ?? "") === val;
+      });
+    } else {
+      const lc = val.toLowerCase();
+      out = out.filter((row) => {
+        const v = col.accessor ? col.accessor(row) : row[col.id];
+        if (v === null || v === undefined) return false;
+        return String(v).toLowerCase().includes(lc);
+      });
+    }
+  }
+
+  if (sort) {
+    const col = columns.find((c) => c.id === sort.id);
+    if (col) {
+      const dir = sort.dir === "asc" ? 1 : -1;
+      out = [...out].sort((a, b) => {
+        const av = col.sortAccessor
+          ? col.sortAccessor(a)
+          : col.accessor
+            ? col.accessor(a)
+            : a[col.id];
+        const bv = col.sortAccessor
+          ? col.sortAccessor(b)
+          : col.accessor
+            ? col.accessor(b)
+            : b[col.id];
+        if (av === bv) return 0;
+        if (av === null || av === undefined) return 1;
+        if (bv === null || bv === undefined) return -1;
+        if (typeof av === "number" && typeof bv === "number") return (av - bv) * dir;
+        return String(av).localeCompare(String(bv)) * dir;
+      });
+    }
+  }
+
+  return out;
+}
+
+function SheetHeader({ columns, sort, toggleSort, filters, setFilter }) {
+  return html`
+    <thead>
+      <tr>
+        ${columns.map((col) => {
+          const active = sort?.id === col.id;
+          const dirIcon = !active ? I.sort() : sort.dir === "asc" ? I.sortAsc() : I.sortDesc();
+          return html`
+            <th key=${col.id} class=${col.thClass || ""}>
+              <div class="sheet__th">
+                <div
+                  class="sheet__th-top"
+                  onClick=${() => col.sortable !== false && toggleSort(col.id)}
+                  title=${col.title || col.label}
+                >
+                  <div class="sheet__th-label-wrap">
+                    <span class="sheet__th-label">${col.label}</span>
+                  </div>
+                  ${col.sortable !== false &&
+                  html`
+                    <div
+                      class=${`sheet__th-sort-wrap ${active ? "sheet__th-sort-wrap--active" : ""}`}
+                    >
+                      ${dirIcon}
+                    </div>
+                  `}
+                </div>
+                ${col.filterable !== false &&
+                html`
+                  <div class="sheet__th-filter-wrap">
+                    ${col.filterOptions
+                      ? html`
+                          <select
+                            class="sheet__th-filter-input"
+                            value=${filters[col.id] || ""}
+                            onChange=${(e) => setFilter(col.id, e.currentTarget.value)}
+                          >
+                            <option value="">все</option>
+                            ${col.filterOptions.map(
+                              (opt) =>
+                                html`<option value=${opt.value || opt}>${opt.label || opt}</option>`,
+                            )}
+                          </select>
+                        `
+                      : html`
+                          <input
+                            type="text"
+                            class="sheet__th-filter-input"
+                            placeholder="filter…"
+                            value=${filters[col.id] || ""}
+                            onInput=${(e) => setFilter(col.id, e.currentTarget.value)}
+                          />
+                        `}
+                  </div>
+                `}
+              </div>
+            </th>
+          `;
+        })}
+      </tr>
+    </thead>
+  `;
+}
+
+function Toolbar({ search, setSearch, onExport, extraLeft, extraRight, hint }) {
+  return html`
+    <div class="toolbar">
+      <div class="toolbar__left">
+        <div class="search-wrap">
+          <span class="search-wrap__icon">${I.search()}</span>
+          <input
+            type="search"
+            class="search-wrap__input"
+            placeholder="search across columns…"
+            value=${search}
+            onInput=${(e) => setSearch(e.currentTarget.value)}
+          />
+        </div>
+        ${extraLeft}
+      </div>
+      <div class="toolbar__right">
+        ${hint && html`<span class="kbd"><span>${hint}</span></span>`}
+        ${extraRight}
+        ${onExport &&
+        html`
+          <button class="btn" onClick=${onExport}>
+            <span class="btn__icon-wrap">${I.download()}</span>
+            <span class="btn__text-wrap">CSV</span>
+          </button>
+        `}
+      </div>
+    </div>
+  `;
+}
+
+// ---------------- Days tab ----------------
+
+function DaysTab({ days, sessions, setDays, setSessions }) {
+  const [expanded, setExpanded] = useState(() => new Set());
+  const { sort, toggleSort, filters, setFilter, search, setSearch } = useSheetState("days", {
+    id: "date",
+    dir: "asc",
+  });
+
+  const rows = useMemo(() => {
+    return days.map((d) => {
+      const agg = aggregateDay(d.date, sessions);
+      return { ...d, ...agg };
+    });
+  }, [days, sessions]);
+
+  const columns = useMemo(
+    () => [
+      {
+        id: "toggle",
+        label: "",
+        thClass: "col-w--xs",
+        sortable: false,
+        filterable: false,
+      },
+      { id: "date", label: "date", thClass: "col-w--md" },
+      { id: "dow", label: "dow", thClass: "col-w--xs", filterOptions: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"] },
+      { id: "sleep_h", label: "sleep_h", thClass: "col-w--sm" },
+      { id: "wake", label: "wake", thClass: "col-w--sm" },
+      { id: "sleep_start", label: "sleep_start", thClass: "col-w--sm" },
+      {
+        id: "modafinil_mg",
+        label: "mod_mg",
+        thClass: "col-w--sm",
+        filterOptions: ["0", "50", "75", "100"],
+        filterMode: "exact",
+      },
+      { id: "business_h", label: "business_h", thClass: "col-w--sm", sortAccessor: (r) => r.business_h },
+      { id: "work_paid_h", label: "paid_h", thClass: "col-w--sm" },
+      { id: "portfolio_h", label: "port_h", thClass: "col-w--sm" },
+      { id: "planning_h", label: "plan_h", thClass: "col-w--sm" },
+      { id: "sport_h", label: "sport_h", thClass: "col-w--sm" },
+      { id: "walk_h", label: "walk_h", thClass: "col-w--sm" },
+      {
+        id: "day_type",
+        label: "day_type",
+        thClass: "col-w--md",
+        filterOptions: DAY_TYPES,
+        filterMode: "exact",
+      },
+      {
+        id: "tags",
+        label: "tags",
+        thClass: "col-w--md",
+        accessor: (r) => (r.tags || []).join(","),
+        sortAccessor: (r) => (r.tags || []).join(","),
+      },
+      { id: "notes", label: "notes", thClass: "col-w--xl" },
+    ],
+    [],
+  );
+
+  const view = useMemo(
+    () => applySheet(rows, sort, filters, search, columns),
+    [rows, sort, filters, search, columns],
+  );
+
+  const toggleRow = useCallback((date) => {
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      if (next.has(date)) next.delete(date);
+      else next.add(date);
+      return next;
+    });
+  }, []);
+
+  const expandAll = useCallback(() => {
+    setExpanded(new Set(view.map((r) => r.date)));
+  }, [view]);
+
+  const collapseAll = useCallback(() => setExpanded(new Set()), []);
+
+  const updateDay = useCallback(
+    (id, patch) => {
+      setDays((prev) => prev.map((d) => (d.id === id ? { ...d, ...patch } : d)));
+    },
+    [setDays],
+  );
+
+  const exportCsv = useCallback(() => {
+    const headers = [
+      "date",
+      "dow",
+      "sleep_h",
+      "wake",
+      "sleep_start",
+      "modafinil_mg",
+      "business_h",
+      "paid_h",
+      "portfolio_h",
+      "planning_h",
+      "sport_h",
+      "walk_h",
+      "day_type",
+      "tags",
+      "notes",
+    ];
+    const data = view.map((r) => [
+      r.date,
+      r.dow,
+      r.sleep_h ?? "",
+      r.wake,
+      r.sleep_start,
+      r.modafinil_mg,
+      r.business_h.toFixed(2),
+      r.work_paid_h.toFixed(2),
+      r.portfolio_h.toFixed(2),
+      r.planning_h.toFixed(2),
+      r.sport_h.toFixed(2),
+      r.walk_h.toFixed(2),
+      r.day_type,
+      (r.tags || []).join("|"),
+      r.notes,
+    ]);
+    download("schedule-days.csv", toCsv([headers, ...data]), "text/csv;charset=utf-8");
+  }, [view]);
+
+  const totalBusiness = view.reduce((a, r) => a + r.business_h, 0);
+
+  return html`
+    <${Toolbar}
+      search=${search}
+      setSearch=${setSearch}
+      onExport=${exportCsv}
+      extraLeft=${html`
+        <button class="btn btn--ghost" onClick=${expandAll}>
+          <span class="btn__icon-wrap">${I.chevron()}</span>
+          <span class="btn__text-wrap">expand all</span>
+        </button>
+        <button class="btn btn--ghost" onClick=${collapseAll}>
+          <span class="btn__icon-wrap">${I.x()}</span>
+          <span class="btn__text-wrap">collapse all</span>
+        </button>
+        ${Object.keys(filters).length > 0 &&
+        html`
+          <button class="btn btn--ghost" onClick=${() => Object.keys(filters).forEach((k) => setFilter(k, ""))}>
+            <span class="btn__icon-wrap">${I.x()}</span>
+            <span class="btn__text-wrap">clear filters</span>
+          </button>
+        `}
+      `}
+      hint="click row to expand"
+    />
+    <div class="table-wrap">
+      <table class="sheet">
+        <${SheetHeader}
+          columns=${columns}
+          sort=${sort}
+          toggleSort=${toggleSort}
+          filters=${filters}
+          setFilter=${setFilter}
+        />
+        <tbody>
+          ${view.length === 0 && html`
+            <tr>
+              <td colspan=${columns.length}>
+                <div class="empty-wrap">
+                  <div class="empty-wrap__title">Ничего не нашлось</div>
+                  <div class="empty-wrap__hint">Попробуй очистить фильтры или поиск.</div>
+                </div>
+              </td>
+            </tr>
+          `}
+          ${view.map(
+            (r) => html`
+              <${DayRow}
+                key=${r.id}
+                row=${r}
+                expanded=${expanded.has(r.date)}
+                onToggle=${() => toggleRow(r.date)}
+                sessions=${sessions}
+                setSessions=${setSessions}
+                updateDay=${updateDay}
+              />
+            `,
+          )}
+        </tbody>
+      </table>
+    </div>
+    <div class="footer-bar">
+      <span>${view.length} of ${days.length} days</span>
+      <span class="footer-bar__spacer"></span>
+      <span>business: ${fmt(totalBusiness, 1)} ч</span>
+      <span>avg: ${fmt(view.length ? totalBusiness / view.length : 0)} ч/день</span>
+    </div>
+  `;
+}
+
+function DayRow({ row, expanded, onToggle, sessions, setSessions, updateDay }) {
+  const burnout = row.day_type === "burnout";
+  const rowClass = `${burnout ? "row--burnout" : ""} ${expanded ? "row--expanded" : ""}`;
+  const dayTone = dayTypeTone(row.day_type);
+  return html`
+    <tr class=${rowClass}>
+      <td class="col-w--xs">
+        <div class="row-toggle-wrap" onClick=${onToggle}>
+          <span
+            class=${`row-toggle-wrap__icon ${expanded ? "row-toggle-wrap__icon--open" : ""}`}
+          >
+            ${I.chevron()}
+          </span>
+        </div>
+      </td>
+      <td><div class="sheet__td">${row.date}</div></td>
+      <td><div class="sheet__td">${row.dow}</div></td>
+      <td>
+        <div class="sheet__td sheet__td--right sheet__td--num">
+          ${row.sleep_h !== null && row.sleep_h !== undefined ? fmt(row.sleep_h) : "–"}
+        </div>
+      </td>
+      <td><div class="sheet__td sheet__td--num">${row.wake}</div></td>
+      <td><div class="sheet__td sheet__td--num">${row.sleep_start}</div></td>
+      <td>
+        <div class="sheet__td sheet__td--right sheet__td--num">
+          ${row.modafinil_mg > 0 ? row.modafinil_mg : "–"}
+        </div>
+      </td>
+      <td><div class="sheet__td sheet__td--right sheet__td--num">${fmt(row.business_h)}</div></td>
+      <td><div class="sheet__td sheet__td--right sheet__td--num">${fmt(row.work_paid_h)}</div></td>
+      <td><div class="sheet__td sheet__td--right sheet__td--num">${fmt(row.portfolio_h)}</div></td>
+      <td><div class="sheet__td sheet__td--right sheet__td--num">${fmt(row.planning_h)}</div></td>
+      <td><div class="sheet__td sheet__td--right sheet__td--num">${fmt(row.sport_h)}</div></td>
+      <td><div class="sheet__td sheet__td--right sheet__td--num">${fmt(row.walk_h)}</div></td>
+      <td>
+        <div class="sheet__td">
+          <span class=${`pill pill--${dayTone}`}><span>${row.day_type}</span></span>
+        </div>
+      </td>
+      <td>
+        <div class="sheet__td">
+          <div class="tag-cell-wrap">
+            ${(row.tags || []).map((t) => html`<span class="pill"><span>${t}</span></span>`)}
+          </div>
+        </div>
+      </td>
+      <td>
+        <div class="sheet__td sheet__td--note">${row.notes}</div>
+      </td>
+    </tr>
+    ${expanded &&
+    html`
+      <tr>
+        <td colspan="16">
+          <${DayExpand}
+            date=${row.date}
+            row=${row}
+            sessions=${sessions}
+            setSessions=${setSessions}
+            updateDay=${updateDay}
+          />
+        </td>
+      </tr>
+    `}
+  `;
+}
+
+function DayExpand({ date, row, sessions, setSessions, updateDay }) {
+  const list = useMemo(() => {
+    const wake = row.wake || "00:00";
+    return sessions
+      .filter((s) => s.date === date)
+      .sort((a, b) => wakeRelativeMin(a.start, wake) - wakeRelativeMin(b.start, wake));
+  }, [sessions, date, row.wake]);
+
+  const addSession = useCallback(() => {
+    const last = list[list.length - 1];
+    const start = last ? last.end : row.wake || "10:00";
+    const newSess = {
+      id: uid(),
+      date,
+      start,
+      end: start,
+      min: 0,
+      category: "chill",
+      project: "",
+      quality: null,
+      note: "",
+    };
+    setSessions((prev) => [...prev, newSess]);
+  }, [list, date, setSessions, row.wake]);
+
+  const updateSession = useCallback(
+    (id, patch) => {
+      setSessions((prev) =>
+        prev.map((s) => {
+          if (s.id !== id) return s;
+          const next = { ...s, ...patch };
+          if (patch.start || patch.end) {
+            next.min = computeMinutes(next.start, next.end);
+          }
+          return next;
+        }),
+      );
+    },
+    [setSessions],
+  );
+
+  const removeSession = useCallback(
+    (id) => {
+      setSessions((prev) => prev.filter((s) => s.id !== id));
+    },
+    [setSessions],
+  );
+
+  return html`
+    <div class="expand-wrap">
+      <div class="expand-wrap__inner">
+        <div class="expand-wrap__header">
+          <div class="expand-wrap__title-wrap">
+            <span class="expand-wrap__title">${date} · ${row.dow} · ${list.length} sessions</span>
+            <span class="expand-wrap__hint">
+              business ${fmt(row.business_h)}h · sport ${fmt(row.sport_h)}h · walk ${fmt(row.walk_h)}h
+            </span>
+          </div>
+          <div class="expand-wrap__actions">
+            <button class="btn" onClick=${addSession}>
+              <span class="btn__icon-wrap">${I.plus()}</span>
+              <span class="btn__text-wrap">add session</span>
+            </button>
+          </div>
+        </div>
+        <${EditableSessionList}
+          sessions=${list}
+          updateSession=${updateSession}
+          removeSession=${removeSession}
+        />
+        <div class="expand-wrap__header">
+          <div class="expand-wrap__title-wrap">
+            <span class="expand-wrap__title">day fields</span>
+          </div>
+        </div>
+        <${DayMetaEditor} row=${row} updateDay=${updateDay} />
+      </div>
+    </div>
+  `;
+}
+
+function computeMinutes(start, end) {
+  const toMin = (t) => {
+    const [h, m] = t.split(":").map(Number);
+    if (isNaN(h) || isNaN(m)) return null;
+    return h * 60 + m;
+  };
+  const s = toMin(start);
+  let e = toMin(end);
+  if (s === null || e === null) return 0;
+  if (e < s) e += 24 * 60;
+  return e - s;
+}
+
+function EditableSessionList({ sessions, updateSession, removeSession }) {
+  const header = html`
+    <div class="session-row session-row--head">
+      <div class="session-row__cell session-row__cell--time"><span>start</span></div>
+      <div class="session-row__cell session-row__cell--time"><span>end</span></div>
+      <div class="session-row__cell session-row__cell--dur"><span>min</span></div>
+      <div class="session-row__cell session-row__cell--cat"><span>category</span></div>
+      <div class="session-row__cell session-row__cell--proj"><span>project</span></div>
+      <div class="session-row__cell session-row__cell--quality"><span>q</span></div>
+      <div class="session-row__cell session-row__cell--note"><span>note</span></div>
+      <div class="session-row__cell session-row__cell--actions"><span></span></div>
+    </div>
+  `;
+
+  if (sessions.length === 0) {
+    return html`
+      <div class="session-list">
+        ${header}
+        <div class="session-row">
+          <div class="session-row__cell session-row__cell--note">
+            <span>Сессий нет. Нажми "add session".</span>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+  return html`
+    <div class="session-list">
+      ${header}
+      ${sessions.map(
+        (s) => html`
+          <div class="session-row" key=${s.id}>
+            <div class="session-row__cell session-row__cell--time">
+              <input
+                class="session-row__input"
+                type="time"
+                value=${s.start}
+                onChange=${(e) => updateSession(s.id, { start: e.currentTarget.value })}
+              />
+            </div>
+            <div class="session-row__cell session-row__cell--time">
+              <input
+                class="session-row__input"
+                type="time"
+                value=${s.end}
+                onChange=${(e) => updateSession(s.id, { end: e.currentTarget.value })}
+              />
+            </div>
+            <div class="session-row__cell session-row__cell--dur">
+              <span>${s.min} мин</span>
+            </div>
+            <div class="session-row__cell session-row__cell--cat">
+              <select
+                class="session-row__select"
+                value=${s.category}
+                onChange=${(e) => updateSession(s.id, { category: e.currentTarget.value })}
+              >
+                ${CATEGORIES.map((c) => html`<option value=${c}>${c}</option>`)}
+              </select>
+            </div>
+            <div class="session-row__cell session-row__cell--proj">
+              <input
+                class="session-row__input"
+                type="text"
+                value=${s.project || ""}
+                placeholder="–"
+                onChange=${(e) => updateSession(s.id, { project: e.currentTarget.value })}
+              />
+            </div>
+            <div class="session-row__cell session-row__cell--quality">
+              <input
+                class="session-row__input"
+                type="number"
+                min="1"
+                max="10"
+                value=${s.quality ?? ""}
+                placeholder="–"
+                onChange=${(e) =>
+                  updateSession(s.id, {
+                    quality: e.currentTarget.value ? Number(e.currentTarget.value) : null,
+                  })}
+              />
+            </div>
+            <div class="session-row__cell session-row__cell--note">
+              <input
+                class="session-row__input"
+                type="text"
+                value=${s.note || ""}
+                placeholder="–"
+                onChange=${(e) => updateSession(s.id, { note: e.currentTarget.value })}
+              />
+            </div>
+            <div class="session-row__cell session-row__cell--actions">
+              <button
+                class="btn btn--ghost btn--icon"
+                onClick=${() => removeSession(s.id)}
+                title="delete"
+              >
+                <span class="btn__icon-wrap">${I.x()}</span>
+              </button>
+            </div>
+          </div>
+        `,
+      )}
+    </div>
+  `;
+}
+
+function DayMetaEditor({ row, updateDay }) {
+  return html`
+    <div class="session-list">
+      <div class="session-row session-row--head">
+        <div class="session-row__cell session-row__cell--cat"><span>day_type</span></div>
+        <div class="session-row__cell session-row__cell--time"><span>sleep_h</span></div>
+        <div class="session-row__cell session-row__cell--time"><span>mod_mg</span></div>
+        <div class="session-row__cell session-row__cell--time"><span>mood</span></div>
+        <div class="session-row__cell session-row__cell--time"><span>energy</span></div>
+        <div class="session-row__cell session-row__cell--time"><span>focus</span></div>
+        <div class="session-row__cell session-row__cell--note"><span>notes</span></div>
+      </div>
+      <div class="session-row">
+        <div class="session-row__cell session-row__cell--cat">
+          <select
+            class="session-row__select"
+            value=${row.day_type}
+            onChange=${(e) => updateDay(row.id, { day_type: e.currentTarget.value })}
+          >
+            ${DAY_TYPES.map((t) => html`<option value=${t}>${t}</option>`)}
+          </select>
+        </div>
+        <div class="session-row__cell session-row__cell--time">
+          <input
+            class="session-row__input"
+            type="number"
+            step="0.1"
+            value=${row.sleep_h ?? ""}
+            placeholder="–"
+            onChange=${(e) =>
+              updateDay(row.id, {
+                sleep_h: e.currentTarget.value ? Number(e.currentTarget.value) : null,
+              })}
+          />
+        </div>
+        <div class="session-row__cell session-row__cell--time">
+          <input
+            class="session-row__input"
+            type="number"
+            min="0"
+            value=${row.modafinil_mg}
+            placeholder="0"
+            onChange=${(e) => updateDay(row.id, { modafinil_mg: Number(e.currentTarget.value) || 0 })}
+          />
+        </div>
+        <div class="session-row__cell session-row__cell--time">
+          <input
+            class="session-row__input"
+            type="number"
+            min="1"
+            max="10"
+            value=${row.mood ?? ""}
+            placeholder="–"
+            onChange=${(e) =>
+              updateDay(row.id, {
+                mood: e.currentTarget.value ? Number(e.currentTarget.value) : null,
+              })}
+          />
+        </div>
+        <div class="session-row__cell session-row__cell--time">
+          <input
+            class="session-row__input"
+            type="number"
+            min="1"
+            max="10"
+            value=${row.energy ?? ""}
+            placeholder="–"
+            onChange=${(e) =>
+              updateDay(row.id, {
+                energy: e.currentTarget.value ? Number(e.currentTarget.value) : null,
+              })}
+          />
+        </div>
+        <div class="session-row__cell session-row__cell--time">
+          <input
+            class="session-row__input"
+            type="number"
+            min="1"
+            max="10"
+            value=${row.focus ?? ""}
+            placeholder="–"
+            onChange=${(e) =>
+              updateDay(row.id, {
+                focus: e.currentTarget.value ? Number(e.currentTarget.value) : null,
+              })}
+          />
+        </div>
+        <div class="session-row__cell session-row__cell--note">
+          <input
+            class="session-row__input"
+            type="text"
+            value=${row.notes || ""}
+            placeholder="–"
+            onChange=${(e) => updateDay(row.id, { notes: e.currentTarget.value })}
+          />
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+// ---------------- Sessions tab ----------------
+
+function SessionsTab({ sessions, setSessions }) {
+  const { sort, toggleSort, filters, setFilter, search, setSearch } = useSheetState("sessions", {
+    id: "date",
+    dir: "asc",
+  });
+
+  const columns = useMemo(
+    () => [
+      { id: "date", label: "date", thClass: "col-w--md" },
+      { id: "start", label: "start", thClass: "col-w--sm" },
+      { id: "end", label: "end", thClass: "col-w--sm" },
+      { id: "min", label: "min", thClass: "col-w--sm" },
+      {
+        id: "category",
+        label: "category",
+        thClass: "col-w--md",
+        filterOptions: CATEGORIES,
+        filterMode: "exact",
+      },
+      { id: "project", label: "project", thClass: "col-w--md" },
+      { id: "quality", label: "q", thClass: "col-w--xs" },
+      { id: "note", label: "note", thClass: "col-w--xl" },
+    ],
+    [],
+  );
+
+  const view = useMemo(
+    () => applySheet(sessions, sort, filters, search, columns),
+    [sessions, sort, filters, search, columns],
+  );
+
+  const updateSession = useCallback(
+    (id, patch) => {
+      setSessions((prev) =>
+        prev.map((s) => {
+          if (s.id !== id) return s;
+          const next = { ...s, ...patch };
+          if (patch.start || patch.end) next.min = computeMinutes(next.start, next.end);
+          return next;
+        }),
+      );
+    },
+    [setSessions],
+  );
+
+  const removeSession = useCallback(
+    (id) => {
+      setSessions((prev) => prev.filter((s) => s.id !== id));
+    },
+    [setSessions],
+  );
+
+  const exportCsv = useCallback(() => {
+    const headers = ["date", "start", "end", "min", "category", "project", "quality", "note"];
+    const rows = view.map((s) => [
+      s.date,
+      s.start,
+      s.end,
+      s.min,
+      s.category,
+      s.project || "",
+      s.quality ?? "",
+      s.note || "",
+    ]);
+    download("schedule-sessions.csv", toCsv([headers, ...rows]), "text/csv;charset=utf-8");
+  }, [view]);
+
+  const totalMin = view.reduce((a, s) => a + (s.min || 0), 0);
+  const byCat = useMemo(() => {
+    const map = new Map();
+    for (const s of view) {
+      map.set(s.category, (map.get(s.category) || 0) + (s.min || 0));
+    }
+    return [...map.entries()].sort((a, b) => b[1] - a[1]);
+  }, [view]);
+
+  return html`
+    <${Toolbar}
+      search=${search}
+      setSearch=${setSearch}
+      onExport=${exportCsv}
+      extraLeft=${html`
+        ${Object.keys(filters).length > 0 &&
+        html`
+          <button class="btn btn--ghost" onClick=${() => Object.keys(filters).forEach((k) => setFilter(k, ""))}>
+            <span class="btn__icon-wrap">${I.x()}</span>
+            <span class="btn__text-wrap">clear filters</span>
+          </button>
+        `}
+      `}
+      hint="click any cell to edit"
+    />
+    <div class="table-wrap">
+      <table class="sheet">
+        <${SheetHeader}
+          columns=${columns}
+          sort=${sort}
+          toggleSort=${toggleSort}
+          filters=${filters}
+          setFilter=${setFilter}
+        />
+        <tbody>
+          ${view.map((s) => {
+            const tone = categoryTone(s.category);
+            return html`
+              <tr key=${s.id}>
+                <td><div class="sheet__td">${s.date}</div></td>
+                <td>
+                  <div class="sheet__td">
+                    <input
+                      class="session-row__input"
+                      type="time"
+                      value=${s.start}
+                      onChange=${(e) => updateSession(s.id, { start: e.currentTarget.value })}
+                    />
+                  </div>
+                </td>
+                <td>
+                  <div class="sheet__td">
+                    <input
+                      class="session-row__input"
+                      type="time"
+                      value=${s.end}
+                      onChange=${(e) => updateSession(s.id, { end: e.currentTarget.value })}
+                    />
+                  </div>
+                </td>
+                <td>
+                  <div class="sheet__td sheet__td--right sheet__td--num">${s.min}</div>
+                </td>
+                <td>
+                  <div class="sheet__td">
+                    <select
+                      class="session-row__select"
+                      value=${s.category}
+                      onChange=${(e) => updateSession(s.id, { category: e.currentTarget.value })}
+                    >
+                      ${CATEGORIES.map((c) => html`<option value=${c}>${c}</option>`)}
+                    </select>
+                  </div>
+                </td>
+                <td>
+                  <div class="sheet__td">
+                    <input
+                      class="session-row__input"
+                      type="text"
+                      value=${s.project || ""}
+                      placeholder="–"
+                      onChange=${(e) => updateSession(s.id, { project: e.currentTarget.value })}
+                    />
+                  </div>
+                </td>
+                <td>
+                  <div class="sheet__td sheet__td--right">
+                    <input
+                      class="session-row__input"
+                      type="number"
+                      min="1"
+                      max="10"
+                      value=${s.quality ?? ""}
+                      onChange=${(e) =>
+                        updateSession(s.id, {
+                          quality: e.currentTarget.value ? Number(e.currentTarget.value) : null,
+                        })}
+                    />
+                  </div>
+                </td>
+                <td>
+                  <div class="sheet__td sheet__td--note">
+                    <input
+                      class="session-row__input"
+                      type="text"
+                      value=${s.note || ""}
+                      onChange=${(e) => updateSession(s.id, { note: e.currentTarget.value })}
+                    />
+                  </div>
+                </td>
+              </tr>
+            `;
+          })}
+        </tbody>
+      </table>
+    </div>
+    <div class="footer-bar">
+      <span>${view.length} of ${sessions.length} sessions</span>
+      <span>total: ${fmtHours(totalMin)}h</span>
+      <span class="footer-bar__spacer"></span>
+      ${byCat.slice(0, 4).map(([c, m]) => html`<span>${c}: ${fmtHours(m)}h</span>`)}
+    </div>
+  `;
+}
+
+// ---------------- Events tab ----------------
+
+function EventsTab({ events, setEvents }) {
+  const { sort, toggleSort, filters, setFilter, search, setSearch } = useSheetState("events", {
+    id: "date",
+    dir: "asc",
+  });
+
+  const kinds = useMemo(() => [...new Set(events.map((e) => e.kind))].sort(), [events]);
+
+  const columns = useMemo(
+    () => [
+      { id: "date", label: "date", thClass: "col-w--md" },
+      { id: "kind", label: "kind", thClass: "col-w--md", filterOptions: kinds, filterMode: "exact" },
+      {
+        id: "severity",
+        label: "severity",
+        thClass: "col-w--sm",
+        filterOptions: ["info", "warning", "danger"],
+        filterMode: "exact",
+      },
+      { id: "detail", label: "detail", thClass: "col-w--xl" },
+    ],
+    [kinds],
+  );
+
+  const view = useMemo(
+    () => applySheet(events, sort, filters, search, columns),
+    [events, sort, filters, search, columns],
+  );
+
+  const exportCsv = useCallback(() => {
+    const headers = ["date", "kind", "severity", "detail"];
+    const rows = view.map((e) => [e.date, e.kind, e.severity, e.detail]);
+    download("schedule-events.csv", toCsv([headers, ...rows]), "text/csv;charset=utf-8");
+  }, [view]);
+
+  const addEvent = useCallback(() => {
+    const newEvent = {
+      id: uid(),
+      date: new Date().toISOString().slice(0, 10),
+      kind: "",
+      severity: "info",
+      detail: "",
+    };
+    setEvents((prev) => [...prev, newEvent]);
+  }, [setEvents]);
+
+  const updateEvent = useCallback(
+    (id, patch) => {
+      setEvents((prev) => prev.map((e) => (e.id === id ? { ...e, ...patch } : e)));
+    },
+    [setEvents],
+  );
+
+  const removeEvent = useCallback(
+    (id) => {
+      setEvents((prev) => prev.filter((e) => e.id !== id));
+    },
+    [setEvents],
+  );
+
+  return html`
+    <${Toolbar}
+      search=${search}
+      setSearch=${setSearch}
+      onExport=${exportCsv}
+      extraLeft=${html`
+        <button class="btn" onClick=${addEvent}>
+          <span class="btn__icon-wrap">${I.plus()}</span>
+          <span class="btn__text-wrap">add event</span>
+        </button>
+      `}
+    />
+    <div class="table-wrap">
+      <table class="sheet">
+        <${SheetHeader}
+          columns=${columns}
+          sort=${sort}
+          toggleSort=${toggleSort}
+          filters=${filters}
+          setFilter=${setFilter}
+        />
+        <tbody>
+          ${view.map(
+            (e) => html`
+              <tr key=${e.id}>
+                <td>
+                  <div class="sheet__td">
+                    <input
+                      class="session-row__input"
+                      type="date"
+                      value=${e.date}
+                      onChange=${(ev) => updateEvent(e.id, { date: ev.currentTarget.value })}
+                    />
+                  </div>
+                </td>
+                <td>
+                  <div class="sheet__td">
+                    <input
+                      class="session-row__input"
+                      type="text"
+                      value=${e.kind}
+                      onChange=${(ev) => updateEvent(e.id, { kind: ev.currentTarget.value })}
+                    />
+                  </div>
+                </td>
+                <td>
+                  <div class="sheet__td">
+                    <select
+                      class="session-row__select"
+                      value=${e.severity}
+                      onChange=${(ev) => updateEvent(e.id, { severity: ev.currentTarget.value })}
+                    >
+                      <option value="info">info</option>
+                      <option value="warning">warning</option>
+                      <option value="danger">danger</option>
+                    </select>
+                  </div>
+                </td>
+                <td>
+                  <div class="sheet__td">
+                    <input
+                      class="session-row__input"
+                      type="text"
+                      value=${e.detail}
+                      onChange=${(ev) => updateEvent(e.id, { detail: ev.currentTarget.value })}
+                    />
+                    <button
+                      class="btn btn--ghost btn--icon"
+                      onClick=${() => removeEvent(e.id)}
+                      title="delete"
+                    >
+                      <span class="btn__icon-wrap">${I.x()}</span>
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            `,
+          )}
+        </tbody>
+      </table>
+    </div>
+    <div class="footer-bar">
+      <span>${view.length} of ${events.length} events</span>
+    </div>
+  `;
+}
+
+// ---------------- Insights tab ----------------
+
+function InsightsTab({ days, sessions }) {
+  const sorted = useMemo(() => [...days].sort((a, b) => a.date.localeCompare(b.date)), [days]);
+  const enriched = useMemo(
+    () =>
+      sorted.map((d) => {
+        const agg = aggregateDay(d.date, sessions);
+        return { ...d, ...agg };
+      }),
+    [sorted, sessions],
+  );
+
+  const byDose = useMemo(() => {
+    const buckets = { 0: [], 50: [], 75: [], 100: [] };
+    for (const d of enriched) {
+      if (d.modafinil_mg in buckets) buckets[d.modafinil_mg].push(d);
+    }
+    return Object.entries(buckets).map(([k, list]) => ({
+      key: `${k} mg`,
+      count: list.length,
+      avgWork: list.length ? list.reduce((a, b) => a + b.business_h, 0) / list.length : 0,
+      avgSleep:
+        list.filter((d) => d.sleep_h !== null).length > 0
+          ? list.filter((d) => d.sleep_h !== null).reduce((a, b) => a + b.sleep_h, 0) /
+            list.filter((d) => d.sleep_h !== null).length
+          : 0,
+    }));
+  }, [enriched]);
+
+  const bySleep = useMemo(() => {
+    const buckets = [
+      { label: "< 6h", min: 0, max: 6 },
+      { label: "6–7h", min: 6, max: 7 },
+      { label: "7–8h", min: 7, max: 8 },
+      { label: "8–10h", min: 8, max: 10 },
+      { label: "≥ 10h", min: 10, max: 99 },
+    ];
+    return buckets.map((b) => {
+      const list = enriched.filter(
+        (d) => d.sleep_h !== null && d.sleep_h >= b.min && d.sleep_h < b.max,
+      );
+      return {
+        key: b.label,
+        count: list.length,
+        avgWork: list.length ? list.reduce((a, b) => a + b.business_h, 0) / list.length : 0,
+      };
+    });
+  }, [enriched]);
+
+  const byDow = useMemo(() => {
+    const dowOrder = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+    return dowOrder.map((dn) => {
+      const list = enriched.filter((d) => d.dow === dn);
+      return {
+        key: dn,
+        count: list.length,
+        avgWork: list.length ? list.reduce((a, b) => a + b.business_h, 0) / list.length : 0,
+      };
+    });
+  }, [enriched]);
+
+  const byType = useMemo(() => {
+    const counts = {};
+    for (const d of enriched) counts[d.day_type] = (counts[d.day_type] || 0) + 1;
+    return Object.entries(counts).sort((a, b) => b[1] - a[1]);
+  }, [enriched]);
+
+  const sportInfluence = useMemo(() => {
+    // Days with morning sport (any sport session before 12:00)
+    const dayHasMorningSport = (date) =>
+      sessions.some(
+        (s) =>
+          s.date === date && SPORT_CATS.has(s.category) && s.start < "12:00",
+      );
+    const morning = enriched.filter((d) => dayHasMorningSport(d.date));
+    const noMorning = enriched.filter((d) => !dayHasMorningSport(d.date));
+    return {
+      morning: {
+        count: morning.length,
+        avg: morning.length ? morning.reduce((a, b) => a + b.business_h, 0) / morning.length : 0,
+      },
+      noMorning: {
+        count: noMorning.length,
+        avg: noMorning.length
+          ? noMorning.reduce((a, b) => a + b.business_h, 0) / noMorning.length
+          : 0,
+      },
+    };
+  }, [enriched, sessions]);
+
+  return html`
+    <div class="insights-grid">
+      <${InsightCard}
+        title="Сон и работа во времени"
+        subtitle="${enriched.length} дней · sleep_h vs business_h"
+      >
+        <${LineChart}
+          categories=${enriched.map((d) => d.date.slice(5))}
+          series=${[
+            { name: "sleep_h", color: "var(--info)", data: enriched.map((d) => d.sleep_h ?? 0) },
+            { name: "business_h", color: "var(--success)", data: enriched.map((d) => d.business_h) },
+            {
+              name: "modafinil×25mg",
+              color: "var(--warning)",
+              data: enriched.map((d) => d.modafinil_mg / 25),
+            },
+          ]}
+        />
+      </${InsightCard}>
+
+      <${InsightCard} title="Средняя работа по дозе модафинила" subtitle="n = ${enriched.length}">
+        <${BarChart}
+          rows=${byDose.map((b) => ({ label: `${b.key} (n=${b.count})`, value: b.avgWork, tone: "info" }))}
+          unit="ч"
+        />
+      </${InsightCard}>
+
+      <${InsightCard} title="Средняя работа по бакету сна" subtitle="business_h vs sleep_h">
+        <${BarChart}
+          rows=${bySleep.map((b) => ({
+            label: `${b.key} (n=${b.count})`,
+            value: b.avgWork,
+            tone: "success",
+          }))}
+          unit="ч"
+        />
+      </${InsightCard}>
+
+      <${InsightCard} title="Среднее по дню недели" subtitle="малая выборка">
+        <${BarChart}
+          rows=${byDow.map((b) => ({
+            label: `${b.key} (n=${b.count})`,
+            value: b.avgWork,
+            tone: "warning",
+          }))}
+          unit="ч"
+        />
+      </${InsightCard}>
+
+      <${InsightCard} title="Распределение day_type" subtitle="${enriched.length} дней">
+        <${BarChart}
+          rows=${byType.map(([t, c]) => ({
+            label: t,
+            value: c,
+            tone:
+              t === "burnout"
+                ? "danger"
+                : t === "work"
+                  ? "success"
+                  : t === "mixed"
+                    ? "info"
+                    : "warning",
+          }))}
+          unit=""
+        />
+      </${InsightCard}>
+
+      <${InsightCard} title="Утренний спорт → работа" subtitle="сессии спорта до 12:00">
+        <${BarChart}
+          rows=${[
+            {
+              label: `с утренним спортом (n=${sportInfluence.morning.count})`,
+              value: sportInfluence.morning.avg,
+              tone: "danger",
+            },
+            {
+              label: `без (n=${sportInfluence.noMorning.count})`,
+              value: sportInfluence.noMorning.avg,
+              tone: "success",
+            },
+          ]}
+          unit="ч"
+        />
+      </${InsightCard}>
+
+      <${InsightCard} title="Гипотезы" subtitle="по текущей выборке">
+        <div class="callout callout--info">
+          <div class="callout__title-wrap"><span class="callout__title">75мг ≈ 100мг при хорошем сне</span></div>
+          <div class="callout__body-wrap">
+            <span>
+              27.04 (75мг, 8ч сна) дал 7ч работы; 29.04 (100мг, 6.3ч сна) — 8.8ч. Прирост маленький относительно цены — 100мг оправдан только в дедлайн.
+            </span>
+          </div>
+        </div>
+        <div class="callout callout--warning">
+          <div class="callout__title-wrap"><span class="callout__title">Утро не для спорта</span></div>
+          <div class="callout__body-wrap">
+            <span>
+              Дни с серфом/залом до 12:00: ${sportInfluence.morning.count} шт., средняя работа ${fmt(sportInfluence.morning.avg)}ч.
+              Без утреннего спорта: ${fmt(sportInfluence.noMorning.avg)}ч. Перенеси спорт на вечер.
+            </span>
+          </div>
+        </div>
+        <div class="callout callout--danger">
+          <div class="callout__title-wrap"><span class="callout__title">Burnout-каскад 05.05 → 09.05</span></div>
+          <div class="callout__body-wrap">
+            <span>
+              Три коллапса за 5 дней после цепочки коротких ночей и 100мг на серф. Триггер — недосып, не сама доза.
+            </span>
+          </div>
+        </div>
+      </${InsightCard}>
+    </div>
+  `;
+}
+
+function InsightCard({ title, subtitle, children }) {
+  return html`
+    <div class="insight-card">
+      <div class="insight-card__header">
+        <div class="insight-card__title-wrap">
+          <span class="insight-card__title">${title}</span>
+          ${subtitle && html`<span class="insight-card__subtitle">${subtitle}</span>`}
+        </div>
+      </div>
+      <div class="insight-card__body">${children}</div>
+    </div>
+  `;
+}
+
+function BarChart({ rows, unit }) {
+  const max = Math.max(...rows.map((r) => r.value), 1);
+  return html`
+    <div class="bar-chart-wrap">
+      ${rows.map(
+        (r) => html`
+          <div class="bar-row" key=${r.label}>
+            <div class="bar-row__label-wrap"><span>${r.label}</span></div>
+            <div class="bar-row__track">
+              <div
+                class=${`bar-row__fill bar-row__fill--${r.tone || "info"}`}
+                style=${`width: ${(r.value / max) * 100}%;`}
+              ></div>
+            </div>
+            <div class="bar-row__value-wrap">
+              <span>${fmt(r.value, r.value >= 10 ? 0 : 1)}${unit}</span>
+            </div>
+          </div>
+        `,
+      )}
+    </div>
+  `;
+}
+
+function LineChart({ categories, series }) {
+  const W = 800;
+  const H = 200;
+  const padL = 32;
+  const padB = 24;
+  const padT = 8;
+  const padR = 12;
+  const innerW = W - padL - padR;
+  const innerH = H - padT - padB;
+  const allValues = series.flatMap((s) => s.data);
+  const maxV = Math.max(...allValues, 1);
+  const minV = Math.min(...allValues, 0);
+  const range = maxV - minV || 1;
+
+  const xStep = innerW / Math.max(categories.length - 1, 1);
+  const xAt = (i) => padL + i * xStep;
+  const yAt = (v) => padT + innerH - ((v - minV) / range) * innerH;
+
+  const linePath = (data) => {
+    return data
+      .map((v, i) => `${i === 0 ? "M" : "L"} ${xAt(i).toFixed(1)} ${yAt(v).toFixed(1)}`)
+      .join(" ");
+  };
+
+  const yTicks = 4;
+  const ticks = Array.from({ length: yTicks + 1 }, (_, i) => minV + (range * i) / yTicks);
+
+  return html`
+    <div class="line-chart-wrap">
+      <svg viewBox=${`0 0 ${W} ${H}`} preserveAspectRatio="none">
+        ${ticks.map((t) => {
+          const y = yAt(t);
+          return html`
+            <g key=${t}>
+              <line
+                x1=${padL}
+                x2=${W - padR}
+                y1=${y}
+                y2=${y}
+                stroke="var(--border)"
+                stroke-width="1"
+              />
+              <text
+                x=${padL - 4}
+                y=${y + 3}
+                text-anchor="end"
+                font-size="9"
+                fill="var(--text-3)"
+                font-family="ui-monospace, monospace"
+              >${fmt(t, 0)}</text>
+            </g>
+          `;
+        })}
+        ${categories.map((c, i) => {
+          if (i % Math.ceil(categories.length / 10) !== 0 && i !== categories.length - 1) return null;
+          return html`
+            <text
+              key=${c}
+              x=${xAt(i)}
+              y=${H - 6}
+              text-anchor="middle"
+              font-size="9"
+              fill="var(--text-3)"
+              font-family="ui-monospace, monospace"
+            >${c}</text>
+          `;
+        })}
+        ${series.map(
+          (s) => html`
+            <path
+              key=${s.name}
+              d=${linePath(s.data)}
+              fill="none"
+              stroke=${s.color}
+              stroke-width="1.5"
+              stroke-linejoin="round"
+              stroke-linecap="round"
+            />
+          `,
+        )}
+      </svg>
+      <div class="legend-wrap">
+        ${series.map(
+          (s) => html`
+            <div class="legend-item-wrap" key=${s.name}>
+              <span class="legend-swatch" style=${`background: ${s.color}`}></span>
+              <span class="legend-label">${s.name}</span>
+            </div>
+          `,
+        )}
+      </div>
+    </div>
+  `;
+}
+
+// ---------------- export ----------------
+
+export default App;

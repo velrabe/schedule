@@ -1,0 +1,35 @@
+project_id = "schedule"
+
+[api]
+enabled = true
+port = 54321
+schemas = ["public"]
+extra_search_path = ["public", "extensions"]
+max_rows = 1000
+
+[db]
+port = 54322
+shadow_port = 54320
+major_version = 15
+
+[studio]
+enabled = true
+port = 54323
+
+[storage]
+enabled = true
+file_size_limit = "10MiB"
+
+[auth]
+# We use a custom JWT password gate instead of Supabase Auth.
+# Keeping this section minimal — service role only on the backend.
+enabled = false
+
+[functions.auth]
+verify_jwt = false
+
+[functions.chat]
+verify_jwt = false
+
+[functions.confirm]
+verify_jwt = false
