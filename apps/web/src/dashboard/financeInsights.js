@@ -237,6 +237,22 @@ export function fmtRub(n) {
   return `${Math.round(Number(n) || 0).toLocaleString("ru-RU")} ₽`;
 }
 
+/** Short axis labels so the left column stays narrow when the chart is wide. */
+export function fmtRubAxis(n) {
+  const v = Math.round(Number(n) || 0);
+  const abs = Math.abs(v);
+  const sign = v < 0 ? "−" : "";
+  if (abs >= 1_000_000) {
+    const m = abs / 1_000_000;
+    return `${sign}${m >= 10 ? Math.round(m) : m.toFixed(1).replace(/\.0$/, "")}M`;
+  }
+  if (abs >= 1000) {
+    const k = abs / 1000;
+    return `${sign}${k >= 100 ? Math.round(k) : k >= 10 ? k.toFixed(0) : k.toFixed(1).replace(/\.0$/, "")}k`;
+  }
+  return `${sign}${abs}`;
+}
+
 export function plannedItemLabel(p) {
   const rub = toRub(p.amount, p.currency);
   const rec =

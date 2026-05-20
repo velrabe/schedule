@@ -1,7 +1,12 @@
 import { h } from "preact";
 import { useCallback, useMemo, useRef, useState } from "preact/hooks";
 import htm from "htm";
-import { fmtRub, formatDayBreakdownTooltip, getDayBreakdown, downsampleChartSeries } from "./financeInsights.js";
+import {
+  fmtRubAxis,
+  formatDayBreakdownTooltip,
+  getDayBreakdown,
+  downsampleChartSeries,
+} from "./financeInsights.js";
 
 const html = htm.bind(h);
 
@@ -177,98 +182,108 @@ export default function FinanceBalanceChart({
   const factD = stepPath(sampled.fact);
   const hoverIdx = activeDate ? sampled.dates.indexOf(activeDate) : -1;
 
+  const yAxisTicks = [...ticks].reverse();
+
   return html`
     <div class="line-chart-wrap balance-chart-wrap--interactive">
-      <svg
-        ref=${svgRef}
-        viewBox=${`0 0 ${W} ${H}`}
-        preserveAspectRatio="none"
-        onMouseMove=${(e) => pickDate(e.clientX, e.clientY)}
-        onMouseLeave=${clearHover}
-        onClick=${onSvgClick}
-      >
-        ${ticks.map((t) => {
-          const y = yAt(t);
-          return html`
-            <g key=${t}>
-              <line x1=${padL} x2=${W - padR} y1=${y} y2=${y} stroke="var(--border)" stroke-width="1" />
-              <text
-                x=${padL - 4}
-                y=${y + 3}
-                text-anchor="end"
-                font-size="9"
-                fill="var(--text-3)"
-                font-family="ui-monospace, monospace"
-              >${fmtRub(t)}</text>
-            </g>
-          `;
-        })}
-        ${sampled.dates.map((d, i) => {
-          if (i % labelEvery !== 0 && i !== n - 1) return null;
-          return html`
-            <text
-              key=${"lbl-" + d}
-              x=${xAt(i)}
-              y=${H - 6}
-              text-anchor="middle"
-              font-size="9"
-              fill="var(--text-3)"
-              font-family="ui-monospace, monospace"
-            >${d.slice(5)}</text>
-          `;
-        })}
-        ${planD &&
-        html`
-          <path
-            d=${planD}
-            fill="none"
-            stroke="var(--success)"
-            stroke-width="1.5"
-            stroke-dasharray="5 4"
-          />
-        `}
-        ${factD &&
-        html`
-          <path d=${factD} fill="none" stroke="var(--info)" stroke-width="2" />
-        `}
-        ${markers.map((m, i) => {
-          const idx = dates.indexOf(m.date);
-          if (idx < 0 || plan[idx] == null) return null;
-          const si = sampled.dates.indexOf(m.date);
-          if (si < 0 || sampled.plan[si] == null) return null;
-          return html`
-            <circle
-              key=${"m-" + i}
-              cx=${xAt(si)}
-              cy=${yAt(sampled.plan[si])}
-              r="4"
-              fill=${m.deltaRub < 0 ? "var(--danger)" : "var(--success)"}
-            />
-          `;
-        })}
-        ${hoverIdx >= 0 &&
-        html`
-          <line
-            x1=${xAt(hoverIdx)}
-            x2=${xAt(hoverIdx)}
-            y1=${padT}
-            y2=${padT + innerH}
-            stroke="var(--text-2)"
-            stroke-width="1"
-            stroke-dasharray="3 3"
-          />
-        `}
-        ${sampled.dates.map((d, i) => html`
-          <rect
-            key=${"hit-" + d}
-            x=${xAt(i) - xStep / 2}
-            y=${padT}
-            width=${xStep}
-            height=${innerH}
-            fill="transparent"
-          />
-        `)}
-      </svg>
+      <div class="balance-chart-layout">
+        <div class="balance-chart-yaxis-wrap" aria-hidden="true">
+          ${yAxisTicks.map((t) => html`
+            <span class="balance-chart-yaxis-tick" key=${t}>${fmtRubAxis(t)}</span>
+          `)}
+        </div>
+        <div class="balance-chart-plot-wrap">
+          <svg
+            ref=${svgRef}
+            class="balance-chart-svg"
+            viewBox=${`0 0 ${W} ${H}`}
+            preserveAspectRatio="none"
+            onMouseMove=${(e) => pickDate(e.clientX, e.clientY)}
+            onMouseLeave=${clearHover}
+            onClick=${onSvgClick}
+          >
+            ${ticks.map((t) => {
+              const y = yAt(t);
+              return html`
+                <line
+                  key=${t}
+                  x1=${padL}
+                  x2=${W - padR}
+                  y1=${y}
+                  y2=${y}
+                  stroke="var(--border)"
+                  stroke-width="1"
+                />
+              `;
+            })}
+            ${sampled.dates.map((d, i) => {
+              if (i % labelEvery !== 0 && i !== n - 1) return null;
+              return html`
+                <text
+                  key=${"lbl-" + d}
+                  x=${xAt(i)}
+                  y=${H - 6}
+                  text-anchor="middle"
+                  font-size="8"
+                  fill="var(--text-3)"
+                  font-family="ui-monospace, monospace"
+                >${d.slice(5)}</text>
+              `;
+            })}
+            ${planD &&
+            html`
+              <path
+                d=${planD}
+                fill="none"
+                stroke="var(--success)"
+                stroke-width="1.25"
+                stroke-dasharray="4 3"
+              />
+            `}
+            ${factD &&
+            html`
+              <path d=${factD} fill="none" stroke="var(--info)" stroke-width="1.5" />
+            `}
+            ${markers.map((m, i) => {
+              const idx = dates.indexOf(m.date);
+              if (idx < 0 || plan[idx] == null) return null;
+              const si = sampled.dates.indexOf(m.date);
+              if (si < 0 || sampled.plan[si] == null) return null;
+              return html`
+                <circle
+                  key=${"m-" + i}
+                  cx=${xAt(si)}
+                  cy=${yAt(sampled.plan[si])}
+                  r="2"
+                  fill=${m.deltaRub < 0 ? "var(--danger)" : "var(--success)"}
+                />
+              `;
+            })}
+            ${hoverIdx >= 0 &&
+            html`
+              <line
+                x1=${xAt(hoverIdx)}
+                x2=${xAt(hoverIdx)}
+                y1=${padT}
+                y2=${padT + innerH}
+                stroke="var(--text-2)"
+                stroke-width="1"
+                stroke-dasharray="3 3"
+              />
+            `}
+            ${sampled.dates.map((d, i) => html`
+              <rect
+                key=${"hit-" + d}
+                x=${xAt(i) - xStep / 2}
+                y=${padT}
+                width=${xStep}
+                height=${innerH}
+                fill="transparent"
+              />
+            `)}
+          </svg>
+        </div>
+      </div>
       ${tooltipLines.length > 0 &&
       tooltipPos &&
       html`
