@@ -55,12 +55,14 @@ function recurrenceNote(item) {
 
 /** Expand planned budget lines to dated deltas (for chart/tooltip). */
 export function expandPlannedItems(items, fromDate, toDate, fx = FX_RUB_PER_UNIT) {
+  if (!fromDate || !toDate) return [];
   const out = [];
   for (const item of items || []) {
     if (item.active === false) continue;
     const start = item.start_date;
+    if (!start || typeof start !== "string") continue;
     const end = item.end_date || toDate;
-    if (end < fromDate || start > toDate) continue;
+    if (!end || end < fromDate || start > toDate) continue;
 
     const sign = (item.txn_type || "expense") === "income" ? 1 : -1;
     const delta = sign * toRub(item.amount, item.currency, fx);
@@ -247,8 +249,20 @@ export function plannedItemLabel(p) {
   return `${p.title}: ${sign}${fmtRub(rub)} · ${rec}`;
 }
 
+const EMPTY_DAY_BREAKDOWN = {
+  date: null,
+  snapshot: null,
+  txns: [],
+  planned: [],
+  txnDeltaRub: 0,
+  plannedDeltaRub: 0,
+  isFuture: false,
+  isToday: false,
+};
+
 /** Per-day rows for chart tooltip and day drawer. */
 export function getDayBreakdown(date, { finance = [], snapshots = [], plannedItems = [], today, fx = FX_RUB_PER_UNIT }) {
+  if (!date) return { ...EMPTY_DAY_BREAKDOWN };
   const txns = (finance || []).filter((t) => t.date === date);
   const planned = expandPlannedItems(plannedItems, date, date, fx);
   const snapshot = (snapshots || []).find((s) => s.date === date);
@@ -269,7 +283,8 @@ export function formatDayBreakdownTooltip(
   { factBalance, planBalance },
 ) {
   const lines = [];
-  const d = breakdown.date;
+  const d = breakdown?.date;
+  if (!d) return lines;
   const [y, m, day] = d.split("-");
   lines.push(`${day}.${m}.${y}`);
 

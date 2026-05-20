@@ -179,7 +179,7 @@ export function useSupabaseSnapshot() {
           accounts: raw.accounts,
           balance_snapshots: raw.balance_snapshots,
           finance_planned_items: raw.finance_planned_items,
-          events: raw.events.map(mapEvent),
+          events: (raw.events ?? []).map(mapEvent),
           raw,
         },
       });

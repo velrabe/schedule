@@ -1,9 +1,30 @@
+import { Component } from "preact";
 import { useEffect, useState } from "preact/hooks";
 import AuthGate from "./auth/AuthGate";
 import FloatingChat from "./chat/FloatingChat";
 import ScheduleTracker from "./dashboard/ScheduleTracker.jsx";
 import { useSupabaseSnapshot } from "./dashboard/supabase-bridge";
 import { getToken } from "./api/token";
+
+class DashboardErrorBoundary extends Component {
+  state = { error: null as Error | null };
+
+  componentDidCatch(err: Error) {
+    this.setState({ error: err });
+  }
+
+  render() {
+    if (this.state.error) {
+      return (
+        <div class="boot-wrap">
+          <span class="boot-text">ошибка дашборда: {this.state.error.message}</span>
+          <span class="boot-text">открой консоль (F12) или переключи вкладку Finance → по дням</span>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
 
 function Dashboard() {
   const { state, reload } = useSupabaseSnapshot();
@@ -18,11 +39,13 @@ function Dashboard() {
 
   if (state.status === "ready") {
     return (
-      <ScheduleTracker
-        liveData={state.data}
-        sourceBadge="LIVE"
-        onReload={reload}
-      />
+      <DashboardErrorBoundary>
+        <ScheduleTracker
+          liveData={state.data}
+          sourceBadge="LIVE"
+          onReload={reload}
+        />
+      </DashboardErrorBoundary>
     );
   }
 
@@ -36,7 +59,9 @@ function Dashboard() {
           </span>
         </div>
       )}
-      <ScheduleTracker sourceBadge="DEMO" onReload={reload} />
+      <DashboardErrorBoundary>
+        <ScheduleTracker sourceBadge="DEMO" onReload={reload} />
+      </DashboardErrorBoundary>
     </>
   );
 }

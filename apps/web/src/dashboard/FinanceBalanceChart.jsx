@@ -136,6 +136,32 @@ export default function FinanceBalanceChart({
     }
   };
 
+  const fullHoverIdx = activeDate ? dates.indexOf(activeDate) : -1;
+
+  const tooltipLines = useMemo(() => {
+    if (!chart || !activeDate || fullHoverIdx < 0) return [];
+    const breakdown = getDayBreakdown(activeDate, {
+      finance,
+      snapshots: balance_snapshots,
+      plannedItems: finance_planned_items,
+      today,
+    });
+    return formatDayBreakdownTooltip(breakdown, {
+      factBalance: fact[fullHoverIdx],
+      planBalance: plan[fullHoverIdx],
+    });
+  }, [
+    chart,
+    activeDate,
+    fullHoverIdx,
+    finance,
+    balance_snapshots,
+    finance_planned_items,
+    today,
+    fact,
+    plan,
+  ]);
+
   if (!chart) {
     return html`
       <div class="balance-chart-empty-wrap">
@@ -150,21 +176,6 @@ export default function FinanceBalanceChart({
   const planD = stepPath(sampled.plan);
   const factD = stepPath(sampled.fact);
   const hoverIdx = activeDate ? sampled.dates.indexOf(activeDate) : -1;
-  const fullHoverIdx = activeDate ? dates.indexOf(activeDate) : -1;
-
-  const tooltipLines = useMemo(() => {
-    if (!activeDate || fullHoverIdx < 0) return [];
-    const breakdown = getDayBreakdown(activeDate, {
-      finance,
-      snapshots: balance_snapshots,
-      plannedItems: finance_planned_items,
-      today,
-    });
-    return formatDayBreakdownTooltip(breakdown, {
-      factBalance: fact[fullHoverIdx],
-      planBalance: plan[fullHoverIdx],
-    });
-  }, [activeDate, fullHoverIdx, finance, balance_snapshots, finance_planned_items, today, fact, plan]);
 
   return html`
     <div class="line-chart-wrap balance-chart-wrap--interactive">

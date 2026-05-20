@@ -115,19 +115,22 @@ export default function FinanceChartTab({
         </span>
       </div>
 
-      <${FinanceDayDrawer}
-        date=${selectedDate}
-        finance=${finance}
-        balance_snapshots=${balance_snapshots}
-        finance_planned_items=${finance_planned_items}
-        factBalance=${factAt}
-        planBalance=${planAt}
-        today=${today}
-        liveMode=${liveMode}
-        onClose=${() => setSelectedDate(null)}
-        onOpenTxn=${(t) => onOpenRecord?.({ kind: "finance", record: t })}
-        onAddTxn=${openNewTxn}
-      />
+      ${selectedDate &&
+      html`
+        <${FinanceDayDrawer}
+          date=${selectedDate}
+          finance=${finance}
+          balance_snapshots=${balance_snapshots}
+          finance_planned_items=${finance_planned_items}
+          factBalance=${factAt}
+          planBalance=${planAt}
+          today=${today}
+          liveMode=${liveMode}
+          onClose=${() => setSelectedDate(null)}
+          onOpenTxn=${(t) => onOpenRecord?.({ kind: "finance", record: t })}
+          onAddTxn=${openNewTxn}
+        />
+      `}
     </div>
   `;
 }

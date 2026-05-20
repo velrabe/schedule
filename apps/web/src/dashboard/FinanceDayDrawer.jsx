@@ -28,19 +28,18 @@ export default function FinanceDayDrawer({
   const [factInput, setFactInput] = useState("");
   const [saving, setSaving] = useState(false);
 
-  const breakdown = getDayBreakdown(date, {
-    finance,
-    snapshots: balance_snapshots,
-    plannedItems: finance_planned_items,
-    today,
-  });
-
   useEffect(() => {
     if (!date) return;
+    const breakdown = getDayBreakdown(date, {
+      finance,
+      snapshots: balance_snapshots,
+      plannedItems: finance_planned_items,
+      today,
+    });
     const snap = breakdown.snapshot;
     const val = snap != null ? String(Math.round(snap)) : factBalance != null ? String(Math.round(factBalance)) : "";
     setFactInput(val);
-  }, [date, breakdown.snapshot, factBalance]);
+  }, [date, finance, balance_snapshots, finance_planned_items, today, factBalance]);
 
   useEffect(() => {
     if (!date) return;
@@ -76,6 +75,13 @@ export default function FinanceDayDrawer({
   }, [factInput, liveMode, date]);
 
   if (!date) return null;
+
+  const breakdown = getDayBreakdown(date, {
+    finance,
+    snapshots: balance_snapshots,
+    plannedItems: finance_planned_items,
+    today,
+  });
 
   const stopInside = (e) => e.stopPropagation();
 
