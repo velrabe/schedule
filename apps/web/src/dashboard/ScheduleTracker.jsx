@@ -8,6 +8,7 @@ import {
   CATEGORIES,
   DAY_TYPES,
 } from "./seed.js";
+import { useDateStrip, localTodayISO } from "./useDateStrip.js";
 
 const html = htm.bind(h);
 const STORE_KEY = "schedule-tracker:v1";
@@ -1844,19 +1845,23 @@ function LineChart({ categories, series }) {
 
 // ---------------- shared helpers for new views ----------------
 
-function localTodayISO(tz = "Asia/Ho_Chi_Minh") {
-  try {
-    return new Intl.DateTimeFormat("en-CA", { timeZone: tz }).format(new Date());
-  } catch {
-    const d = new Date();
-    return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-${String(d.getUTCDate()).padStart(2, "0")}`;
-  }
-}
-
 function diffMinutes(start, end) {
   const s = timeToMin(start);
   const e = timeToMin(end);
   return ((e - s + 24 * 60) % (24 * 60)) || 0;
+}
+
+function DateStripControls({ canLoadPast, onToday }) {
+  return html`
+    <div class="date-strip-controls-wrap">
+      ${canLoadPast
+        ? html`<span class="date-strip-hint">← прокрути влево — подгрузить ещё 30 дней</span>`
+        : html`<span class="date-strip-hint date-strip-hint--muted">начало истории</span>`}
+      <button class="btn btn--ghost" onClick=${onToday} type="button" title="к сегодня">
+        <span class="btn__text-wrap">today</span>
+      </button>
+    </div>
+  `;
 }
 
 // ---------------- calendar view ----------------
@@ -2105,28 +2110,15 @@ function KanbanTab({ days, sessions, meals = [], activities = [], setSessions, l
     return map;
   }, [days]);
 
-  const today = localTodayISO();
-
-  // Build a continuous date range: from earliest known date to today (or last known if later).
-  const sortedDates = useMemo(() => {
-    const set = new Set(days.map((d) => d.date));
+  const knownDates = useMemo(() => {
+    const set = new Set();
+    for (const d of days) set.add(d.date);
     for (const s of sessions) set.add(s.date);
-    set.add(today);
-    const arr = [...set].sort();
-    if (arr.length === 0) return [today];
-    // Fill gaps so days move chronologically without holes.
-    const first = arr[0];
-    const last = arr[arr.length - 1] > today ? arr[arr.length - 1] : today;
-    const out = [];
-    let cur = new Date(`${first}T00:00:00Z`);
-    const end = new Date(`${last}T00:00:00Z`);
-    while (cur <= end) {
-      const iso = cur.toISOString().slice(0, 10);
-      out.push(iso);
-      cur.setUTCDate(cur.getUTCDate() + 1);
-    }
-    return out;
-  }, [days, sessions, today]);
+    return [...set];
+  }, [days, sessions]);
+
+  const { today, visibleDates, scrollRef, todayColRef, onScroll, canLoadPast, scrollToToday } =
+    useDateStrip(knownDates);
 
   const sessionsByDate = useMemo(() => {
     const map = new Map();
@@ -2155,19 +2147,9 @@ function KanbanTab({ days, sessions, meals = [], activities = [], setSessions, l
     return map;
   }, [activities]);
 
-  const [editing, setEditing] = useState(null);   // session id currently being edited
-  const [adding, setAdding] = useState(null);     // date for which a new session is being added
+  const [editing, setEditing] = useState(null);
+  const [adding, setAdding] = useState(null);
   const [saving, setSaving] = useState(false);
-  const scrollRef = useRef(null);
-  const todayColRef = useRef(null);
-
-  // Auto-scroll to today's column on mount (and whenever date list changes).
-  useEffect(() => {
-    if (!scrollRef.current || !todayColRef.current) return;
-    const sc = scrollRef.current;
-    const col = todayColRef.current;
-    sc.scrollLeft = col.offsetLeft - 16;
-  }, [sortedDates.length]);
 
   const onSaveEdit = useCallback(
     async (id, patch) => {
@@ -2262,8 +2244,9 @@ function KanbanTab({ days, sessions, meals = [], activities = [], setSessions, l
   return html`
     <div class="kanban-wrap">
       ${saving && html`<div class="kanban-saving"><span>сохраняю…</span></div>`}
-      <div class="kanban-scroll-wrap" ref=${scrollRef}>
-        ${sortedDates.map((date) => {
+      <${DateStripControls} canLoadPast=${canLoadPast} onToday=${scrollToToday} />
+      <div class="kanban-scroll-wrap date-strip-scroll" ref=${scrollRef} onScroll=${onScroll}>
+        ${visibleDates.map((date) => {
           const day = byDate.get(date);
           const list = sessionsByDate.get(date) || [];
           const sorted = day
@@ -2475,12 +2458,16 @@ function KanbanSessionEditor({ value, isNew = false, onSave, onCancel, onDelete 
 const NUTRITION_TARGET = { kcal: 1800, carbs: 180, protein: 116, fat: 64 };
 
 function NutritionTab({ days, meals = [], activities = [] }) {
-  const dates = useMemo(() => {
-    const set = new Set(days.map((d) => d.date));
+  const knownDates = useMemo(() => {
+    const set = new Set();
+    for (const d of days) set.add(d.date);
     for (const m of meals) set.add(m.date);
     for (const a of activities) set.add(a.date);
-    return [...set].sort().reverse();
+    return [...set];
   }, [days, meals, activities]);
+
+  const { today, visibleDates, scrollRef, todayColRef, onScroll, canLoadPast, scrollToToday } =
+    useDateStrip(knownDates);
 
   const mealsByDate = useMemo(() => {
     const map = new Map();
@@ -2500,22 +2487,15 @@ function NutritionTab({ days, meals = [], activities = [] }) {
     return map;
   }, [activities]);
 
-  if (dates.length === 0) {
-    return html`
-      <div class="nutri-empty-wrap">
-        <span class="nutri-empty">Нет данных о питании. Логируй еду через чат или добавь вручную.</span>
-      </div>
-    `;
-  }
-
   return html`
     <div class="nutri-wrap">
       <div class="nutri-target-wrap">
         <span class="nutri-target-label">цель на день</span>
         <span class="nutri-target-val">${NUTRITION_TARGET.kcal} kcal · C${NUTRITION_TARGET.carbs} · P${NUTRITION_TARGET.protein} · F${NUTRITION_TARGET.fat}</span>
       </div>
-      <div class="nutri-scroll-wrap">
-        ${dates.map((date) => {
+      <${DateStripControls} canLoadPast=${canLoadPast} onToday=${scrollToToday} />
+      <div class="nutri-scroll-wrap date-strip-scroll" ref=${scrollRef} onScroll=${onScroll}>
+        ${visibleDates.map((date) => {
           const dayMeals = mealsByDate.get(date) || [];
           const dayActs = actsByDate.get(date) || [];
           const kcalIn = dayMeals.reduce((a, m) => a + (Number(m.kcal) || 0), 0);
@@ -2524,10 +2504,12 @@ function NutritionTab({ days, meals = [], activities = [] }) {
           const carbs = dayMeals.reduce((a, m) => a + (Number(m.carbs_g) || 0), 0);
           const protein = dayMeals.reduce((a, m) => a + (Number(m.protein_g) || 0), 0);
           const fat = dayMeals.reduce((a, m) => a + (Number(m.fat_g) || 0), 0);
+          const isToday = date === today;
+          const isFuture = date > today;
           return html`
-            <div class="nutri-day-col" key=${date}>
+            <div class=${`nutri-day-col ${isToday ? "nutri-day-col--today" : ""} ${isFuture ? "nutri-day-col--future" : ""}`} key=${date} ref=${isToday ? todayColRef : null}>
               <div class="nutri-day-head-wrap">
-                <span class="nutri-day-date">${date}</span>
+                <span class="nutri-day-date">${date}${isToday ? " · today" : ""}</span>
                 <span class="nutri-day-balance ${balance > NUTRITION_TARGET.kcal ? "nutri-day-balance--over" : ""}">
                   баланс ${Math.round(balance)} / ${NUTRITION_TARGET.kcal}
                 </span>

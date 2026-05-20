@@ -831,6 +831,46 @@ button.kanban-card:hover {
   background: var(--surface);
 }
 
+.nutri-day-col--today {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent) inset;
+}
+
+.nutri-day-col--today .nutri-day-date {
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.date-strip-controls-wrap {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 0 0 8px 0;
+  gap: 8px;
+}
+
+.date-strip-hint {
+  font-size: 10px;
+  font-family: var(--mono);
+  color: var(--text-3);
+}
+
+.date-strip-hint--muted {
+  opacity: 0.6;
+}
+
+.date-strip-scroll {
+  scroll-behavior: smooth;
+}
+
+.kanban-col-wrap--future,
+.nutri-day-col--future {
+  opacity: 0.72;
+  border-style: dashed;
+}
+
 .nutri-day-head-wrap {
   display: flex;
   flex-direction: column;
