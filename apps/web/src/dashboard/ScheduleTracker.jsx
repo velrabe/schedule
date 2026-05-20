@@ -10,6 +10,8 @@ import {
 } from "./seed.js";
 import { useDateStrip, localTodayISO } from "./useDateStrip.js";
 import { EditableField } from "./EditableField.jsx";
+import RecordEditDrawer from "./RecordEditDrawer.jsx";
+import { RecordOpenRow } from "./RecordOpenRow.jsx";
 import { manualPatch, manualUpsertDay } from "./manualSave.js";
 import {
   NutriBar,
@@ -236,6 +238,12 @@ function App(props = {}) {
   const [sessions, setSessions] = useState(initial.sessions);
   const [events, setEvents] = useState(initial.events);
   const [tab, setTab] = useState(localStorage.getItem("schedule-tracker:tab") || "days");
+  const [recordEditor, setRecordEditor] = useState(null);
+  const openRecordEditor = useCallback((target) => {
+    if (!target?.record?.id) return;
+    setRecordEditor(target);
+  }, []);
+  const closeRecordEditor = useCallback(() => setRecordEditor(null), []);
 
   // When liveData changes (e.g. after a chat confirm), refresh local state.
   useEffect(() => {
@@ -355,6 +363,7 @@ function App(props = {}) {
         liveMode=${Boolean(liveData)}
         setSessions=${setSessions}
         setDays=${setDays}
+        onOpenRecord=${openRecordEditor}
       />`}
       ${tab === "kanban" && html`<${KanbanTab} days=${days} sessions=${sessions} meals=${liveData?.meals || []} activities=${liveData?.activities || []} setSessions=${setSessions} liveMode=${Boolean(liveData)} active=${true} />`}
       ${tab === "nutrition" &&
@@ -364,10 +373,18 @@ function App(props = {}) {
         activities=${liveData?.activities || []}
         active=${true}
         liveMode=${Boolean(liveData)}
+        onOpenRecord=${openRecordEditor}
       />`}
       ${tab === "sessions" && html`<${SessionsTab} sessions=${sessions} setSessions=${setSessions} />`}
       ${tab === "events" && html`<${EventsTab} events=${events} setEvents=${setEvents} />`}
       ${tab === "insights" && html`<${InsightsTab} days=${days} sessions=${sessions} />`}
+
+      <${RecordEditDrawer}
+        target=${recordEditor}
+        onClose=${closeRecordEditor}
+        liveMode=${Boolean(liveData)}
+        setSessions=${setSessions}
+      />
     </div>
   `;
 }
@@ -1906,7 +1923,7 @@ const MEAL_SLOT_RU = {
 
 // ---------------- calendar view ----------------
 
-function CalendarTab({ days, sessions, meals = [], activities = [], liveMode = false, setSessions, setDays }) {
+function CalendarTab({ days, sessions, meals = [], activities = [], liveMode = false, setSessions, setDays, onOpenRecord }) {
   const byDate = useMemo(() => {
     const map = new Map();
     for (const d of days) map.set(d.date, d);
@@ -2052,6 +2069,7 @@ function CalendarTab({ days, sessions, meals = [], activities = [], liveMode = f
             liveMode=${liveMode}
             setSessions=${setSessions}
             setDays=${setDays}
+            onOpenRecord=${onOpenRecord}
           />
         </div>
       `}
@@ -2059,99 +2077,53 @@ function CalendarTab({ days, sessions, meals = [], activities = [], liveMode = f
   `;
 }
 
-function CalDetailNutriColumn({ meal, activity, slotLabel, bars = [], liveMode = false }) {
+function CalDetailNutriColumn({ meal, activity, slotLabel, bars = [], liveMode = false, onOpenRecord }) {
   const isAct = Boolean(activity);
   const mk = meal ? Number(meal.kcal) || 0 : 0;
   const burn = activity ? Number(activity.calories_burned) || 0 : 0;
+  const open = () => {
+    if (meal) onOpenRecord?.({ kind: "meal", record: meal });
+    else if (activity) onOpenRecord?.({ kind: "activity", record: activity });
+  };
 
   return html`
-    <div class=${`cal-detail-col-wrap ${isAct ? "cal-detail-col-wrap--act" : ""}`}>
+    <${RecordOpenRow}
+      className=${`cal-detail-col-wrap ${isAct ? "cal-detail-col-wrap--act" : ""}`}
+      onOpen=${onOpenRecord ? open : null}
+      disabled=${!liveMode}
+    >
       <div class="cal-detail-col-slot-wrap">
         <span class=${`cal-detail-col-slot ${isAct ? "cal-detail-col-slot--act" : ""}`}>${slotLabel}</span>
       </div>
       <div class="cal-detail-col-name-wrap">
-        ${meal &&
-        html`<${EditableField}
-          value=${meal.name}
-          disabled=${!liveMode}
-          className="editable-field-btn--col-name"
-          onSave=${(v) => manualPatch("meals", meal.id, { name: v })}
-        />`}
-        ${activity &&
-        html`<${EditableField}
-          value=${activity.notes ?? ""}
-          display=${activityDetailLabel(activity)}
-          disabled=${!liveMode}
-          className="editable-field-btn--col-name"
-          onSave=${(v) => manualPatch("activities", activity.id, { notes: v || null })}
-        />`}
+        <span class="cal-detail-col-name">${meal ? meal.name : activityDetailLabel(activity)}</span>
       </div>
       <div class="cal-detail-col-kcal-wrap">
-        ${meal &&
-        html`<${EditableField}
-          type="number"
-          value=${meal.kcal}
-          display=${mk > 0 ? `${Math.round(mk)} kcal` : "—"}
-          disabled=${!liveMode}
-          className="editable-field-btn--col-kcal"
-          onSave=${(v) => manualPatch("meals", meal.id, { kcal: v })}
-        />`}
-        ${activity &&
-        html`<${EditableField}
-          type="number"
-          value=${activity.calories_burned}
-          display=${burn > 0 ? `${Math.round(burn)} kcal` : "—"}
-          disabled=${!liveMode}
-          className="editable-field-btn--col-kcal editable-field-btn--burn"
-          onSave=${(v) => manualPatch("activities", activity.id, { calories_burned: v })}
-        />`}
+        <span class=${`cal-detail-col-kcal ${isAct ? "cal-detail-col-kcal--burn" : ""}`}>
+          ${meal ? (mk > 0 ? `${Math.round(mk)} kcal` : "—") : burn > 0 ? `${Math.round(burn)} kcal` : "—"}
+        </span>
       </div>
-      ${meal && html`
-        <div class="cal-detail-col-macros-edit-wrap">
-          <${EditableField}
-            type="number"
-            value=${meal.carbs_g}
-            display=${meal.carbs_g != null ? `C${Math.round(Number(meal.carbs_g))}` : "C—"}
-            disabled=${!liveMode}
-            className="editable-field-btn--macro"
-            onSave=${(v) => manualPatch("meals", meal.id, { carbs_g: v })}
-          />
-          <${EditableField}
-            type="number"
-            value=${meal.protein_g}
-            display=${meal.protein_g != null ? `P${Math.round(Number(meal.protein_g))}` : "P—"}
-            disabled=${!liveMode}
-            className="editable-field-btn--macro"
-            onSave=${(v) => manualPatch("meals", meal.id, { protein_g: v })}
-          />
-          <${EditableField}
-            type="number"
-            value=${meal.fat_g}
-            display=${meal.fat_g != null ? `F${Math.round(Number(meal.fat_g))}` : "F—"}
-            disabled=${!liveMode}
-            className="editable-field-btn--macro"
-            onSave=${(v) => manualPatch("meals", meal.id, { fat_g: v })}
-          />
+      ${meal &&
+      html`
+        <div class="cal-detail-col-macros-wrap">
+          <span class="cal-detail-col-macro">
+            ${meal.carbs_g != null ? `C${Math.round(Number(meal.carbs_g))}` : "C—"}
+            ${meal.protein_g != null ? ` P${Math.round(Number(meal.protein_g))}` : " P—"}
+            ${meal.fat_g != null ? ` F${Math.round(Number(meal.fat_g))}` : " F—"}
+          </span>
         </div>
       `}
-      ${activity &&
-      activity.duration_min != null &&
+      ${activity && activity.duration_min != null &&
       html`
         <div class="cal-detail-col-dur-wrap">
-          <${EditableField}
-            type="number"
-            value=${activity.duration_min}
-            display=${`${activity.duration_min}m`}
-            disabled=${!liveMode}
-            className="editable-field-btn--dur"
-            onSave=${(v) => manualPatch("activities", activity.id, { duration_min: v })}
-          />
+          <span class="cal-detail-col-dur">${activity.duration_min}m</span>
         </div>
       `}
       ${bars.length > 0 && html`<${NutriMicroBars} items=${bars} layout="col" />`}
-    </div>
+    </${RecordOpenRow}>
   `;
 }
+
 
 function CalendarDayDetail({
   date,
@@ -2162,6 +2134,7 @@ function CalendarDayDetail({
   liveMode = false,
   setSessions,
   setDays,
+  onOpenRecord,
 }) {
   const sortedMeals = useMemo(
     () =>
@@ -2218,29 +2191,6 @@ function CalendarDayDetail({
       await manualUpsertDay(date, row);
     },
     [date, liveMode, setDays],
-  );
-
-  const saveSession = useCallback(
-    async (id, patch) => {
-      const orig = sessions.find((s) => s.id === id);
-      if (!orig) return;
-      const next = { ...orig, ...patch };
-      if (patch.start !== undefined || patch.end !== undefined) {
-        next.min = diffMinutes(next.start, next.end);
-      }
-      if (liveMode && setSessions) {
-        setSessions((prev) => prev.map((s) => (s.id === id ? next : s)));
-        await manualPatch("sessions", id, {
-          start_time: next.start,
-          end_time: next.end,
-          duration_min: next.min,
-          category: next.category || null,
-          project: next.project || null,
-          notes: next.note || null,
-        });
-      }
-    },
-    [sessions, liveMode, setSessions],
   );
 
   return html`
@@ -2322,6 +2272,7 @@ function CalendarDayDetail({
                   key=${m.id}
                   meal=${m}
                   liveMode=${liveMode}
+                  onOpenRecord=${onOpenRecord}
                   slotLabel=${MEAL_SLOT_RU[m.slot] || m.slot || "еда"}
                   bars=${barsForMeal(m, NUTRITION_TARGET)}
                 />
@@ -2333,6 +2284,7 @@ function CalendarDayDetail({
                   key=${a.id}
                   activity=${a}
                   liveMode=${liveMode}
+                  onOpenRecord=${onOpenRecord}
                   slotLabel=${activityTypeLabel(a)}
                   bars=${burn > 0
                     ? [{ key: "b", label: "out", value: burn, target: NUTRITION_TARGET.kcal, kind: "activity" }]
@@ -2349,45 +2301,21 @@ function CalendarDayDetail({
         <div class="cal-detail-sessions-wrap">
           ${sorted.length === 0 && html`<div class="cal-detail-empty-wrap"><span>сессии не записаны</span></div>`}
           ${sorted.map((s) => html`
-            <div class="cal-detail-session" key=${s.id}>
+            <${RecordOpenRow}
+              key=${s.id}
+              className="cal-detail-session"
+              onOpen=${onOpenRecord ? () => onOpenRecord({ kind: "session", record: s }) : null}
+              disabled=${!liveMode}
+            >
               <div class="cal-detail-session-time-wrap">
-                <${EditableField}
-                  type="time"
-                  value=${s.start}
-                  disabled=${!liveMode}
-                  className="cal-detail-session__time"
-                  onSave=${(v) => saveSession(s.id, { start: v })}
-                />
+                <span class="cal-detail-session__time">${s.start}</span>
                 <span class="cal-detail-session__sep">–</span>
-                <${EditableField}
-                  type="time"
-                  value=${s.end}
-                  disabled=${!liveMode}
-                  className="cal-detail-session__time"
-                  onSave=${(v) => saveSession(s.id, { end: v })}
-                />
+                <span class="cal-detail-session__time">${s.end}</span>
               </div>
-              <${EditableField}
-                value=${s.category}
-                disabled=${!liveMode}
-                className="cal-detail-session__cat"
-                onSave=${(v) => saveSession(s.id, { category: v })}
-              />
-              <${EditableField}
-                value=${s.project || ""}
-                display=${s.project || "—"}
-                disabled=${!liveMode}
-                className="cal-detail-session__proj"
-                onSave=${(v) => saveSession(s.id, { project: v })}
-              />
-              <${EditableField}
-                value=${s.note || ""}
-                display=${s.note || ""}
-                disabled=${!liveMode}
-                className="cal-detail-session__note"
-                onSave=${(v) => saveSession(s.id, { note: v })}
-              />
-            </div>
+              <span class="cal-detail-session__cat">${s.category}</span>
+              <span class="cal-detail-session__proj">${s.project || "—"}</span>
+              <span class="cal-detail-session__note">${s.note || ""}</span>
+            </${RecordOpenRow}>
           `)}
         </div>
       </div>
@@ -2783,7 +2711,7 @@ function KanbanSessionEditor({ value, isNew = false, onSave, onCancel, onDelete 
 
 // ---------------- nutrition view ----------------
 
-function NutritionTab({ days, meals = [], activities = [], active = true, liveMode = false }) {
+function NutritionTab({ days, meals = [], activities = [], active = true, liveMode = false, onOpenRecord }) {
   const knownDates = useMemo(() => {
     const set = new Set();
     for (const d of days) set.add(d.date);
@@ -2859,38 +2787,36 @@ function NutritionTab({ days, meals = [], activities = [], active = true, liveMo
               <div class="nutri-meals-wrap">
                 ${dayMeals.length === 0 && html`<span class="nutri-meal-empty">нет приёмов пищи</span>`}
                 ${dayMeals.map((m) => html`
-                  <div class="nutri-meal-row" key=${m.id}>
+                  <${RecordOpenRow}
+                    key=${m.id}
+                    className="nutri-meal-row"
+                    onOpen=${onOpenRecord ? () => onOpenRecord({ kind: "meal", record: m }) : null}
+                    disabled=${!liveMode}
+                  >
                     <span class="nutri-meal-slot">${m.slot || "—"}</span>
-                    <${EditableField}
-                      value=${m.name}
-                      disabled=${!liveMode}
-                      className="nutri-meal-name editable-field-btn--meal-name"
-                      onSave=${(v) => manualPatch("meals", m.id, { name: v })}
-                    />
-                    <${EditableField}
-                      type="number"
-                      value=${m.kcal}
-                      display=${m.kcal != null ? `${Math.round(Number(m.kcal))}` : "—"}
-                      disabled=${!liveMode}
-                      className="nutri-meal-kcal editable-field-btn--meal-kcal"
-                      onSave=${(v) => manualPatch("meals", m.id, { kcal: v })}
-                    />
+                    <span class="nutri-meal-name">${m.name}</span>
+                    <span class="nutri-meal-kcal">${m.kcal != null ? `${Math.round(Number(m.kcal))}` : "—"}</span>
                     <span class="nutri-meal-macro">
                       ${m.carbs_g != null ? `C${Math.round(Number(m.carbs_g))}` : ""}
                       ${m.protein_g != null ? ` P${Math.round(Number(m.protein_g))}` : ""}
                       ${m.fat_g != null ? ` F${Math.round(Number(m.fat_g))}` : ""}
                     </span>
-                  </div>
+                  </${RecordOpenRow}>
                 `)}
               </div>
               ${dayActs.length > 0 && html`
                 <div class="nutri-acts-wrap">
                   ${dayActs.map((a) => html`
-                    <div class="nutri-act-row" key=${a.id}>
+                    <${RecordOpenRow}
+                      key=${a.id}
+                      className="nutri-act-row"
+                      onOpen=${onOpenRecord ? () => onOpenRecord({ kind: "activity", record: a }) : null}
+                      disabled=${!liveMode}
+                    >
                       <span class="nutri-act-type">${activityTypeLabel(a)}</span>
                       <span class="nutri-act-kcal">🔥 ${Math.round(Number(a.calories_burned) || 0)}</span>
                       ${a.duration_min != null && html`<span class="nutri-act-dur">${a.duration_min}m</span>`}
-                    </div>
+                    </${RecordOpenRow}>
                   `)}
                 </div>
               `}
