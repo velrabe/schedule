@@ -51,6 +51,16 @@ export function summarizeAction(a: Action): string {
       const proj = d.project ? ` · ${d.project}` : "";
       return `${start && end ? `${start}–${end}` : start || "сессия"} · ${cat}${proj}${date ? ` · ${date}` : ""}`;
     }
+    case "update_session": {
+      const start = d.start_time != null ? trimTime(d.start_time) : "";
+      const end = d.end_time != null ? trimTime(d.end_time) : "";
+      const times = start && end ? `${start}–${end}` : start ? `старт ${start}` : end ? `конец ${end}` : "время";
+      const proj = d.project ? ` · ${d.project}` : "";
+      return `Обновить сессию${proj}: ${times}${date ? ` · ${date}` : ""}`;
+    }
+    case "delete_session": {
+      return `Удалить сессию ${d.id ?? ""}${date ? ` · ${date}` : ""}`;
+    }
     case "create_work_session_open": {
       return `Открыть работу «${d.project ?? "?"}» с ${trimTime(d.start_time)}${date ? ` · ${date}` : ""}`;
     }

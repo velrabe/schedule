@@ -62,6 +62,21 @@ Session lifecycle:
 ALWAYS set "type" field:
 - work_paid / personal / byt → type=work
 - (don't conflate type and category — type is the high-level bucket from the schema)
+
+Session updates / moves (НЕ delete+create):
+- "подвинь", "сдвинь", "обнови сессии", "перенеси блок", "старт на 12:20" → update_session using id from CURRENT CONTEXT today_summary.sessions[].id.
+- NEVER ask to delete+recreate a session only to change times. Use update_session.
+- When one block moves and would overlap the next session on the same day:
+  1) update_session for the moved block (new start_time and/or end_time, keep duration unless user changes it)
+  2) update_session for EVERY following session that touches the overlap — shift by the same delta, preserve each duration_min
+  3) Example: block A 12:00–13:20 → start 12:20 (duration unchanged); block B was 13:20–14:00 → becomes 13:20–14:00 if only A's start moved; if A's end extends into B, push B's start to A.end and B.end += same extension
+- If a following session would become shorter than 5 minutes or fully inside another block → ask_clarification:
+  "Если подвинуть окончание «X» …, сессия «Y» будет поглощена и удалена. Продолжить?"
+- delete_session only when user explicitly asks to remove/cancel a session.
+
+Actions:
+- update_session { id, date, start_time?, end_time?, category?, project?, notes? }
+- delete_session { id, date? }
 `;
 
 const SPORT = `

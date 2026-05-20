@@ -13,6 +13,11 @@ import {
   padTime,
   diffMinutes,
 } from "../_shared/actions.ts";
+import {
+  executeSessionActions,
+  isSessionScheduleAction,
+  SwallowRequiredError,
+} from "../_shared/sessionConfirm.ts";
 import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
 
 type Action = { type: string; data: Record<string, unknown> };
@@ -27,7 +32,12 @@ Deno.serve(async (req) => {
   const auth = await requireAuth(req, JWT_SECRET);
   if (auth instanceof Response) return auth;
 
-  let body: { raw_log_id?: string; decision?: "confirm" | "reject"; overrides?: Action[] } = {};
+  let body: {
+    raw_log_id?: string;
+    decision?: "confirm" | "reject";
+    overrides?: Action[];
+    swallow_ok?: boolean;
+  } = {};
   try {
     body = await req.json();
   } catch {}
@@ -55,7 +65,10 @@ Deno.serve(async (req) => {
   const actions = rawActions.map((a) => normalizeAction(a));
 
   const results: Array<{ type: string; ok: boolean; error?: string; row?: unknown }> = [];
-  for (const action of actions) {
+  const scheduleActions = actions.filter((a) => isSessionScheduleAction(a.type));
+  const otherActions = actions.filter((a) => !isSessionScheduleAction(a.type));
+
+  for (const action of otherActions) {
     if (action.type === "ask_clarification") {
       results.push({ type: action.type, ok: true, row: { skipped: true } });
       continue;
@@ -66,6 +79,33 @@ Deno.serve(async (req) => {
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       results.push({ type: action.type, ok: false, error: msg });
+    }
+  }
+
+  if (scheduleActions.length) {
+    try {
+      const out = await executeSessionActions(
+        db,
+        scheduleActions,
+        log.id,
+        body.swallow_ok === true,
+      );
+      results.push({
+        type: "session_schedule",
+        ok: true,
+        row: out,
+      });
+    } catch (err) {
+      if (err instanceof SwallowRequiredError) {
+        return json({
+          ok: false,
+          error: "swallow_required",
+          warnings: err.warnings,
+          results,
+        }, { status: 409 });
+      }
+      const msg = err instanceof Error ? err.message : String(err);
+      results.push({ type: "session_schedule", ok: false, error: msg });
     }
   }
 
@@ -88,16 +128,6 @@ async function execute(db: SupabaseClient, action: Action, sourceLogId: string):
       const { data, error } = await db
         .from("days")
         .upsert({ date, ...patch })
-        .select()
-        .single();
-      if (error) throw error;
-      return data;
-    }
-    case "create_session": {
-      const row = normalizeSessionPayload(d);
-      const { data, error } = await db
-        .from("sessions")
-        .insert({ ...row, source_log_id: sourceLogId })
         .select()
         .single();
       if (error) throw error;

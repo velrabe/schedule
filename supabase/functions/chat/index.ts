@@ -15,6 +15,7 @@ import { admin } from "../_shared/db.ts";
 import { generate, type GeminiContent } from "../_shared/gemini.ts";
 import { loadRules, ALL_DOMAINS } from "../_shared/rules.ts";
 import { normalizeAction } from "../_shared/actions.ts";
+import { previewSessionActions } from "../_shared/sessionConfirm.ts";
 
 const TZ = "Asia/Ho_Chi_Minh";
 
@@ -66,7 +67,10 @@ Deno.serve(async (req) => {
   const [openSessions, todayDay, todaySessions] = await Promise.all([
     db.from("open_sessions").select("*"),
     db.from("days").select("*").eq("date", today).maybeSingle(),
-    db.from("sessions").select("start_time,end_time,type,project,category").eq("date", today),
+    db.from("sessions").select("id,start_time,end_time,duration_min,type,project,category,notes").eq(
+      "date",
+      today,
+    ),
   ]);
 
   const context = {
@@ -91,6 +95,8 @@ Available action types (use in actions[].type):
   - close_work_session          { session_id?, end_time, notes? }
   - create_session              { date, start_time, end_time, type, category?, project?, notes? }
                                                                                     // type: work | sport | walk | chill | sleep | chores | food | transport | social
+  - update_session              { id, date, start_time?, end_time?, category?, project?, notes? }
+  - delete_session              { id, date? }
   - create_meal                 { date, time?, slot, name, kcal, protein_g, fat_g, carbs_g, confidence, notes? }
   - create_activity             { date, time?, type, duration_min?, calories_burned?, intensity?, source?, notes? }
                                                                                     // source: manual | move | base_move | apple_health | strava
@@ -174,6 +180,16 @@ Output:
   "needs_confirmation": true
 }
 
+Input: "обнови на сегодня: старт первого рабочего блока app на 12:20, дальше как есть"   (use session ids from CONTEXT)
+Output:
+{
+  "reply_to_user": "Сдвигаю app на 12:20 и подстраиваю следующие сессии без пересечений. Записать?",
+  "actions": [
+    { "type": "update_session", "data": { "id": "<uuid from context>", "date": "${today}", "start_time": "12:20" } }
+  ],
+  "needs_confirmation": true
+}
+
 CURRENT CONTEXT (JSON):
 ${JSON.stringify(context, null, 2)}
 `;
@@ -212,6 +228,15 @@ ${JSON.stringify(context, null, 2)}
     if (Array.isArray(parsed.actions)) {
       parsed.actions = parsed.actions.map((a) => normalizeAction(a));
     }
+    const swallowWarnings = await previewSessionActions(db, parsed.actions || []);
+    if (swallowWarnings.length) {
+      parsed.needs_confirmation = true;
+      const note = swallowWarnings.map((w) => w.message).join("\n");
+      if (!parsed.reply_to_user.includes("поглощ")) {
+        parsed.reply_to_user = `${parsed.reply_to_user}\n\n⚠️ ${note}`;
+      }
+      (parsed as Record<string, unknown>).swallow_warnings = swallowWarnings;
+    }
   } catch (err) {
     await db.from("raw_logs").update({ status: "error", status_reason: String(err) }).eq("id", rawLog.id);
     return json({ error: "llm_failed", detail: String(err) }, { status: 502 });
@@ -232,5 +257,6 @@ ${JSON.stringify(context, null, 2)}
     reply_to_user: parsed.reply_to_user,
     actions: parsed.actions || [],
     needs_confirmation: parsed.needs_confirmation,
+    swallow_warnings: (parsed as { swallow_warnings?: unknown }).swallow_warnings ?? [],
   });
 });

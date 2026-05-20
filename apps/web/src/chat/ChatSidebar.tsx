@@ -10,6 +10,8 @@ export type Action = {
 
 type ConfirmResult = { type: string; ok: boolean; error?: string };
 
+type SwallowWarning = { victim_id: string; message: string; victim_label?: string };
+
 type Message =
   | { id: string; role: "user"; text: string; ts: number }
   | {
@@ -21,6 +23,8 @@ type Message =
       pendingId?: string;
       status?: "pending" | "confirmed" | "saved" | "rejected" | "error";
       confirmNote?: string;
+      swallowWarnings?: SwallowWarning[];
+      needsSwallowOk?: boolean;
     }
   | { id: string; role: "assistant"; text: string; ts: number; status: "loading" };
 
@@ -29,11 +33,14 @@ type ChatResponse = {
   actions: Action[];
   needs_confirmation: boolean;
   raw_log_id: string;
+  swallow_warnings?: SwallowWarning[];
 };
 
 type ConfirmResponse = {
   ok: boolean;
   results: ConfirmResult[];
+  error?: string;
+  warnings?: SwallowWarning[];
 };
 
 const STORAGE_KEY = "schedule:chat-history";
@@ -112,6 +119,8 @@ export default function ChatSidebar({ open, onClose }: { open: boolean; onClose:
         actions: res.actions,
         pendingId: res.raw_log_id,
         status: res.needs_confirmation ? "pending" : "saved",
+        swallowWarnings: res.swallow_warnings,
+        needsSwallowOk: (res.swallow_warnings?.length ?? 0) > 0,
         ts: Date.now(),
       };
       setMessages((m) => [...m.filter((x) => x.id !== loadingId), assistantMsg]);
@@ -156,7 +165,7 @@ export default function ChatSidebar({ open, onClose }: { open: boolean; onClose:
     }
   };
 
-  const decide = async (msgId: string, accept: boolean) => {
+  const decide = async (msgId: string, accept: boolean, swallowOk = false) => {
     const msg = messages.find((m) => m.id === msgId);
     if (!msg || msg.role !== "assistant" || !msg.pendingId || msg.status === "loading") return;
     setBusy(true);
@@ -164,6 +173,7 @@ export default function ChatSidebar({ open, onClose }: { open: boolean; onClose:
       const confirmRes = await call<ConfirmResponse>("confirm", {
         raw_log_id: msg.pendingId,
         decision: accept ? "confirm" : "reject",
+        swallow_ok: swallowOk,
       });
       setMessages((arr) =>
         arr.map((m) =>
@@ -172,6 +182,7 @@ export default function ChatSidebar({ open, onClose }: { open: boolean; onClose:
                 ...m,
                 status: accept ? (confirmRes.ok ? "saved" : "error") : "rejected",
                 confirmNote: accept ? formatConfirmNote(confirmRes.results || []) : undefined,
+                needsSwallowOk: false,
               }
             : m,
         ),
@@ -180,17 +191,35 @@ export default function ChatSidebar({ open, onClose }: { open: boolean; onClose:
         window.dispatchEvent(new CustomEvent("schedule:data-changed"));
       }
     } catch (err) {
-      setMessages((arr) =>
-        arr.map((m) =>
-          m.id === msgId
-            ? {
-                ...m,
-                status: "error",
-                confirmNote: err instanceof Error ? err.message : String(err),
-              }
-            : m,
-        ),
-      );
+      if (accept && err instanceof ApiError && err.status === 409) {
+        const body = err.body as { warnings?: SwallowWarning[] };
+        const warnings = body?.warnings ?? [];
+        setMessages((arr) =>
+          arr.map((m) =>
+            m.id === msgId
+              ? {
+                  ...m,
+                  status: "pending",
+                  needsSwallowOk: true,
+                  swallowWarnings: warnings,
+                  confirmNote: warnings.map((w) => w.message).join("\n"),
+                }
+              : m,
+          ),
+        );
+      } else {
+        setMessages((arr) =>
+          arr.map((m) =>
+            m.id === msgId
+              ? {
+                  ...m,
+                  status: "error",
+                  confirmNote: err instanceof Error ? err.message : String(err),
+                }
+              : m,
+          ),
+        );
+      }
     } finally {
       setBusy(false);
     }
@@ -301,7 +330,7 @@ function ChatBubble({
   busy,
 }: {
   msg: Message;
-  onDecide: (id: string, accept: boolean) => void;
+  onDecide: (id: string, accept: boolean, swallowOk?: boolean) => void;
   busy: boolean;
 }) {
   if (msg.role === "user") {
@@ -384,14 +413,25 @@ function ChatBubble({
           {msg.confirmNote && <span class="chat-bubble__confirm-note">{msg.confirmNote}</span>}
           {showButtons && (
             <div class="chat-confirm-wrap">
-              <button
-                class="btn btn--primary"
-                onClick={() => onDecide(msg.id, true)}
-                type="button"
-                disabled={busy}
-              >
-                <span class="btn__text-wrap">да</span>
-              </button>
+              {msg.needsSwallowOk ? (
+                <button
+                  class="btn btn--primary"
+                  onClick={() => onDecide(msg.id, true, true)}
+                  type="button"
+                  disabled={busy}
+                >
+                  <span class="btn__text-wrap">да, поглотить</span>
+                </button>
+              ) : (
+                <button
+                  class="btn btn--primary"
+                  onClick={() => onDecide(msg.id, true, false)}
+                  type="button"
+                  disabled={busy}
+                >
+                  <span class="btn__text-wrap">да</span>
+                </button>
+              )}
               <button class="btn" onClick={() => onDecide(msg.id, false)} type="button" disabled={busy}>
                 <span class="btn__text-wrap">нет</span>
               </button>
