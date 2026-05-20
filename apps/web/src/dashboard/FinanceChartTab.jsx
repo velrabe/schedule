@@ -2,7 +2,7 @@ import { h } from "preact";
 import { useMemo, useState, useCallback } from "preact/hooks";
 import htm from "htm";
 import { localTodayISO } from "./useDateStrip.js";
-import { buildBalanceSeries, fmtRub, plannedItemLabel } from "./financeInsights.js";
+import { buildBalanceSeries, fmtRub, plannedItemLabel, accountsTotalRub } from "./financeInsights.js";
 import FinanceBalanceChart from "./FinanceBalanceChart.jsx";
 import FinanceDayDrawer from "./FinanceDayDrawer.jsx";
 
@@ -48,7 +48,7 @@ export default function FinanceChartTab({
           date: selectedDate,
           txn_type,
           account: "cash_vnd",
-          currency: txn_type === "transfer" ? "VND" : "VND",
+          currency: "VND",
           amount: "",
           category: txn_type === "expense" ? "" : txn_type === "income" ? "" : "transfer",
         },
@@ -57,26 +57,27 @@ export default function FinanceChartTab({
     [selectedDate, onOpenRecord],
   );
 
-  const activePlanned = (finance_planned_items || []).filter((p) => p.active);
-
-  const hasSeries = series.dates.length > 0;
+  const activePlanned = (finance_planned_items || []).filter((p) => p.active !== false);
+  const accountsRub = useMemo(() => accountsTotalRub(accounts), [accounts]);
+  const snapCount = (balance_snapshots || []).length;
 
   return html`
     <div class="finance-chart-tab-wrap">
       <div class="finance-insights-summary-wrap">
         <span class="finance-insights-summary-label">сейчас (все счета ≈)</span>
         <span class="finance-insights-summary-val">${fmtRub(series.totalRubNow)}</span>
+        <span class="finance-chart-meta">
+          счета ${accounts.filter((a) => !a.archived).length} · снимков ${snapCount} · плановых статей ${activePlanned.length} · операций ${finance.length}
+        </span>
       </div>
 
-      ${!hasSeries &&
+      ${!liveMode &&
       html`
-        <div class="balance-chart-empty-wrap">
-          <span class="balance-chart-empty">нет дат для графика — проверь загрузку LIVE</span>
+        <div class="finance-chart-demo-hint-wrap">
+          <span>График план/факт работает в LIVE — подключи Supabase.</span>
         </div>
       `}
 
-      ${hasSeries &&
-      html`
       <${FinanceBalanceChart}
         dates=${series.dates}
         fact=${series.fact}
@@ -90,18 +91,22 @@ export default function FinanceChartTab({
         onHoverDate=${setHoverDate}
         onDayClick=${setSelectedDate}
       />
-      `}
 
       <div class="finance-insights-planned-wrap">
-        <span class="finance-insights-planned-title">плановые статьи</span>
+        <span class="finance-insights-planned-title">плановые статьи (finance_planned_items)</span>
         <div class="finance-insights-planned-list-wrap">
-          ${activePlanned.length === 0 && html`<span class="finance-insights-planned-empty">нет активных статей</span>`}
+          ${activePlanned.length === 0 &&
+          html`<span class="finance-insights-planned-empty">нет активных статей — проверь миграцию 0006 в Supabase</span>`}
           ${activePlanned.map((p) => html`
             <div class="finance-insights-planned-row-wrap" key=${p.id}>
               <span class="finance-insights-planned-row-text">${plannedItemLabel(p)}</span>
             </div>
           `)}
         </div>
+        <span class="finance-chart-hint-block">
+          План на графике — из этих статей. В таблице они же видны как строки типа planned (будущие даты).
+          Факт — операции + баланс счетов (${fmtRub(accountsRub)}).
+        </span>
       </div>
 
       <${FinanceDayDrawer}

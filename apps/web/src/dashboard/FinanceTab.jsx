@@ -195,6 +195,7 @@ export default function FinanceTab({
         html`
           <${FinanceTransactionsTab}
             finance=${finance}
+            finance_planned_items=${finance_planned_items}
             liveMode=${liveMode}
             onOpenRecord=${onOpenRecord}
           />

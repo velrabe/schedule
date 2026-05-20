@@ -15,7 +15,8 @@ export function toRub(amount, currency, fx = FX_RUB_PER_UNIT) {
 export function accountsTotalRub(accounts, fx = FX_RUB_PER_UNIT) {
   return (accounts || []).reduce((sum, a) => {
     if (a.archived) return sum;
-    return sum + toRub(a.balance, a.currency, fx);
+    const bal = Number(a.balance);
+    return sum + toRub(Number.isFinite(bal) ? bal : 0, a.currency, fx);
   }, 0);
 }
 
@@ -42,10 +43,18 @@ export function eachDayISO(from, to) {
   return out;
 }
 
+function recurrenceNote(item) {
+  const rec = item.recurrence || "once";
+  if (rec === "daily") return "ежедн.";
+  if (rec === "monthly") return `${item.day_of_month || 1}-е число`;
+  return "разово";
+}
+
+/** Expand planned budget lines to dated deltas (for chart/tooltip). */
 export function expandPlannedItems(items, fromDate, toDate, fx = FX_RUB_PER_UNIT) {
   const out = [];
   for (const item of items || []) {
-    if (!item.active) continue;
+    if (item.active === false) continue;
     const start = item.start_date;
     const end = item.end_date || toDate;
     if (end < fromDate || start > toDate) continue;
@@ -58,7 +67,7 @@ export function expandPlannedItems(items, fromDate, toDate, fx = FX_RUB_PER_UNIT
       let d = start < fromDate ? fromDate : start;
       const stop = end > toDate ? toDate : end;
       while (d <= stop) {
-        out.push({ date: d, deltaRub: delta, title: item.title });
+        out.push({ date: d, deltaRub: delta, title: item.title, item });
         d = addDaysISO(d, 1);
       }
       continue;
@@ -75,7 +84,7 @@ export function expandPlannedItems(items, fromDate, toDate, fx = FX_RUB_PER_UNIT
         const day = Math.min(dom, lastDom);
         const iso = `${y}-${String(m + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
         if (iso >= start && iso >= fromDate && iso <= toDate && iso <= end) {
-          out.push({ date: iso, deltaRub: delta, title: item.title });
+          out.push({ date: iso, deltaRub: delta, title: item.title, item });
         }
         m += 1;
         if (m > 11) {
@@ -87,10 +96,50 @@ export function expandPlannedItems(items, fromDate, toDate, fx = FX_RUB_PER_UNIT
     }
 
     if (rec === "once" && start >= fromDate && start <= toDate) {
-      out.push({ date: start, deltaRub: delta, title: item.title });
+      out.push({ date: start, deltaRub: delta, title: item.title, item });
     }
   }
   return out;
+}
+
+/** Virtual transaction rows for table (planned / future, not in finance_transactions). */
+export function plannedItemsToVirtualTransactions(plannedItems, fromDate, toDate) {
+  const expanded = expandPlannedItems(plannedItems, fromDate, toDate);
+  return expanded.map((e) => {
+    const item = e.item;
+    const rec = item.recurrence || "once";
+    return {
+      id: `plan:${item.id}:${e.date}`,
+      _planned: true,
+      _planned_item_id: item.id,
+      date: e.date,
+      time: null,
+      txn_type: "planned",
+      _planned_txn_type: (item.txn_type || "expense").toLowerCase(),
+      amount: item.amount,
+      currency: item.currency,
+      account: null,
+      counter_account: null,
+      amount_counter: null,
+      category: item.category || item.title,
+      merchant: item.title,
+      notes: `${recurrenceNote(item)}${item.notes ? ` · ${item.notes}` : ""}`,
+      session_id: null,
+    };
+  });
+}
+
+/** Merge real txns + planned virtual rows for the transactions table. */
+export function mergeFinanceTableRows(
+  finance = [],
+  plannedItems = [],
+  today,
+  planHorizonDays = 400,
+) {
+  const plannedFrom = today;
+  const plannedTo = addDaysISO(today, planHorizonDays);
+  const planned = plannedItemsToVirtualTransactions(plannedItems, plannedFrom, plannedTo);
+  return [...(finance || []), ...planned];
 }
 
 function groupDeltasByDate(entries) {

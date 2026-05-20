@@ -25,7 +25,6 @@ import {
   mealCountForNutrition,
 } from "./mergeNutrition.js";
 import { expenseForSession, fmtExpenseShort } from "./sessionFinance.js";
-import { financeTxnShortMeta } from "./financeDisplay.js";
 import FinanceTab from "./FinanceTab.jsx";
 import { useSheetState, applySheet, SheetHeader, Toolbar } from "./sheetUi.js";
 

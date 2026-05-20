@@ -5,6 +5,18 @@ import { fmtRub, formatDayBreakdownTooltip, getDayBreakdown } from "./financeIns
 
 const html = htm.bind(h);
 
+/** SVG presentation attrs often ignore CSS vars — use explicit theme colors. */
+const CHART = {
+  grid: "#27272a",
+  label: "#a1a1aa",
+  fact: "#93c5fd",
+  plan: "#86efac",
+  danger: "#fca5a5",
+  success: "#86efac",
+  hover: "#a1a1aa",
+  planFill: "rgba(134, 239, 172, 0.12)",
+};
+
 function clientToSvg(svg, clientX, clientY) {
   const pt = svg.createSVGPoint();
   pt.x = clientX;
@@ -117,7 +129,9 @@ export default function FinanceBalanceChart({
   if (!dates.length || !all.length || !geometry) {
     return html`
       <div class="balance-chart-empty-wrap">
-        <span class="balance-chart-empty">нет данных для графика — залогируй баланс на сегодня</span>
+        <span class="balance-chart-empty">
+          нет данных для графика — нужны счета в LIVE или снимок баланса (клик по дню на графике)
+        </span>
       </div>
     `;
   }
@@ -206,8 +220,8 @@ export default function FinanceBalanceChart({
           const y = yAt(t);
           return html`
             <g key=${t}>
-              <line x1=${pL} x2=${W - pR} y1=${y} y2=${y} stroke="var(--border)" stroke-width="1" />
-              <text x=${pL - 6} y=${y + 3} text-anchor="end" font-size="9" fill="var(--text-3)" font-family="var(--mono)">
+              <line x1=${pL} x2=${W - pR} y1=${y} y2=${y} stroke=${CHART.grid} stroke-width="1" />
+              <text x=${pL - 6} y=${y + 3} text-anchor="end" font-size="9" fill=${CHART.label} font-family="var(--mono)">
                 ${fmtRub(t)}
               </text>
             </g>
@@ -223,21 +237,21 @@ export default function FinanceBalanceChart({
               y=${H - 8}
               text-anchor="middle"
               font-size="9"
-              fill="var(--text-3)"
+              fill=${CHART.label}
               font-family="var(--mono)"
             >${label}</text>
           `;
         })}
         ${planArea &&
         html`
-          <path d=${planArea} fill="var(--success)" fill-opacity="0.08" stroke="none" />
+          <path d=${planArea} fill=${CHART.planFill} stroke="none" />
         `}
         ${planPath.d &&
         html`
           <path
             d=${planPath.d}
             fill="none"
-            stroke="var(--success)"
+            stroke=${CHART.plan}
             stroke-width="1.5"
             stroke-dasharray="6 4"
             stroke-linejoin="round"
@@ -249,7 +263,7 @@ export default function FinanceBalanceChart({
           <path
             d=${factPath.d}
             fill="none"
-            stroke="var(--info)"
+            stroke=${CHART.fact}
             stroke-width="2"
             stroke-linejoin="round"
             pointer-events="none"
@@ -265,7 +279,7 @@ export default function FinanceBalanceChart({
               cx=${xAt(idx)}
               cy=${yAt(plan[idx])}
               r="4"
-              fill=${isExp ? "var(--danger)" : "var(--success)"}
+              fill=${isExp ? CHART.danger : CHART.success}
               pointer-events="none"
             />
           `;
@@ -288,7 +302,7 @@ export default function FinanceBalanceChart({
             x2=${xAt(hoverIdx)}
             y1=${pT}
             y2=${pT + iH}
-            stroke="var(--text-2)"
+            stroke=${CHART.hover}
             stroke-width="1"
             stroke-dasharray="3 3"
             pointer-events="none"
@@ -312,11 +326,11 @@ export default function FinanceBalanceChart({
       `}
       <div class="balance-chart-legend-wrap">
         <div class="legend-item-wrap">
-          <span class="legend-swatch" style="background: var(--info)"></span>
+          <span class="legend-swatch" style=${`background: ${CHART.fact}`}></span>
           <span class="legend-label">факт</span>
         </div>
         <div class="legend-item-wrap">
-          <span class="legend-swatch legend-swatch--dashed" style="border-color: var(--success)"></span>
+          <span class="legend-swatch legend-swatch--dashed" style=${`border-color: ${CHART.plan}`}></span>
           <span class="legend-label">план</span>
         </div>
         <span class="balance-chart-hint">клик по дню — операции и баланс</span>

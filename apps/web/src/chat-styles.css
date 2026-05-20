@@ -1779,6 +1779,38 @@ button.kanban-card:hover {
   font-size: 16px;
   font-weight: 600;
   font-family: var(--mono);
+  color: var(--text);
+}
+
+.finance-chart-meta {
+  margin: 0;
+  padding: 0;
+  font-size: 10px;
+  color: var(--text-3);
+  font-family: var(--mono);
+}
+
+.finance-chart-demo-hint-wrap {
+  display: flex;
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+}
+
+.finance-chart-demo-hint-wrap span {
+  margin: 0;
+  padding: 0;
+  font-size: 11px;
+  color: var(--text-2);
+}
+
+.finance-chart-hint-block {
+  margin: 0;
+  padding: 0;
+  font-size: 10px;
+  color: var(--text-3);
+  line-height: 1.45;
 }
 
 .finance-insights-log-wrap {
@@ -1841,6 +1873,7 @@ button.kanban-card:hover {
 .balance-chart-svg {
   display: block;
   width: 100%;
+  min-height: 200px;
   height: auto;
 }
 
@@ -1901,7 +1934,7 @@ button.kanban-card:hover {
   padding: 0;
   font-size: 11px;
   font-weight: 600;
-  color: var(--text-1);
+  color: var(--text);
 }
 
 .balance-chart-tooltip-line {
@@ -1992,6 +2025,15 @@ button.kanban-card:hover {
   background: var(--surface-2);
 }
 
+.sheet-row--planned td {
+  opacity: 0.85;
+}
+
+.sheet-row--planned .sheet__td span {
+  color: var(--text-2);
+  font-style: italic;
+}
+
 .sheet__td--muted span {
   color: var(--text-3);
   font-size: 10px;
@@ -2028,7 +2070,7 @@ button.kanban-card:hover {
   padding: 0;
   font-size: 12px;
   font-family: var(--mono);
-  color: var(--text-1);
+  color: var(--text);
 }
 
 .finance-day-fact-wrap {

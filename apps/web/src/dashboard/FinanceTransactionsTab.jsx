@@ -2,25 +2,37 @@ import { h } from "preact";
 import { useMemo, useCallback } from "preact/hooks";
 import htm from "htm";
 import { localTodayISO } from "./useDateStrip.js";
+import { addDaysISO, mergeFinanceTableRows } from "./financeInsights.js";
 import { financeTxnLabel, financeTxnShortMeta } from "./financeDisplay.js";
 import { useSheetState, applySheet, SheetHeader, Toolbar, sheetIcons } from "./sheetUi.js";
 
 const html = htm.bind(h);
 const I = sheetIcons;
 
-export default function FinanceTransactionsTab({ finance = [], liveMode = false, onOpenRecord }) {
+export default function FinanceTransactionsTab({
+  finance = [],
+  finance_planned_items = [],
+  liveMode = false,
+  onOpenRecord,
+}) {
+  const today = localTodayISO();
+  const rows = useMemo(
+    () => mergeFinanceTableRows(finance, finance_planned_items, today),
+    [finance, finance_planned_items, today],
+  );
+
   const { sort, toggleSort, filters, setFilter, search, setSearch } = useSheetState("finance-tx", {
     id: "date",
     dir: "desc",
   });
 
   const txnTypes = useMemo(
-    () => [...new Set(finance.map((t) => t.txn_type || "expense"))].sort(),
-    [finance],
+    () => [...new Set(rows.map((t) => t.txn_type || "expense"))].sort(),
+    [rows],
   );
   const currencies = useMemo(
-    () => [...new Set(finance.map((t) => t.currency || "VND"))].sort(),
-    [finance],
+    () => [...new Set(rows.map((t) => t.currency || "VND"))].sort(),
+    [rows],
   );
 
   const columns = useMemo(
@@ -70,9 +82,12 @@ export default function FinanceTransactionsTab({ finance = [], liveMode = false,
   );
 
   const view = useMemo(
-    () => applySheet(finance, sort, filters, search, columns),
-    [finance, sort, filters, search, columns],
+    () => applySheet(rows, sort, filters, search, columns),
+    [rows, sort, filters, search, columns],
   );
+
+  const factCount = finance.length;
+  const plannedCount = rows.length - factCount;
 
   const addTxn = useCallback(() => {
     if (!onOpenRecord) return;
@@ -80,7 +95,7 @@ export default function FinanceTransactionsTab({ finance = [], liveMode = false,
       kind: "finance",
       record: {
         _new: true,
-        date: localTodayISO(),
+        date: today,
         txn_type: "expense",
         account: "cash_vnd",
         currency: "VND",
@@ -88,7 +103,12 @@ export default function FinanceTransactionsTab({ finance = [], liveMode = false,
         category: "",
       },
     });
-  }, [onOpenRecord]);
+  }, [onOpenRecord, today]);
+
+  const openRow = (t) => {
+    if (t._planned) return;
+    onOpenRecord?.({ kind: "finance", record: t });
+  };
 
   return html`
     <div class="finance-tx-table-wrap">
@@ -124,66 +144,68 @@ export default function FinanceTransactionsTab({ finance = [], liveMode = false,
                 </td>
               </tr>
             `}
-            ${view.map((t) => html`
-              <tr
-                key=${t.id}
-                class=${liveMode && onOpenRecord ? "sheet-row--clickable" : ""}
-                onClick=${liveMode && onOpenRecord
-                  ? () => onOpenRecord({ kind: "finance", record: t })
-                  : undefined}
-              >
-                <td>
-                  <div class="sheet__td">
-                    <span>${t.date}</span>
-                  </div>
-                </td>
-                <td>
-                  <div class="sheet__td">
-                    <span>${t.time ? String(t.time).slice(0, 5) : "—"}</span>
-                  </div>
-                </td>
-                <td>
-                  <div class="sheet__td">
-                    <span>${t.txn_type || "expense"}</span>
-                  </div>
-                </td>
-                <td>
-                  <div class="sheet__td">
-                    <span>${financeTxnLabel(t)}</span>
-                  </div>
-                </td>
-                <td>
-                  <div class="sheet__td">
-                    <span>${t.currency || ""}</span>
-                  </div>
-                </td>
-                <td>
-                  <div class="sheet__td">
-                    <span>${t.account || "—"}</span>
-                  </div>
-                </td>
-                <td>
-                  <div class="sheet__td">
-                    <span>${t.category || "—"}</span>
-                  </div>
-                </td>
-                <td>
-                  <div class="sheet__td">
-                    <span>${t.merchant || "—"}</span>
-                  </div>
-                </td>
-                <td>
-                  <div class="sheet__td sheet__td--muted">
-                    <span>${financeTxnShortMeta(t)}</span>
-                  </div>
-                </td>
-              </tr>
-            `)}
+            ${view.map((t) => {
+              const isPlanned = Boolean(t._planned);
+              const clickable = liveMode && onOpenRecord && !isPlanned;
+              return html`
+                <tr
+                  key=${t.id}
+                  class=${`${isPlanned ? "sheet-row--planned" : ""} ${clickable ? "sheet-row--clickable" : ""}`}
+                  onClick=${clickable ? () => openRow(t) : undefined}
+                >
+                  <td>
+                    <div class="sheet__td">
+                      <span>${t.date}${isPlanned && t.date > today ? "" : ""}</span>
+                    </div>
+                  </td>
+                  <td>
+                    <div class="sheet__td">
+                      <span>${t.time ? String(t.time).slice(0, 5) : "—"}</span>
+                    </div>
+                  </td>
+                  <td>
+                    <div class="sheet__td">
+                      <span>${isPlanned ? "planned" : t.txn_type || "expense"}</span>
+                    </div>
+                  </td>
+                  <td>
+                    <div class="sheet__td">
+                      <span>${financeTxnLabel(t)}</span>
+                    </div>
+                  </td>
+                  <td>
+                    <div class="sheet__td">
+                      <span>${t.currency || ""}</span>
+                    </div>
+                  </td>
+                  <td>
+                    <div class="sheet__td">
+                      <span>${t.account || "—"}</span>
+                    </div>
+                  </td>
+                  <td>
+                    <div class="sheet__td">
+                      <span>${t.category || "—"}</span>
+                    </div>
+                  </td>
+                  <td>
+                    <div class="sheet__td">
+                      <span>${t.merchant || "—"}</span>
+                    </div>
+                  </td>
+                  <td>
+                    <div class="sheet__td sheet__td--muted">
+                      <span>${financeTxnShortMeta(t)}</span>
+                    </div>
+                  </td>
+                </tr>
+              `;
+            })}
           </tbody>
         </table>
       </div>
       <div class="footer-bar">
-        <span>${view.length} из ${finance.length} операций</span>
+        <span>${view.length} в таблице · ${factCount} факт · ${plannedCount} план (с ${today} по ${addDaysISO(today, 400)})</span>
       </div>
     </div>
   `;

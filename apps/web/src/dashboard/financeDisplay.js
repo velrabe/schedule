@@ -19,6 +19,11 @@ export function accountLabel(id) {
 
 /** Human label for a finance row in lists. */
 export function financeTxnLabel(t) {
+  if (t._planned || (t.txn_type || "").toLowerCase() === "planned") {
+    const kind = (t._planned_txn_type || "expense").toLowerCase();
+    const sign = kind === "income" ? "+" : "−";
+    return `план ${sign}${fmtMoney(t.amount, t.currency)}`;
+  }
   const type = (t.txn_type || "expense").toLowerCase();
   if (type === "transfer" && t.counter_account && t.amount_counter != null) {
     return `перевод ${accountLabel(t.account)} → ${accountLabel(t.counter_account)}: −${fmtMoney(t.amount, t.currency)} / +${fmtMoney(t.amount_counter, inferCounterCurrency(t))}`;
@@ -37,6 +42,9 @@ function inferCounterCurrency(t) {
 }
 
 export function financeTxnShortMeta(t) {
+  if (t._planned || (t.txn_type || "").toLowerCase() === "planned") {
+    return t.notes || "запланировано";
+  }
   if ((t.txn_type || "").toLowerCase() === "transfer") {
     return t.category || "transfer";
   }
