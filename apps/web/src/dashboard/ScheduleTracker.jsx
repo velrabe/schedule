@@ -2255,13 +2255,14 @@ function KanbanTab({ days, sessions, meals = [], activities = [], setSessions, l
               )
             : [...list].sort((a, b) => a.start.localeCompare(b.start));
           const isToday = date === today;
+          const isFuture = date > today;
           const colMeals = mealsByDate.get(date) || [];
           const colActs = activitiesByDate.get(date) || [];
           const kcalIn = colMeals.reduce((a, m) => a + (m.kcal || 0), 0);
           const kcalOut = colActs.reduce((a, x) => a + (x.calories_burned || 0), 0);
           return html`
             <div
-              class=${`kanban-col-wrap ${isToday ? "kanban-col-wrap--today" : ""}`}
+              class=${`kanban-col-wrap ${isToday ? "kanban-col-wrap--today" : ""} ${isFuture ? "kanban-col-wrap--future" : ""}`}
               key=${date}
               ref=${isToday ? todayColRef : null}
             >
