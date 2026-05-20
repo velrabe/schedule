@@ -23,6 +23,8 @@ import {
 import {
   mergeMealsWithFoodSessions,
   mealCountForNutrition,
+  findFoodSessionForMeal,
+  mealHasMacroData,
 } from "./mergeNutrition.js";
 import { expenseForSession, fmtExpenseShort } from "./sessionFinance.js";
 import FinanceTab from "./FinanceTab.jsx";
@@ -270,14 +272,18 @@ function App(props = {}) {
     (target) => {
       if (!target?.record) return;
       const rec = target.record;
-      if (target.kind === "meal" && rec._synthetic && rec.session_id) {
-        const sess = sessions.find((s) => s.id === rec.session_id);
-        if (sess) {
+      if (target.kind === "meal") {
+        const sess =
+          rec.session_id && sessions.find((s) => s.id === rec.session_id)
+            ? sessions.find((s) => s.id === rec.session_id)
+            : findFoodSessionForMeal(rec, sessions);
+        if (sess && (rec._synthetic || !mealHasMacroData(rec))) {
           setRecordEditor({ kind: "session", record: sess });
           return;
         }
       }
       if (!rec.id && !rec._new) return;
+      if (String(rec.id || "").startsWith("session:")) return;
       setRecordEditor(target);
     },
     [sessions],
@@ -445,6 +451,7 @@ function App(props = {}) {
         onClose=${closeRecordEditor}
         liveMode=${Boolean(liveData)}
         setSessions=${setSessions}
+        sessions=${sessions}
         finance=${liveData?.finance || []}
         accounts=${liveData?.accounts || []}
       />

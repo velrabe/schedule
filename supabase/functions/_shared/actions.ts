@@ -73,7 +73,7 @@ export function normalizeSessionPayload(raw: Record<string, unknown>): Record<st
 }
 
 export function normalizeMealPayload(raw: Record<string, unknown>): Record<string, unknown> {
-  return {
+  const out: Record<string, unknown> = {
     date: String(raw.date),
     time: padTime(raw.time),
     slot: raw.slot != null ? String(raw.slot) : null,
@@ -86,6 +86,10 @@ export function normalizeMealPayload(raw: Record<string, unknown>): Record<strin
     confidence: raw.confidence != null ? String(raw.confidence) : null,
     notes: raw.notes != null ? String(raw.notes) : null,
   };
+  if (raw.session_id != null && String(raw.session_id).trim() !== "") {
+    out.session_id = String(raw.session_id);
+  }
+  return out;
 }
 
 export function normalizeDayPatch(raw: Record<string, unknown>): Record<string, unknown> {

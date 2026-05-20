@@ -1,5 +1,7 @@
 /** Helpers for session-linked expenses in the UI. */
 
+import { findFoodSessionForMeal } from "./mergeNutrition.js";
+
 export function expenseForSession(sessionId, finance = []) {
   if (!sessionId) return null;
   return finance.find((t) => t.session_id === sessionId && (t.txn_type || "expense") === "expense") ?? null;
@@ -29,8 +31,11 @@ export function expenseFromForm(form) {
   };
 }
 
-export function resolveExpenseSessionId(kind, record) {
+export function resolveExpenseSessionId(kind, record, sessions = []) {
   if (kind === "session") return record.id;
-  if (kind === "meal") return record.session_id || null;
+  if (kind === "meal") {
+    if (record.session_id) return record.session_id;
+    return findFoodSessionForMeal(record, sessions)?.id || null;
+  }
   return null;
 }

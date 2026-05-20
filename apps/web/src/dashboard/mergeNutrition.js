@@ -36,38 +36,129 @@ export function sortMeals(meals) {
   });
 }
 
-/** One row per food session: DB meal if present, else synthetic until sync/backfill. */
+function sessionLabel(s) {
+  return `${s.project || ""} ${s.note || ""}`.trim().toLowerCase();
+}
+
+function mealLabel(m) {
+  return `${m.name || ""} ${m.notes || ""}`.trim().toLowerCase();
+}
+
+/** Match orphan meal row to a food session (same day, slot or name). */
+export function orphanMealMatchesSession(meal, session) {
+  if (!meal || meal.session_id) return false;
+  if (!isFoodSession(session)) return false;
+  if (meal.date !== session.date) return false;
+
+  const slot = inferMealSlotFromSession(session);
+  if (meal.slot && meal.slot === slot) return true;
+
+  const mn = mealLabel(meal);
+  const sn = sessionLabel(session);
+  if (!mn && !sn) return true;
+  if (mn && sn && (mn === sn || mn.includes(sn) || sn.includes(mn))) return true;
+
+  const mt = trimTime(meal.time);
+  const st = trimTime(session.start);
+  if (mt && st && mt === st) return true;
+
+  return false;
+}
+
+/** Find linked or heuristic-matched food session for a meal row. */
+export function findFoodSessionForMeal(meal, sessions = []) {
+  if (!meal) return null;
+  if (meal.session_id) {
+    const linked = sessions.find((s) => s.id === meal.session_id);
+    if (linked && isFoodSession(linked)) return linked;
+  }
+  for (const s of sessions) {
+    if (orphanMealMatchesSession(meal, s)) return s;
+  }
+  return null;
+}
+
+/** Overlay session schedule onto a meal row for display/edit. */
+export function enrichMealFromSession(meal, session) {
+  if (!session || !isFoodSession(session)) return meal;
+  return {
+    ...meal,
+    session_id: session.id,
+    date: session.date,
+    time: trimTime(session.start),
+    slot: inferMealSlotFromSession(session),
+    name: (session.project || session.note || meal.name || "еда").trim() || "еда",
+    notes: session.note ?? meal.notes ?? null,
+  };
+}
+
+function syntheticMealFromSession(s) {
+  return {
+    id: `session:${s.id}`,
+    session_id: s.id,
+    date: s.date,
+    time: trimTime(s.start),
+    slot: inferMealSlotFromSession(s),
+    name: (s.project || s.note || "еда").trim() || "еда",
+    kcal: null,
+    protein_g: null,
+    fat_g: null,
+    carbs_g: null,
+    portion_grams: null,
+    confidence: null,
+    notes: s.note || null,
+    photo_url: null,
+    _synthetic: true,
+  };
+}
+
+/**
+ * One row per food session: DB meal if present, else synthetic.
+ * Orphan meals without session_id are merged onto matching food sessions.
+ */
 export function mergeMealsWithFoodSessions(sessions = [], meals = []) {
-  const linked = new Set();
+  const sessionById = new Map(sessions.map((s) => [s.id, s]));
+  const linkedSessionIds = new Set();
+  const out = [];
+
   for (const m of meals) {
-    if (m.session_id) linked.add(m.session_id);
+    if (m.session_id && sessionById.has(m.session_id)) {
+      linkedSessionIds.add(m.session_id);
+      out.push(enrichMealFromSession(m, sessionById.get(m.session_id)));
+      continue;
+    }
+    out.push(m);
   }
 
-  const out = [...meals];
   for (const s of sessions) {
     if (!isFoodSession(s)) continue;
-    if (linked.has(s.id)) continue;
-    out.push({
-      id: `session:${s.id}`,
-      session_id: s.id,
-      date: s.date,
-      time: trimTime(s.start),
-      slot: inferMealSlotFromSession(s),
-      name: (s.project || s.note || "еда").trim() || "еда",
-      kcal: null,
-      protein_g: null,
-      fat_g: null,
-      carbs_g: null,
-      portion_grams: null,
-      confidence: null,
-      notes: s.note || null,
-      photo_url: null,
-      _synthetic: true,
-    });
+    if (linkedSessionIds.has(s.id)) continue;
+
+    const orphanIdx = out.findIndex(
+      (m) => !m.session_id && !m._synthetic && orphanMealMatchesSession(m, s),
+    );
+    if (orphanIdx >= 0) {
+      const orphan = out.splice(orphanIdx, 1)[0];
+      linkedSessionIds.add(s.id);
+      out.push(enrichMealFromSession(orphan, s));
+      continue;
+    }
+
+    out.push(syntheticMealFromSession(s));
   }
+
   return sortMeals(out);
 }
 
 export function mealCountForNutrition(sessions = [], meals = []) {
   return mergeMealsWithFoodSessions(sessions, meals).length;
+}
+
+export function mealHasMacroData(meal) {
+  return (
+    Number(meal?.kcal) > 0 ||
+    Number(meal?.protein_g) > 0 ||
+    Number(meal?.fat_g) > 0 ||
+    Number(meal?.carbs_g) > 0
+  );
 }

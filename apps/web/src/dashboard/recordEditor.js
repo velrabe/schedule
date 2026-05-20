@@ -1,5 +1,7 @@
 /** Field specs and form ↔ DB mapping for RecordEditDrawer. */
 
+import { inferMealSlotFromSession } from "./mergeNutrition.js";
+
 export const MEAL_SLOTS = ["breakfast", "lunch", "dinner", "snack"];
 export const CONFIDENCE_OPTIONS = ["high", "medium", "low"];
 export const ACTIVITY_TYPES = ["move", "walking", "run", "sport", "gym", "other"];
@@ -176,16 +178,27 @@ export function getRecordEditorMeta(kind) {
   return KIND_META[kind] || null;
 }
 
-export function recordToForm(kind, record, linkedExpense = null) {
+export function recordToForm(kind, record, linkedExpense = null, linkedSession = null) {
   if (!record) return {};
   const expense = expenseToFormFields(linkedExpense);
   switch (kind) {
-    case "meal":
+    case "meal": {
+      const time =
+        linkedSession && linkedSession.start != null
+          ? trimTime(linkedSession.start)
+          : trimTime(record.time);
+      const name =
+        linkedSession && (linkedSession.project || linkedSession.note)
+          ? (linkedSession.project || linkedSession.note || "").trim()
+          : record.name || "";
       return {
-        date: record.date || "",
-        time: trimTime(record.time),
-        slot: record.slot || "",
-        name: record.name || "",
+        date: (linkedSession && linkedSession.date) || record.date || "",
+        time,
+        slot:
+          linkedSession && linkedSession.start
+            ? inferMealSlotFromSession(linkedSession)
+            : record.slot || "",
+        name: name || record.name || "",
         kcal: record.kcal ?? "",
         carbs_g: record.carbs_g ?? "",
         protein_g: record.protein_g ?? "",
@@ -196,6 +209,7 @@ export function recordToForm(kind, record, linkedExpense = null) {
         ...expense,
         expense_category: expense.expense_category || "food",
       };
+    }
     case "activity":
       return {
         date: record.date || "",

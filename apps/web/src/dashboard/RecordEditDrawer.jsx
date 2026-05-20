@@ -11,6 +11,7 @@ import {
   withAccountOptions,
   isExpenseField,
 } from "./recordEditor.js";
+import { findFoodSessionForMeal } from "./mergeNutrition.js";
 import {
   expenseForSession,
   expenseFromForm,
@@ -92,6 +93,7 @@ export default function RecordEditDrawer({
   onClose,
   liveMode = false,
   setSessions,
+  sessions = [],
   finance = [],
   accounts = [],
 }) {
@@ -111,16 +113,21 @@ export default function RecordEditDrawer({
     return withAccountOptions(meta.fields, accountIds);
   }, [meta, accountIds]);
 
+  const linkedSession = useMemo(() => {
+    if (!target || target.kind !== "meal") return null;
+    return findFoodSessionForMeal(target.record, sessions);
+  }, [target, sessions]);
+
   const linkedExpense = useMemo(() => {
     if (!target) return null;
-    const sid = resolveExpenseSessionId(target.kind, target.record);
+    const sid = resolveExpenseSessionId(target.kind, target.record, sessions);
     return expenseForSession(sid, finance);
-  }, [target, finance]);
+  }, [target, finance, sessions]);
 
   useEffect(() => {
-    if (target) setForm(recordToForm(target.kind, target.record, linkedExpense));
+    if (target) setForm(recordToForm(target.kind, target.record, linkedExpense, linkedSession));
     else setForm({});
-  }, [target?.kind, target?.record?.id, linkedExpense?.id]);
+  }, [target?.kind, target?.record?.id, linkedExpense?.id, linkedSession?.id, linkedSession?.start]);
 
   useEffect(() => {
     if (!target) return;
@@ -155,6 +162,9 @@ export default function RecordEditDrawer({
     setSaving(true);
     try {
       const patch = formToDbPatch(target.kind, form);
+      if (target.kind === "meal" && linkedSession?.id) {
+        patch.session_id = linkedSession.id;
+      }
       const supportsExpense = target.kind === "session" || target.kind === "meal";
       let expensePayload = undefined;
       if (supportsExpense) {
@@ -171,7 +181,7 @@ export default function RecordEditDrawer({
           expensePayload = null;
         }
       }
-      const expenseSessionId = resolveExpenseSessionId(target.kind, target.record);
+      const expenseSessionId = resolveExpenseSessionId(target.kind, target.record, sessions);
       const extra = {
         expense: expensePayload,
         expense_session_id: expenseSessionId || undefined,

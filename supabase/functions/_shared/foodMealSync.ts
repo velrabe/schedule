@@ -70,18 +70,58 @@ function sessionFromDb(row: Record<string, unknown>): SessionRow {
   };
 }
 
+function orphanMealMatchesSession(
+  meal: Record<string, unknown>,
+  session: SessionRow,
+): boolean {
+  if (meal.session_id != null) return false;
+  if (String(meal.date) !== session.date) return false;
+
+  const slot = inferMealSlot(session);
+  if (meal.slot != null && String(meal.slot) === slot) return true;
+
+  const mn = `${meal.name || ""} ${meal.notes || ""}`.trim().toLowerCase();
+  const sn = `${session.project || ""} ${session.notes || ""}`.trim().toLowerCase();
+  if (mn && sn && (mn === sn || mn.includes(sn) || sn.includes(mn))) return true;
+
+  const mt = trimTime(String(meal.time ?? ""));
+  const st = trimTime(session.start_time);
+  if (mt && st && mt === st) return true;
+
+  return false;
+}
+
 /** Create or update meal linked to a food session. */
 export async function syncMealFromFoodSession(
   db: SupabaseClient,
   session: SessionRow,
   sourceLogId?: string | null,
 ): Promise<Record<string, unknown>> {
-  const { data: existing, error: findErr } = await db
+  const { data: linkedRows, error: findErr } = await db
     .from("meals")
     .select("*")
     .eq("session_id", session.id)
-    .maybeSingle();
+    .order("created_at", { ascending: true });
   if (findErr) throw findErr;
+
+  let existing = (linkedRows?.[0] as Record<string, unknown> | undefined) ?? null;
+  if (linkedRows && linkedRows.length > 1) {
+    const extraIds = linkedRows.slice(1).map((r) => String((r as Record<string, unknown>).id));
+    await db.from("meals").delete().in("id", extraIds);
+  }
+
+  if (!existing) {
+    const { data: orphans, error: orphanErr } = await db
+      .from("meals")
+      .select("*")
+      .eq("date", session.date)
+      .is("session_id", null);
+    if (orphanErr) throw orphanErr;
+    existing =
+      (orphans || []).find((m) => orphanMealMatchesSession(m as Record<string, unknown>, session)) as
+        | Record<string, unknown>
+        | undefined ?? null;
+  }
 
   const payload = {
     date: session.date,
@@ -89,6 +129,7 @@ export async function syncMealFromFoodSession(
     slot: inferMealSlot(session),
     name: mealNameFromSession(session),
     notes: session.notes,
+    session_id: session.id,
     source_log_id: sourceLogId ?? existing?.source_log_id ?? null,
   };
 
