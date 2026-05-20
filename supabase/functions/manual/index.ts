@@ -24,6 +24,12 @@ import {
   deleteSessionExpenses,
   type SessionExpenseInput,
 } from "../_shared/sessionExpenseSync.ts";
+import {
+  afterFinanceWrite,
+  reverseFinanceWrite,
+  replaceFinanceWrite,
+  type FinanceRow,
+} from "../_shared/financeBalanceSync.ts";
 
 const ALLOWED = new Set([
   "days",
@@ -157,6 +163,9 @@ Deno.serve(async (req) => {
       if (resource === "meals" && data) {
         await afterMealWrite(db, String((data as Record<string, unknown>).id));
       }
+      if (resource === "finance_transactions" && data) {
+        await afterFinanceWrite(db, String((data as Record<string, unknown>).id));
+      }
       return json({ row: data });
     }
 
@@ -169,11 +178,19 @@ Deno.serve(async (req) => {
       if (resource === "meals" && data) {
         await afterMealWrite(db, String((data as Record<string, unknown>).id));
       }
+      if (resource === "finance_transactions" && data) {
+        await afterFinanceWrite(db, String((data as Record<string, unknown>).id));
+      }
       return json({ row: data });
     }
 
     if (op === "update") {
       if (!id && !match) return json({ error: "id_or_match_required" }, { status: 400 });
+      let oldFinance: FinanceRow | null = null;
+      if (resource === "finance_transactions" && id) {
+        const { data: prev } = await db.from("finance_transactions").select("*").eq("id", id).single();
+        if (prev) oldFinance = prev as FinanceRow;
+      }
       let q = table.update(normalizedRow);
       if (id) q = q.eq("id", id);
       if (match) {
@@ -212,11 +229,21 @@ Deno.serve(async (req) => {
         }
       }
 
+      if (resource === "finance_transactions" && row0) {
+        const newId = String(row0.id);
+        if (oldFinance) await replaceFinanceWrite(db, oldFinance, newId);
+        else await afterFinanceWrite(db, newId);
+      }
+
       return json({ rows: data });
     }
 
     if (op === "delete") {
       if (!id && !match) return json({ error: "id_or_match_required" }, { status: 400 });
+      if (resource === "finance_transactions" && id) {
+        const { data: prev } = await db.from("finance_transactions").select("*").eq("id", id).single();
+        if (prev) await reverseFinanceWrite(db, prev as FinanceRow);
+      }
       if (resource === "meals" && id) {
         const { data: meal } = await db.from("meals").select("session_id").eq("id", id).maybeSingle();
         if (meal?.session_id) {

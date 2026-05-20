@@ -68,7 +68,9 @@ function expenseToFormFields(linked) {
 export function withAccountOptions(fields, accountIds = []) {
   const opts = accountIds.length ? accountIds : DEFAULT_ACCOUNTS;
   return fields.map((f) =>
-    f.key === "expense_account" ? { ...f, options: opts } : f,
+    f.key === "expense_account" || f.key === "account" || f.key === "counter_account"
+      ? { ...f, options: opts }
+      : f,
   );
 }
 
@@ -110,16 +112,23 @@ const KIND_META = {
   finance: {
     resource: "finance_transactions",
     title: "Операция",
-    subtitle: (r) => `${r.amount} ${r.currency || ""}`,
+    subtitle: (r) => {
+      if ((r.txn_type || "") === "transfer" && r.counter_account) {
+        return `${r.account || "?"} → ${r.counter_account}`;
+      }
+      return `${r.amount} ${r.currency || ""}`;
+    },
     fields: [
       { key: "date", label: "дата", type: "date" },
       { key: "time", label: "время", type: "time", optional: true },
-      { key: "amount", label: "сумма", type: "number" },
-      { key: "currency", label: "валюта", type: "text" },
-      { key: "account", label: "счёт", type: "text", optional: true },
-      { key: "category", label: "категория", type: "text", optional: true },
-      { key: "merchant", label: "магазин", type: "text", optional: true },
       { key: "txn_type", label: "тип", type: "select", options: ["expense", "income", "transfer"] },
+      { key: "account", label: "счёт (откуда / счёт)", type: "select", options: DEFAULT_ACCOUNTS },
+      { key: "counter_account", label: "счёт (куда)", type: "select", options: DEFAULT_ACCOUNTS, optional: true },
+      { key: "amount", label: "сумма списания", type: "number" },
+      { key: "currency", label: "валюта списания", type: "select", options: CURRENCY_OPTIONS },
+      { key: "amount_counter", label: "сумма зачисления", type: "number", optional: true },
+      { key: "category", label: "категория", type: "text", optional: true },
+      { key: "merchant", label: "магазин / контрагент", type: "text", optional: true },
       { key: "notes", label: "заметки", type: "textarea", optional: true },
     ],
   },
@@ -188,12 +197,14 @@ export function recordToForm(kind, record, linkedExpense = null) {
       return {
         date: record.date || "",
         time: trimTime(record.time),
+        txn_type: record.txn_type || "expense",
+        account: record.account || "",
+        counter_account: record.counter_account || "",
         amount: record.amount ?? "",
         currency: record.currency || "VND",
-        account: record.account || "",
-        category: record.category || "",
+        amount_counter: record.amount_counter ?? "",
+        category: record.category || (record.txn_type === "transfer" ? "transfer" : ""),
         merchant: record.merchant || "",
-        txn_type: record.txn_type || "expense",
         notes: record.notes || "",
       };
     default:
@@ -241,18 +252,22 @@ export function formToDbPatch(kind, form) {
         notes: strOrNull(form.note),
       };
     }
-    case "finance":
+    case "finance": {
+      const txn_type = form.txn_type || "expense";
       return {
         date: form.date,
         time: strOrNull(form.time),
         amount: numOrNull(form.amount) ?? 0,
         currency: form.currency || "VND",
         account: strOrNull(form.account),
-        category: strOrNull(form.category),
+        counter_account: txn_type === "transfer" ? strOrNull(form.counter_account) : null,
+        amount_counter: txn_type === "transfer" ? numOrNull(form.amount_counter) : null,
+        category: strOrNull(form.category) || (txn_type === "transfer" ? "transfer" : null),
         merchant: strOrNull(form.merchant),
-        txn_type: form.txn_type || "expense",
+        txn_type,
         notes: strOrNull(form.notes),
       };
+    }
     default:
       return {};
   }

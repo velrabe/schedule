@@ -19,6 +19,7 @@ import {
   SwallowRequiredError,
 } from "../_shared/sessionConfirm.ts";
 import { afterMealWrite } from "../_shared/foodMealSync.ts";
+import { afterFinanceWrite } from "../_shared/financeBalanceSync.ts";
 import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
 
 type Action = { type: string; data: Record<string, unknown> };
@@ -231,6 +232,7 @@ async function execute(db: SupabaseClient, action: Action, sourceLogId: string):
         .select()
         .single();
       if (error) throw error;
+      await afterFinanceWrite(db, String(data.id));
       return data;
     }
     case "create_event": {

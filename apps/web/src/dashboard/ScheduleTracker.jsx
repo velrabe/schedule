@@ -25,6 +25,12 @@ import {
   mealCountForNutrition,
 } from "./mergeNutrition.js";
 import { expenseForSession, fmtExpenseShort } from "./sessionFinance.js";
+import {
+  ACCOUNT_LABELS,
+  fmtMoney,
+  financeTxnLabel,
+  financeTxnShortMeta,
+} from "./financeDisplay.js";
 
 const html = htm.bind(h);
 const STORE_KEY = "schedule-tracker:v1";
@@ -2870,20 +2876,6 @@ function NutritionTab({ days, meals = [], finance = [], activities = [], active 
 
 // ---------------- finance view ----------------
 
-const ACCOUNT_LABELS = {
-  savings_rub: "Savings RUB",
-  ip_rub: "Счёт ИП",
-  vcb_vnd: "Bank VND",
-  cash_vnd: "Наличные",
-};
-
-function fmtMoney(amount, currency) {
-  const n = Number(amount) || 0;
-  if (currency === "VND") return `${Math.round(n).toLocaleString("ru-RU")} ₫`;
-  if (currency === "RUB") return `${Math.round(n).toLocaleString("ru-RU")} ₽`;
-  return `${n} ${currency || ""}`;
-}
-
 function FinanceTab({ days, accounts = [], finance = [], active = true, liveMode = false, onOpenRecord }) {
   const knownDates = useMemo(() => {
     const set = new Set();
@@ -2936,29 +2928,33 @@ function FinanceTab({ days, accounts = [], finance = [], active = true, liveMode
         ${visibleDates.map((date) => {
           const dayTx = txByDate.get(date) || [];
           const isToday = date === today;
-          const expense = dayTx
-            .filter((t) => (t.txn_type || "expense") === "expense")
-            .reduce((a, t) => a + Math.abs(Number(t.amount) || 0), 0);
+          const expenses = dayTx.filter((t) => (t.txn_type || "expense") === "expense");
+          const expense = expenses.reduce((a, t) => a + Math.abs(Number(t.amount) || 0), 0);
+          const transferCount = dayTx.filter((t) => (t.txn_type || "") === "transfer").length;
           return html`
             <div class=${`finance-day-col ${isToday ? "finance-day-col--today" : ""}`} key=${date} ref=${isToday ? todayColRef : null}>
               <div class="finance-day-head-wrap">
                 <span class="finance-day-date">${date}${isToday ? " · today" : ""}</span>
-                ${expense > 0 && html`<span class="finance-day-total">расход ${fmtMoney(expense, dayTx[0]?.currency || "VND")}</span>`}
+                ${expense > 0 && html`<span class="finance-day-total">расход ${fmtMoney(expense, expenses[0]?.currency || "VND")}</span>`}
+                ${transferCount > 0 && html`<span class="finance-day-total finance-day-total--transfer">переводов ${transferCount}</span>`}
               </div>
               <div class="finance-tx-wrap">
                 ${dayTx.length === 0 && html`<span class="finance-empty">нет операций</span>`}
-                ${dayTx.map((t) => html`
+                ${dayTx.map((t) => {
+                  const isTransfer = (t.txn_type || "") === "transfer";
+                  return html`
                   <${RecordOpenRow}
                     key=${t.id}
-                    className="finance-tx-row"
+                    className=${`finance-tx-row ${isTransfer ? "finance-tx-row--transfer" : ""}`}
                     onOpen=${onOpenRecord ? () => onOpenRecord({ kind: "finance", record: t }) : null}
                     disabled=${!liveMode}
                   >
-                    <span class="finance-tx-amount">${fmtMoney(t.amount, t.currency)}</span>
-                    <span class="finance-tx-meta">${t.category || "—"} · ${t.merchant || t.account || ""}</span>
+                    <span class="finance-tx-amount">${financeTxnLabel(t)}</span>
+                    <span class="finance-tx-meta">${financeTxnShortMeta(t)}</span>
                     ${t.notes && html`<span class="finance-tx-note">${t.notes}</span>`}
                   </${RecordOpenRow}>
-                `)}
+                `;
+                })}
               </div>
             </div>
           `;

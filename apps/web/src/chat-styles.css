@@ -1724,8 +1724,18 @@ button.kanban-card:hover {
   font-family: var(--mono);
 }
 
+.finance-tx-row--transfer .finance-tx-amount {
+  font-weight: 600;
+}
+
+.finance-day-total--transfer {
+  color: var(--text-2);
+}
+
 .finance-tx-amount {
   font-weight: 600;
+  font-size: 10px;
+  line-height: 1.35;
 }
 
 .finance-tx-meta {

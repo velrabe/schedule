@@ -86,6 +86,13 @@ export function summarizeAction(a: Action): string {
     }
     case "create_finance_transaction": {
       const cur = d.currency ?? "";
+      const type = String(d.txn_type || "expense").toLowerCase();
+      if (type === "transfer" && d.counter_account) {
+        return `Перевод ${d.account} → ${d.counter_account}: ${d.amount} ${cur} → ${d.amount_counter ?? "?"}${date ? ` · ${date}` : ""}`;
+      }
+      if (type === "income") {
+        return `Приход +${d.amount} ${cur} · ${d.account ?? ""}${date ? ` · ${date}` : ""}`;
+      }
       return `Расход ${d.amount} ${cur}${d.category ? ` · ${d.category}` : ""}${date ? ` · ${date}` : ""}`;
     }
     case "create_planner_event": {

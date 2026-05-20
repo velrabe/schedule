@@ -191,9 +191,22 @@ Linking to sessions:
 - If a session is currently open (work or sport) and user says "за это X" / "за тренировку 100к" / "за обед 50к" → set finance_transactions.session_id to the open session's id.
 - If finance is mentioned alongside a meal ("обедал, потратил 150к") → create the meal AND a finance_transaction linked to it via session.
 
-type=expense unless user explicitly says "пришло", "получил", "доход", "перевод", "перевёл себе".
+type=expense unless user explicitly says "пришло", "получил", "доход".
 
-For income / transfer, also update the corresponding accounts.balance (use update_account action — if not present skip, just log the transaction).
+# internal transfers (между своими счетами)
+When user moves money between own accounts ("перевёл", "перекинул", "с сбера на вкб", "конвертировал"):
+- ONE create_finance_transaction with txn_type=transfer
+- account = source slug (откуда списали)
+- counter_account = destination slug (куда зачислили)
+- amount + currency = what left the source account
+- amount_counter = what arrived on destination (in destination currency)
+- category = transfer
+- Example: 10 000 RUB from savings_rub to vcb_vnd as 3 692 220 VND:
+  { "txn_type": "transfer", "account": "savings_rub", "counter_account": "vcb_vnd", "amount": 10000, "currency": "RUB", "amount_counter": 3692220, "category": "transfer", "notes": "..." }
+
+Server updates both account balances automatically. Not an expense — do not use category=food.
+
+type=income for external inflows; type=transfer only for internal moves between accounts slugs above.
 `;
 
 const BODY = `

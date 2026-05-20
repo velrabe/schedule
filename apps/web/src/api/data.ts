@@ -90,6 +90,9 @@ export type FinanceRow = {
   amount: number;
   currency: string;
   account: string | null;
+  counter_account: string | null;
+  amount_counter: number | null;
+  transfer_group_id: string | null;
   category: string | null;
   merchant: string | null;
   txn_type: string;

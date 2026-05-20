@@ -124,7 +124,8 @@ Available action types (use in actions[].type):
   - create_substance            { date, time?, name, amount?, unit?, notes? }
   - create_body_metric          { date, time?, metric, value, unit?, notes? }
   - update_day                  { date, wake_time?, sleep_time?, sleep_hours?, mood?, energy?, focus?, weight_kg?, day_type?, kcal_target?, carbs_target_g?, protein_target_g?, fat_target_g?, notes? }
-  - create_finance_transaction  { date, time?, amount, currency, account?, category?, merchant?, txn_type?, session_id?, notes? }
+  - create_finance_transaction  { date, time?, amount, currency, account?, counter_account?, amount_counter?, category?, merchant?, txn_type?, session_id?, notes? }
+                                                                                              // transfer: account=from, counter_account=to, amount_counter=credit on to-account
   - create_event                { date, kind, detail?, severity? }
   - create_planner_event        { date, end_date?, time?, title, kind, detail?, recurrence?, reminder_minutes? }
   - create_mood_log             { date, time?, emotion, emotion_label?, valence?, tags?, notes? }
