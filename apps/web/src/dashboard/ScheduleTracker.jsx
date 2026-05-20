@@ -1864,6 +1864,45 @@ function DateStripControls({ canLoadPast, onToday }) {
   `;
 }
 
+const NUTRITION_TARGET = { kcal: 1800, carbs: 180, protein: 116, fat: 64 };
+
+const MEAL_SLOT_RU = {
+  breakfast: "завтрак",
+  lunch: "обед",
+  dinner: "ужин",
+  snack: "снек",
+};
+
+function NutriBar({ label, value, target, unit = "", tone = "in", compact = false }) {
+  const pct = target > 0 ? Math.min(100, (value / target) * 100) : 0;
+  const overflow = target > 0 && value > target ? Math.min(100, ((value - target) / target) * 100) : 0;
+  const over2x = value >= target * 2;
+  return html`
+    <div class=${`nutri-bar-wrap ${compact ? "nutri-bar-wrap--compact" : ""}`}>
+      <div class="nutri-bar-head-wrap">
+        <span class="nutri-bar-label">${label}</span>
+        <span class="nutri-bar-val">${Math.round(value)}${unit} / ${target}${unit}</span>
+      </div>
+      <div class="nutri-bar-track">
+        <div
+          class=${`nutri-bar-fill nutri-bar-fill--${tone} ${over2x ? "nutri-bar-fill--danger" : ""}`}
+          style=${{ width: `${pct}%` }}
+        ></div>
+        ${overflow > 0 && html`
+          <div class="nutri-bar-fill nutri-bar-fill--overflow" style=${{ width: `${overflow}%` }}></div>
+        `}
+      </div>
+    </div>
+  `;
+}
+
+function formatActivityLabel(a) {
+  const type = String(a.type || "activity");
+  if (a.notes) return a.notes;
+  if (a.source === "base_move") return "бытовое движение";
+  return type.replace(/_/g, " ");
+}
+
 // ---------------- calendar view ----------------
 
 function CalendarTab({ days, sessions, meals = [], activities = [] }) {
@@ -2017,6 +2056,23 @@ function CalendarTab({ days, sessions, meals = [], activities = [] }) {
 }
 
 function CalendarDayDetail({ date, day, sessions, meals = [], activitiesList = [] }) {
+  const sortedMeals = useMemo(
+    () =>
+      [...meals].sort((a, b) => {
+        const order = { breakfast: 0, lunch: 1, dinner: 2, snack: 3 };
+        const sa = order[a.slot] ?? 9;
+        const sb = order[b.slot] ?? 9;
+        if (sa !== sb) return sa - sb;
+        return String(a.time || "").localeCompare(String(b.time || ""));
+      }),
+    [meals],
+  );
+
+  const sortedActs = useMemo(
+    () => [...activitiesList].sort((a, b) => String(a.time || "").localeCompare(String(b.time || ""))),
+    [activitiesList],
+  );
+
   const sorted = useMemo(() => {
     if (!day) return [...sessions];
     return [...sessions].sort(
@@ -2024,16 +2080,19 @@ function CalendarDayDetail({ date, day, sessions, meals = [], activitiesList = [
     );
   }, [sessions, day]);
 
-  const kcalIn = meals.reduce((a, m) => a + (m.kcal || 0), 0);
-  const kcalOut = activitiesList.reduce((a, a2) => a + (a2.calories_burned || 0), 0);
+  const kcalIn = meals.reduce((a, m) => a + (Number(m.kcal) || 0), 0);
+  const kcalOut = activitiesList.reduce((a, a2) => a + (Number(a2.calories_burned) || 0), 0);
+  const balance = kcalIn - kcalOut;
   const macros = meals.reduce(
     (acc, m) => ({
-      p: acc.p + (m.protein_g || 0),
-      f: acc.f + (m.fat_g || 0),
-      c: acc.c + (m.carbs_g || 0),
+      p: acc.p + (Number(m.protein_g) || 0),
+      f: acc.f + (Number(m.fat_g) || 0),
+      c: acc.c + (Number(m.carbs_g) || 0),
     }),
     { p: 0, f: 0, c: 0 },
   );
+
+  const hasNutrition = kcalIn > 0 || kcalOut > 0 || meals.length > 0 || activitiesList.length > 0;
 
   return html`
     <div class="cal-detail-body-wrap">
@@ -2045,36 +2104,97 @@ function CalendarDayDetail({ date, day, sessions, meals = [], activitiesList = [
         ${day && day.day_type && html`<span class="cal-detail-meta">${day.day_type}</span>`}
         ${day && day.weight_kg && html`<span class="cal-detail-meta">${fmt(day.weight_kg, 1)}kg</span>`}
       </div>
-      ${(kcalIn > 0 || kcalOut > 0) && html`
-        <div class="cal-detail-nutri-wrap">
-          <span class="cal-detail-nutri">🍴 ${Math.round(kcalIn)} kcal in</span>
-          <span class="cal-detail-nutri">🔥 ${Math.round(kcalOut)} kcal out</span>
-          <span class="cal-detail-nutri cal-detail-nutri--macro">C ${Math.round(macros.c)}g · P ${Math.round(macros.p)}g · F ${Math.round(macros.f)}g</span>
+
+      ${day && day.notes && html`<div class="cal-detail-notes-wrap"><span>${day.notes}</span></div>`}
+
+      ${hasNutrition && html`
+        <div class="cal-detail-nutri-summary-wrap">
+          <div class="cal-detail-nutri-summary-head-wrap">
+            <span class="cal-detail-nutri-summary-title">питание · ${date}</span>
+            <span class=${`cal-detail-balance ${balance > NUTRITION_TARGET.kcal ? "cal-detail-balance--over" : ""}`}>
+              баланс ${Math.round(balance)} / ${NUTRITION_TARGET.kcal}
+            </span>
+          </div>
+          <${NutriBar} label="kcal in" value=${kcalIn} target=${NUTRITION_TARGET.kcal} />
+          <${NutriBar} label="kcal out" value=${kcalOut} target=${NUTRITION_TARGET.kcal} tone="burn" />
+          <${NutriBar} label="carbs" value=${macros.c} target=${NUTRITION_TARGET.carbs} unit="g" />
+          <${NutriBar} label="protein" value=${macros.p} target=${NUTRITION_TARGET.protein} unit="g" />
+          <${NutriBar} label="fat" value=${macros.f} target=${NUTRITION_TARGET.fat} unit="g" />
         </div>
       `}
-      ${meals.length > 0 && html`
-        <div class="cal-detail-meals-wrap">
-          ${meals.map((m) => html`
-            <div class="cal-detail-meal" key=${m.id}>
-              <span class="cal-detail-meal__slot">${m.slot || "—"}</span>
-              <span class="cal-detail-meal__name">${m.name}</span>
-              <span class="cal-detail-meal__kcal">${m.kcal != null ? `${Math.round(m.kcal)} kcal` : ""}</span>
-              <span class="cal-detail-meal__macro">${m.carbs_g != null ? `C${Math.round(m.carbs_g)}` : ""} ${m.protein_g != null ? `P${Math.round(m.protein_g)}` : ""} ${m.fat_g != null ? `F${Math.round(m.fat_g)}` : ""}</span>
+
+      ${sortedMeals.length > 0 && html`
+        <div class="cal-detail-section-wrap">
+          <span class="cal-detail-section-title">приёмы пищи</span>
+          ${sortedMeals.map((m) => {
+            const slotLabel = MEAL_SLOT_RU[m.slot] || m.slot || "еда";
+            const mk = Number(m.kcal) || 0;
+            return html`
+              <div class="cal-detail-item-wrap" key=${m.id}>
+                <div class="cal-detail-item-head-wrap">
+                  <span class="cal-detail-item__slot">${slotLabel}</span>
+                  <span class="cal-detail-item__name">${m.name}</span>
+                  <span class="cal-detail-item__kcal">${mk > 0 ? `${Math.round(mk)} kcal` : "—"}</span>
+                  <span class="cal-detail-item__macro">
+                    ${m.carbs_g != null ? `C${Math.round(Number(m.carbs_g))}` : ""}
+                    ${m.protein_g != null ? ` P${Math.round(Number(m.protein_g))}` : ""}
+                    ${m.fat_g != null ? ` F${Math.round(Number(m.fat_g))}` : ""}
+                  </span>
+                </div>
+                ${mk > 0 && html`<${NutriBar} label="kcal" value=${mk} target=${NUTRITION_TARGET.kcal} compact=${true} />`}
+                ${m.carbs_g != null && html`<${NutriBar} label="carbs" value=${Number(m.carbs_g)} target=${NUTRITION_TARGET.carbs} unit="g" compact=${true} tone="macro" />`}
+                ${m.protein_g != null && html`<${NutriBar} label="protein" value=${Number(m.protein_g)} target=${NUTRITION_TARGET.protein} unit="g" compact=${true} tone="macro" />`}
+                ${m.fat_g != null && html`<${NutriBar} label="fat" value=${Number(m.fat_g)} target=${NUTRITION_TARGET.fat} unit="g" compact=${true} tone="macro" />`}
+              </div>
+            `;
+          })}
+        </div>
+      `}
+
+      ${sortedActs.length > 0 && html`
+        <div class="cal-detail-section-wrap cal-detail-section-wrap--acts">
+          <span class="cal-detail-section-title">активность</span>
+          ${sortedActs.map((a) => {
+            const burn = Number(a.calories_burned) || 0;
+            const typeLabel = String(a.type || "activity").replace(/_/g, " ");
+            return html`
+              <div class="cal-detail-item-wrap cal-detail-item-wrap--act" key=${a.id}>
+                <div class="cal-detail-item-head-wrap">
+                  <span class="cal-detail-item__slot cal-detail-item__slot--act">${typeLabel}</span>
+                  <span class="cal-detail-item__name">${formatActivityLabel(a)}</span>
+                  <span class="cal-detail-item__kcal cal-detail-item__kcal--burn">${burn > 0 ? `${Math.round(burn)} kcal` : "—"}</span>
+                  ${a.duration_min != null && html`<span class="cal-detail-item__dur">${a.duration_min}m</span>`}
+                </div>
+                ${burn > 0 && html`<${NutriBar} label="burn" value=${burn} target=${NUTRITION_TARGET.kcal} tone="burn" compact=${true} />`}
+              </div>
+            `;
+          })}
+          ${sortedActs.length > 1 && html`
+            <div class="cal-detail-item-wrap cal-detail-item-wrap--act-total">
+              <div class="cal-detail-item-head-wrap">
+                <span class="cal-detail-item__slot cal-detail-item__slot--act">итого</span>
+                <span class="cal-detail-item__name">все активности</span>
+                <span class="cal-detail-item__kcal cal-detail-item__kcal--burn">${Math.round(kcalOut)} kcal</span>
+              </div>
+              <${NutriBar} label="burn total" value=${kcalOut} target=${NUTRITION_TARGET.kcal} tone="burn" compact=${true} />
+            </div>
+          `}
+        </div>
+      `}
+
+      <div class="cal-detail-section-wrap cal-detail-section-wrap--sessions">
+        <span class="cal-detail-section-title">сессии</span>
+        <div class="cal-detail-sessions-wrap">
+          ${sorted.length === 0 && html`<div class="cal-detail-empty-wrap"><span>сессии не записаны</span></div>`}
+          ${sorted.map((s) => html`
+            <div class="cal-detail-session" key=${s.id}>
+              <span class="cal-detail-session__time">${s.start}–${s.end}</span>
+              <span class="cal-detail-session__cat">${s.category}</span>
+              ${s.project && html`<span class="cal-detail-session__proj">${s.project}</span>`}
+              ${s.note && html`<span class="cal-detail-session__note">${s.note}</span>`}
             </div>
           `)}
         </div>
-      `}
-      ${day && day.notes && html`<div class="cal-detail-notes-wrap"><span>${day.notes}</span></div>`}
-      <div class="cal-detail-sessions-wrap">
-        ${sorted.length === 0 && html`<div class="cal-detail-empty-wrap"><span>сессии не записаны</span></div>`}
-        ${sorted.map((s) => html`
-          <div class="cal-detail-session" key=${s.id}>
-            <span class="cal-detail-session__time">${s.start}–${s.end}</span>
-            <span class="cal-detail-session__cat">${s.category}</span>
-            ${s.project && html`<span class="cal-detail-session__proj">${s.project}</span>`}
-            ${s.note && html`<span class="cal-detail-session__note">${s.note}</span>`}
-          </div>
-        `)}
       </div>
     </div>
   `;
@@ -2456,8 +2576,6 @@ function KanbanSessionEditor({ value, isNew = false, onSave, onCancel, onDelete 
 
 // ---------------- nutrition view ----------------
 
-const NUTRITION_TARGET = { kcal: 1800, carbs: 180, protein: 116, fat: 64 };
-
 function NutritionTab({ days, meals = [], activities = [] }) {
   const knownDates = useMemo(() => {
     const set = new Set();
@@ -2549,32 +2667,6 @@ function NutritionTab({ days, meals = [], activities = [] }) {
             </div>
           `;
         })}
-      </div>
-    </div>
-  `;
-}
-
-function NutriBar({ label, value, target, unit = "", tone = "in" }) {
-  const pct = target > 0 ? Math.min(100, (value / target) * 100) : 0;
-  const overflow = target > 0 && value > target ? Math.min(100, ((value - target) / target) * 100) : 0;
-  const over2x = value >= target * 2;
-  return html`
-    <div class="nutri-bar-wrap">
-      <div class="nutri-bar-head-wrap">
-        <span class="nutri-bar-label">${label}</span>
-        <span class="nutri-bar-val">${Math.round(value)}${unit ? unit : ""} / ${target}${unit ? unit : ""}</span>
-      </div>
-      <div class="nutri-bar-track">
-        <div
-          class=${`nutri-bar-fill nutri-bar-fill--${tone} ${over2x ? "nutri-bar-fill--danger" : ""}`}
-          style=${{ width: `${pct}%` }}
-        ></div>
-        ${overflow > 0 && html`
-          <div
-            class="nutri-bar-fill nutri-bar-fill--overflow"
-            style=${{ width: `${overflow}%` }}
-          ></div>
-        `}
       </div>
     </div>
   `;

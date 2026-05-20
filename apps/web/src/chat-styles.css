@@ -714,6 +714,162 @@ button.kanban-card:hover {
   border-bottom: 1px solid var(--border);
 }
 
+.cal-detail-nutri-summary-wrap {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  padding: 12px;
+  gap: 8px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.cal-detail-nutri-summary-head-wrap {
+  display: flex;
+  flex-direction: row;
+  align-items: baseline;
+  justify-content: space-between;
+  width: 100%;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.cal-detail-nutri-summary-title {
+  font-size: 11px;
+  font-family: var(--mono);
+  font-weight: 600;
+  color: var(--text);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.cal-detail-balance {
+  font-size: 11px;
+  font-family: var(--mono);
+  color: var(--text-2);
+}
+
+.cal-detail-balance--over {
+  color: var(--danger);
+}
+
+.cal-detail-section-wrap {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  padding: 12px;
+  gap: 10px;
+  border-bottom: 1px solid var(--border);
+}
+
+.cal-detail-section-title {
+  font-size: 10px;
+  font-family: var(--mono);
+  color: var(--text-3);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.cal-detail-item-wrap {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  padding: 8px 0;
+  gap: 6px;
+  border-bottom: 1px solid var(--border);
+}
+
+.cal-detail-item-wrap:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.cal-detail-item-wrap--act-total {
+  padding-top: 4px;
+  border-top: 1px dashed var(--border);
+}
+
+.cal-detail-item-head-wrap {
+  display: grid;
+  grid-template-columns: 72px 1fr auto;
+  grid-template-rows: auto auto;
+  gap: 2px 10px;
+  width: 100%;
+  align-items: baseline;
+  font-size: 11px;
+  font-family: var(--mono);
+}
+
+.cal-detail-item__slot {
+  grid-row: span 2;
+  font-size: 9px;
+  color: var(--text-3);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  align-self: center;
+}
+
+.cal-detail-item__slot--act {
+  color: #2db38a;
+}
+
+.cal-detail-item__name {
+  color: var(--text);
+  line-height: 1.35;
+}
+
+.cal-detail-item__kcal {
+  grid-column: 3;
+  grid-row: 1;
+  color: #b6791a;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.cal-detail-item__kcal--burn {
+  color: #2db38a;
+}
+
+.cal-detail-item__macro {
+  grid-column: 2 / 4;
+  font-size: 10px;
+  color: var(--text-3);
+}
+
+.cal-detail-item__dur {
+  grid-column: 3;
+  grid-row: 2;
+  font-size: 10px;
+  color: var(--text-3);
+  text-align: right;
+}
+
+.cal-detail-section-wrap--sessions {
+  border-bottom: none;
+}
+
+.cal-detail-section-wrap--sessions .cal-detail-sessions-wrap {
+  border-top: none;
+  padding-top: 0;
+}
+
+.nutri-bar-wrap--compact {
+  gap: 2px;
+}
+
+.nutri-bar-wrap--compact .nutri-bar-track {
+  height: 5px;
+}
+
+.nutri-bar-wrap--compact .nutri-bar-label,
+.nutri-bar-wrap--compact .nutri-bar-val {
+  font-size: 8px;
+}
+
+.nutri-bar-fill--macro {
+  background: #7a8fad;
+}
+
 .cal-detail-nutri {
   font-size: 11px;
   font-family: var(--mono);
