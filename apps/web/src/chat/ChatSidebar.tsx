@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "preact/hooks";
 import { call, ApiError } from "../api/client";
 import { clearToken } from "../api/token";
 import { summarizeActions } from "./actionSummary";
+import { formatApiError } from "./formatApiError";
 
 export type Action = {
   type: string;
@@ -23,6 +24,8 @@ type Message =
       pendingId?: string;
       status?: "pending" | "confirmed" | "saved" | "rejected" | "error";
       confirmNote?: string;
+      errorHint?: string;
+      errorTechnical?: string;
       swallowWarnings?: SwallowWarning[];
       needsSwallowOk?: boolean;
     }
@@ -163,15 +166,18 @@ export default function ChatSidebar({ open, onClose }: { open: boolean; onClose:
         }
       }
     } catch (err) {
-      const errText =
-        err instanceof ApiError
-          ? `error ${err.status}: ${JSON.stringify(err.body)}`
-          : err instanceof Error
-            ? err.message
-            : "unknown error";
+      const fe = formatApiError(err);
       setMessages((m) => [
         ...m.filter((x) => x.id !== loadingId),
-        { id: uid(), role: "assistant", text: errText, status: "error", ts: Date.now() },
+        {
+          id: uid(),
+          role: "assistant",
+          text: fe.message,
+          errorHint: fe.hint,
+          errorTechnical: fe.technical,
+          status: "error",
+          ts: Date.now(),
+        },
       ]);
     } finally {
       setBusy(false);
@@ -222,13 +228,17 @@ export default function ChatSidebar({ open, onClose }: { open: boolean; onClose:
           ),
         );
       } else {
+        const fe = formatApiError(err);
         setMessages((arr) =>
           arr.map((m) =>
             m.id === msgId
               ? {
                   ...m,
                   status: "error",
-                  confirmNote: err instanceof Error ? err.message : String(err),
+                  text: fe.message,
+                  errorHint: fe.hint,
+                  errorTechnical: fe.technical,
+                  confirmNote: undefined,
                 }
               : m,
           ),
@@ -385,10 +395,25 @@ function ChatBubble({
   const writableSummaries = writableActions.length ? summarizeActions(writableActions) : [];
   const clarifySummaries = clarifyActions.length ? summarizeActions(clarifyActions) : [];
 
+  const isError = msg.status === "error";
+
   return (
     <div class="chat-row chat-row--assistant">
-      <div class="chat-bubble chat-bubble--assistant">
-        <span class="chat-bubble__text">{msg.text}</span>
+      <div class={`chat-bubble chat-bubble--assistant ${isError ? "chat-bubble--error" : ""}`}>
+        <span class={`chat-bubble__text ${isError ? "chat-bubble__text--error-title" : ""}`}>{msg.text}</span>
+        {msg.errorHint && (
+          <div class="chat-error-hint-wrap">
+            <span class="chat-error-hint">{msg.errorHint}</span>
+          </div>
+        )}
+        {msg.errorTechnical && (
+          <details class="chat-actions-details chat-actions-details--error">
+            <summary class="chat-actions-details__summary">
+              <span>технические детали</span>
+            </summary>
+            <pre class="chat-error-technical">{msg.errorTechnical}</pre>
+          </details>
+        )}
 
         {writableSummaries.length > 0 && (
           <div class="chat-actions-human-wrap">

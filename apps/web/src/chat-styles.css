@@ -1952,6 +1952,45 @@ button.kanban-card:hover {
 .chat-bubble__status--rejected { color: var(--text-3); }
 .chat-bubble__status--error { color: var(--danger); }
 
+.chat-bubble--error {
+  border-color: color-mix(in srgb, var(--danger) 40%, var(--border));
+}
+
+.chat-bubble__text--error-title {
+  color: var(--danger);
+  font-weight: 600;
+}
+
+.chat-error-hint-wrap {
+  display: flex;
+  width: 100%;
+  margin-top: 8px;
+}
+
+.chat-error-hint {
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--text-2);
+}
+
+.chat-error-technical {
+  display: block;
+  width: 100%;
+  margin: 0;
+  padding: 8px;
+  box-sizing: border-box;
+  font-size: 10px;
+  font-family: var(--mono);
+  color: var(--text-3);
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow-x: auto;
+}
+
+.chat-actions-details--error {
+  margin-top: 8px;
+}
+
 .chat-confirm-wrap {
   display: flex;
   flex-direction: row;

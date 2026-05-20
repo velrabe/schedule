@@ -269,8 +269,30 @@ ${JSON.stringify(context, null, 2)}
       (parsed as Record<string, unknown>).swallow_warnings = swallowWarnings;
     }
   } catch (err) {
-    await db.from("raw_logs").update({ status: "error", status_reason: String(err) }).eq("id", rawLog.id);
-    return json({ error: "llm_failed", detail: String(err) }, { status: 502 });
+    const detail = err instanceof Error ? err.message : String(err);
+    await db.from("raw_logs").update({ status: "error", status_reason: detail }).eq("id", rawLog.id);
+    const quota = /429|RESOURCE_EXHAUSTED|quota exceeded/i.test(detail);
+    if (quota) {
+      const retryMatch = detail.match(/retry(?:Delay)?["']?\s*:\s*"?(\d+)/i);
+      const retry_after_sec = retryMatch ? Number(retryMatch[1]) : 60;
+      return json(
+        {
+          error: "llm_quota_exceeded",
+          message: "Квота Google Gemini исчерпана. Подожди и попробуй снова.",
+          retry_after_sec,
+          detail,
+        },
+        { status: 429 },
+      );
+    }
+    return json(
+      {
+        error: "llm_failed",
+        message: "Не удалось обработать сообщение (ошибка ИИ).",
+        detail,
+      },
+      { status: 502 },
+    );
   }
 
   // 5. Persist parsed_json
