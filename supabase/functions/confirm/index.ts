@@ -110,9 +110,14 @@ Deno.serve(async (req) => {
   }
 
   const allOk = results.every((r) => r.ok);
+  const hasWritable = results.some((r) => r.type !== "ask_clarification");
+  const logStatus = !hasWritable ? "pending" : allOk ? "saved" : "error";
   await db
     .from("raw_logs")
-    .update({ status: allOk ? "saved" : "error", status_reason: allOk ? null : JSON.stringify(results) })
+    .update({
+      status: logStatus,
+      status_reason: allOk ? null : JSON.stringify(results),
+    })
     .eq("id", log.id);
 
   return json({ ok: allOk, results });

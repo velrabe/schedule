@@ -61,15 +61,24 @@ function loadHistory(): Message[] {
 
 function saveHistory(messages: Message[]) {
   try {
-    const toSave = messages.filter((m) => m.status !== "loading");
+    const toSave = messages.filter((m) => !("status" in m) || m.status !== "loading");
     localStorage.setItem(STORAGE_KEY, JSON.stringify(toSave.slice(-100)));
   } catch {}
 }
 
 function formatConfirmNote(results: ConfirmResult[]): string {
-  const ok = results.filter((r) => r.ok);
-  const fail = results.filter((r) => !r.ok);
-  if (fail.length === 0) return `Записано: ${ok.length} из ${results.length}.`;
+  const real = results.filter((r) => r.type !== "ask_clarification");
+  const clarifyOnly = results.length > 0 && real.length === 0;
+  if (clarifyOnly) {
+    return "В базу ничего не записано — это был только вопрос. Напишите ответ в чате (история учитывается).";
+  }
+  const ok = real.filter((r) => r.ok);
+  const fail = real.filter((r) => !r.ok);
+  if (fail.length === 0) {
+    return real.length === 0
+      ? "Готово."
+      : `Записано: ${ok.length} из ${real.length}.`;
+  }
   const lines = fail.map((r) => `${r.type}: ${r.error || "ошибка"}`);
   return `Частично: ${ok.length} ок, ${fail.length} ошибок.\n${lines.join("\n")}`;
 }
@@ -111,7 +120,11 @@ export default function ChatSidebar({ open, onClose }: { open: boolean; onClose:
     setInput("");
     setBusy(true);
     try {
-      const res = await call<ChatResponse>("chat", { message: text });
+      const history = messages
+        .filter((m) => m.role === "user" || (m.role === "assistant" && m.status !== "loading"))
+        .slice(-8)
+        .map((m) => ({ role: m.role as "user" | "assistant", text: m.text }));
+      const res = await call<ChatResponse>("chat", { message: text, history });
       const assistantMsg: Message = {
         id: uid(),
         role: "assistant",
@@ -167,7 +180,8 @@ export default function ChatSidebar({ open, onClose }: { open: boolean; onClose:
 
   const decide = async (msgId: string, accept: boolean, swallowOk = false) => {
     const msg = messages.find((m) => m.id === msgId);
-    if (!msg || msg.role !== "assistant" || !msg.pendingId || msg.status === "loading") return;
+    if (!msg || msg.role !== "assistant" || msg.status === "loading") return;
+    if (!("pendingId" in msg) || !msg.pendingId) return;
     setBusy(true);
     try {
       const confirmRes = await call<ConfirmResponse>("confirm", {
@@ -358,7 +372,9 @@ function ChatBubble({
     );
   }
 
-  const showButtons = msg.status === "pending" && msg.actions && msg.actions.length > 0;
+  const writableActions = msg.actions?.filter((a) => a.type !== "ask_clarification") ?? [];
+  const clarifyActions = msg.actions?.filter((a) => a.type === "ask_clarification") ?? [];
+  const showButtons = msg.status === "pending" && writableActions.length > 0;
   const statusLabel: Record<string, string> = {
     pending: "ждёт подтверждения",
     confirmed: "подтверждено",
@@ -366,18 +382,32 @@ function ChatBubble({
     rejected: "отклонено",
     error: "ошибка",
   };
-  const summaries = msg.actions?.length ? summarizeActions(msg.actions) : [];
+  const writableSummaries = writableActions.length ? summarizeActions(writableActions) : [];
+  const clarifySummaries = clarifyActions.length ? summarizeActions(clarifyActions) : [];
 
   return (
     <div class="chat-row chat-row--assistant">
       <div class="chat-bubble chat-bubble--assistant">
         <span class="chat-bubble__text">{msg.text}</span>
 
-        {summaries.length > 0 && (
+        {writableSummaries.length > 0 && (
           <div class="chat-actions-human-wrap">
             <span class="chat-actions-human-title">будет записано:</span>
             <ul class="chat-actions-human-list">
-              {summaries.map((line, i) => (
+              {writableSummaries.map((line, i) => (
+                <li key={i} class="chat-actions-human-item">
+                  <span>{line}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        {clarifySummaries.length > 0 && (
+          <div class="chat-actions-human-wrap chat-actions-human-wrap--clarify">
+            <span class="chat-actions-human-title">нужно уточнение (в БД не пишется):</span>
+            <ul class="chat-actions-human-list">
+              {clarifySummaries.map((line, i) => (
                 <li key={i} class="chat-actions-human-item">
                   <span>{line}</span>
                 </li>

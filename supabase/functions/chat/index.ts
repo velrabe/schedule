@@ -35,7 +35,12 @@ Deno.serve(async (req) => {
   const auth = await requireAuth(req, JWT_SECRET);
   if (auth instanceof Response) return auth;
 
-  let body: { message?: string; image_base64?: string; image_mime?: string } = {};
+  let body: {
+    message?: string;
+    image_base64?: string;
+    image_mime?: string;
+    history?: Array<{ role: "user" | "assistant"; text: string }>;
+  } = {};
   try {
     body = await req.json();
   } catch {}
@@ -190,6 +195,20 @@ Output:
   "needs_confirmation": true
 }
 
+Input: "добавь обед 13:30-14:00 550 ккал, курицу +75г, обед на час вперёд, между завтраком и обедом работа app, первую рабочую с 13:00"   (use session ids from CONTEXT; shorten work if overlap)
+Output:
+{
+  "reply_to_user": "Понял: обед 13:30–14:00 (~675 ккал с курицей), app с 13:00 (сокращу до 13:30), рабочий блок между приёмами пищи. Записать?",
+  "actions": [
+    { "type": "create_meal", "data": { "date": "${today}", "time": "13:30", "slot": "lunch", "name": "обед + курица 75г", "kcal": 675, "protein_g": 52, "fat_g": 30, "carbs_g": 40, "confidence": "medium" } },
+    { "type": "update_session", "data": { "id": "<app session uuid>", "date": "${today}", "start_time": "13:00", "end_time": "13:30" } },
+    { "type": "create_session", "data": { "date": "${today}", "start_time": "14:00", "end_time": "15:00", "type": "work", "category": "work_paid", "project": "app" } }
+  ],
+  "needs_confirmation": true
+}
+
+CHAT HISTORY (if present): previous user/assistant turns — use them to resolve follow-ups like "сократить рабочую" without asking again.
+
 CURRENT CONTEXT (JSON):
 ${JSON.stringify(context, null, 2)}
 `;
@@ -205,6 +224,14 @@ ${JSON.stringify(context, null, 2)}
     });
   }
 
+  const historyContents: GeminiContent[] = (body.history || [])
+    .filter((h) => h.text?.trim())
+    .slice(-8)
+    .map((h) => ({
+      role: h.role === "assistant" ? "model" : "user",
+      parts: [{ text: h.text.trim() }],
+    }));
+
   // 4. Call Gemini
   let parsed: {
     reply_to_user: string;
@@ -215,7 +242,7 @@ ${JSON.stringify(context, null, 2)}
   try {
     const out = await generate({
       systemInstruction: { parts: [{ text: systemPrompt }] },
-      contents: [{ role: "user", parts: userParts }],
+      contents: [...historyContents, { role: "user", parts: userParts }],
       generationConfig: {
         temperature: 0.2,
         responseMimeType: "application/json",
@@ -227,6 +254,10 @@ ${JSON.stringify(context, null, 2)}
     parsed = out.json as typeof parsed;
     if (Array.isArray(parsed.actions)) {
       parsed.actions = parsed.actions.map((a) => normalizeAction(a));
+    }
+    const writable = (parsed.actions || []).filter((a) => a.type !== "ask_clarification");
+    if (writable.length === 0 && (parsed.actions || []).some((a) => a.type === "ask_clarification")) {
+      parsed.needs_confirmation = false;
     }
     const swallowWarnings = await previewSessionActions(db, parsed.actions || []);
     if (swallowWarnings.length) {
