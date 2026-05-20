@@ -323,6 +323,7 @@ function App(props = {}) {
         <${TabBtn} id="days" active=${tab} onClick=${setTab} label="Days" count=${days.length} />
         <${TabBtn} id="calendar" active=${tab} onClick=${setTab} label="Calendar" count=${null} />
         <${TabBtn} id="kanban" active=${tab} onClick=${setTab} label="Kanban" count=${null} />
+        <${TabBtn} id="nutrition" active=${tab} onClick=${setTab} label="Nutrition" count=${liveData?.meals?.length ?? null} />
         <${TabBtn} id="sessions" active=${tab} onClick=${setTab} label="Sessions" count=${sessions.length} />
         <${TabBtn} id="events" active=${tab} onClick=${setTab} label="Events" count=${events.length} />
         <${TabBtn} id="insights" active=${tab} onClick=${setTab} label="Insights" count=${null} />
@@ -337,6 +338,7 @@ function App(props = {}) {
       />`}
       ${tab === "calendar" && html`<${CalendarTab} days=${days} sessions=${sessions} meals=${liveData?.meals || []} activities=${liveData?.activities || []} />`}
       ${tab === "kanban" && html`<${KanbanTab} days=${days} sessions=${sessions} meals=${liveData?.meals || []} activities=${liveData?.activities || []} setSessions=${setSessions} liveMode=${Boolean(liveData)} />`}
+      ${tab === "nutrition" && html`<${NutritionTab} days=${days} meals=${liveData?.meals || []} activities=${liveData?.activities || []} />`}
       ${tab === "sessions" && html`<${SessionsTab} sessions=${sessions} setSessions=${setSessions} />`}
       ${tab === "events" && html`<${EventsTab} events=${events} setEvents=${setEvents} />`}
       ${tab === "insights" && html`<${InsightsTab} days=${days} sessions=${sessions} />`}
@@ -2462,6 +2464,133 @@ function KanbanSessionEditor({ value, isNew = false, onSave, onCancel, onDelete 
           <button class="btn btn--ghost kanban-editor-delete" onClick=${onDelete}>
             <span class="btn__text-wrap">delete</span>
           </button>
+        `}
+      </div>
+    </div>
+  `;
+}
+
+// ---------------- nutrition view ----------------
+
+const NUTRITION_TARGET = { kcal: 1800, carbs: 180, protein: 116, fat: 64 };
+
+function NutritionTab({ days, meals = [], activities = [] }) {
+  const dates = useMemo(() => {
+    const set = new Set(days.map((d) => d.date));
+    for (const m of meals) set.add(m.date);
+    for (const a of activities) set.add(a.date);
+    return [...set].sort().reverse();
+  }, [days, meals, activities]);
+
+  const mealsByDate = useMemo(() => {
+    const map = new Map();
+    for (const m of meals) {
+      if (!map.has(m.date)) map.set(m.date, []);
+      map.get(m.date).push(m);
+    }
+    return map;
+  }, [meals]);
+
+  const actsByDate = useMemo(() => {
+    const map = new Map();
+    for (const a of activities) {
+      if (!map.has(a.date)) map.set(a.date, []);
+      map.get(a.date).push(a);
+    }
+    return map;
+  }, [activities]);
+
+  if (dates.length === 0) {
+    return html`
+      <div class="nutri-empty-wrap">
+        <span class="nutri-empty">Нет данных о питании. Логируй еду через чат или добавь вручную.</span>
+      </div>
+    `;
+  }
+
+  return html`
+    <div class="nutri-wrap">
+      <div class="nutri-target-wrap">
+        <span class="nutri-target-label">цель на день</span>
+        <span class="nutri-target-val">${NUTRITION_TARGET.kcal} kcal · C${NUTRITION_TARGET.carbs} · P${NUTRITION_TARGET.protein} · F${NUTRITION_TARGET.fat}</span>
+      </div>
+      <div class="nutri-scroll-wrap">
+        ${dates.map((date) => {
+          const dayMeals = mealsByDate.get(date) || [];
+          const dayActs = actsByDate.get(date) || [];
+          const kcalIn = dayMeals.reduce((a, m) => a + (Number(m.kcal) || 0), 0);
+          const kcalOut = dayActs.reduce((a, x) => a + (Number(x.calories_burned) || 0), 0);
+          const balance = kcalIn - kcalOut;
+          const carbs = dayMeals.reduce((a, m) => a + (Number(m.carbs_g) || 0), 0);
+          const protein = dayMeals.reduce((a, m) => a + (Number(m.protein_g) || 0), 0);
+          const fat = dayMeals.reduce((a, m) => a + (Number(m.fat_g) || 0), 0);
+          return html`
+            <div class="nutri-day-col" key=${date}>
+              <div class="nutri-day-head-wrap">
+                <span class="nutri-day-date">${date}</span>
+                <span class="nutri-day-balance ${balance > NUTRITION_TARGET.kcal ? "nutri-day-balance--over" : ""}">
+                  баланс ${Math.round(balance)} / ${NUTRITION_TARGET.kcal}
+                </span>
+              </div>
+              <${NutriBar} label="kcal in" value=${kcalIn} target=${NUTRITION_TARGET.kcal} />
+              <${NutriBar} label="kcal out" value=${kcalOut} target=${NUTRITION_TARGET.kcal} tone="burn" />
+              <${NutriBar} label="carbs" value=${carbs} target=${NUTRITION_TARGET.carbs} unit="g" />
+              <${NutriBar} label="protein" value=${protein} target=${NUTRITION_TARGET.protein} unit="g" />
+              <${NutriBar} label="fat" value=${fat} target=${NUTRITION_TARGET.fat} unit="g" />
+              <div class="nutri-meals-wrap">
+                ${dayMeals.length === 0 && html`<span class="nutri-meal-empty">нет приёмов пищи</span>`}
+                ${dayMeals.map((m) => html`
+                  <div class="nutri-meal-row" key=${m.id}>
+                    <span class="nutri-meal-slot">${m.slot || "—"}</span>
+                    <span class="nutri-meal-name">${m.name}</span>
+                    <span class="nutri-meal-kcal">${m.kcal != null ? `${Math.round(Number(m.kcal))}` : "—"}</span>
+                    <span class="nutri-meal-macro">
+                      ${m.carbs_g != null ? `C${Math.round(Number(m.carbs_g))}` : ""}
+                      ${m.protein_g != null ? ` P${Math.round(Number(m.protein_g))}` : ""}
+                      ${m.fat_g != null ? ` F${Math.round(Number(m.fat_g))}` : ""}
+                    </span>
+                  </div>
+                `)}
+              </div>
+              ${dayActs.length > 0 && html`
+                <div class="nutri-acts-wrap">
+                  ${dayActs.map((a) => html`
+                    <div class="nutri-act-row" key=${a.id}>
+                      <span class="nutri-act-type">${a.type}</span>
+                      <span class="nutri-act-kcal">🔥 ${Math.round(Number(a.calories_burned) || 0)}</span>
+                      ${a.duration_min != null && html`<span class="nutri-act-dur">${a.duration_min}m</span>`}
+                    </div>
+                  `)}
+                </div>
+              `}
+            </div>
+          `;
+        })}
+      </div>
+    </div>
+  `;
+}
+
+function NutriBar({ label, value, target, unit = "", tone = "in" }) {
+  const pct = target > 0 ? Math.min(100, (value / target) * 100) : 0;
+  const overflow = target > 0 && value > target ? Math.min(100, ((value - target) / target) * 100) : 0;
+  const over2x = value >= target * 2;
+  return html`
+    <div class="nutri-bar-wrap">
+      <div class="nutri-bar-head-wrap">
+        <span class="nutri-bar-label">${label}</span>
+        <span class="nutri-bar-val">${Math.round(value)}${unit ? unit : ""} / ${target}${unit ? unit : ""}</span>
+      </div>
+      <div class="nutri-bar-track">
+        <div
+          class=${`nutri-bar-fill nutri-bar-fill--${tone} ${over2x ? "nutri-bar-fill--danger" : ""}`}
+          style=${{ width: `${pct}%` }}
+        ></div>
+        ${overflow > 0 && html`
+          <div
+            class="nutri-bar-fill nutri-bar-fill--overflow"
+            style=${{ width: `${overflow}%` }}
+          ></div>
         `}
       </div>
     </div>

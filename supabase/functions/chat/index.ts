@@ -14,6 +14,7 @@ import { requireAuth } from "../_shared/jwt.ts";
 import { admin } from "../_shared/db.ts";
 import { generate, type GeminiContent } from "../_shared/gemini.ts";
 import { loadRules, ALL_DOMAINS } from "../_shared/rules.ts";
+import { normalizeAction } from "../_shared/actions.ts";
 
 const TZ = "Asia/Ho_Chi_Minh";
 
@@ -208,6 +209,9 @@ ${JSON.stringify(context, null, 2)}
       throw new Error(`Gemini returned non-JSON: ${out.text.slice(0, 200)}`);
     }
     parsed = out.json as typeof parsed;
+    if (Array.isArray(parsed.actions)) {
+      parsed.actions = parsed.actions.map((a) => normalizeAction(a));
+    }
   } catch (err) {
     await db.from("raw_logs").update({ status: "error", status_reason: String(err) }).eq("id", rawLog.id);
     return json({ error: "llm_failed", detail: String(err) }, { status: 502 });

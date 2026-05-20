@@ -4,6 +4,15 @@
 import { preflight, json } from "../_shared/cors.ts";
 import { requireAuth } from "../_shared/jwt.ts";
 import { admin } from "../_shared/db.ts";
+import {
+  normalizeAction,
+  normalizeActionType,
+  normalizeDayPatch,
+  normalizeMealPayload,
+  normalizeSessionPayload,
+  padTime,
+  diffMinutes,
+} from "../_shared/actions.ts";
 import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
 
 type Action = { type: string; data: Record<string, unknown> };
@@ -41,16 +50,22 @@ Deno.serve(async (req) => {
     return json({ ok: true, status: "rejected" });
   }
 
-  const actions: Action[] = body.overrides ||
+  const rawActions: Action[] = body.overrides ||
     ((log.parsed_json as { actions?: Action[] } | null)?.actions ?? []);
+  const actions = rawActions.map((a) => normalizeAction(a));
 
   const results: Array<{ type: string; ok: boolean; error?: string; row?: unknown }> = [];
   for (const action of actions) {
+    if (action.type === "ask_clarification") {
+      results.push({ type: action.type, ok: true, row: { skipped: true } });
+      continue;
+    }
     try {
       const row = await execute(db, action, log.id);
       results.push({ type: action.type, ok: true, row });
     } catch (err) {
-      results.push({ type: action.type, ok: false, error: String(err) });
+      const msg = err instanceof Error ? err.message : String(err);
+      results.push({ type: action.type, ok: false, error: msg });
     }
   }
 
@@ -64,12 +79,12 @@ Deno.serve(async (req) => {
 });
 
 async function execute(db: SupabaseClient, action: Action, sourceLogId: string): Promise<unknown> {
+  const type = normalizeActionType(action.type);
   const d = action.data;
-  switch (action.type) {
+  switch (type) {
     case "update_day": {
       const date = String(d.date);
-      const patch = { ...d } as Record<string, unknown>;
-      delete patch.date;
+      const patch = normalizeDayPatch(d);
       const { data, error } = await db
         .from("days")
         .upsert({ date, ...patch })
@@ -79,25 +94,27 @@ async function execute(db: SupabaseClient, action: Action, sourceLogId: string):
       return data;
     }
     case "create_session": {
+      const row = normalizeSessionPayload(d);
       const { data, error } = await db
         .from("sessions")
-        .insert({ ...d, source_log_id: sourceLogId })
+        .insert({ ...row, source_log_id: sourceLogId })
         .select()
         .single();
       if (error) throw error;
       return data;
     }
     case "create_work_session_open": {
+      const start = padTime(d.start_time) ?? "00:00:00";
       const { data, error } = await db
         .from("sessions")
         .insert({
           date: d.date,
-          start_time: d.start_time,
-          end_time: d.start_time,
+          start_time: start,
+          end_time: start,
           duration_min: 0,
           type: "work",
           category: d.category ?? "work_paid",
-          project: d.project,
+          project: d.project ?? null,
           source_log_id: sourceLogId,
         })
         .select()
@@ -116,8 +133,9 @@ async function execute(db: SupabaseClient, action: Action, sourceLogId: string):
       if (e1) throw e1;
       const target = (open || [])[0];
       if (!target) throw new Error("no_open_work_session");
-      const startMin = toMin(target.start_time as string);
-      const endMin = toMin(String(d.end_time));
+      const endTime = padTime(d.end_time) ?? String(d.end_time);
+      const startMin = toMin(String(target.start_time));
+      const endMin = toMin(endTime);
       const duration = (endMin - startMin + 24 * 60) % (24 * 60);
       const { data, error } = await db
         .from("sessions")
@@ -133,9 +151,10 @@ async function execute(db: SupabaseClient, action: Action, sourceLogId: string):
       return data;
     }
     case "create_meal": {
+      const row = normalizeMealPayload(d);
       const { data, error } = await db
         .from("meals")
-        .insert({ ...d, source_log_id: sourceLogId })
+        .insert({ ...row, source_log_id: sourceLogId })
         .select()
         .single();
       if (error) throw error;
@@ -207,7 +226,7 @@ async function execute(db: SupabaseClient, action: Action, sourceLogId: string):
     case "ask_clarification":
       return { skipped: true };
     default:
-      throw new Error(`unknown_action_type: ${action.type}`);
+      throw new Error(`unknown_action_type: ${type}`);
   }
 }
 

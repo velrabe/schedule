@@ -1,11 +1,14 @@
 import { useEffect, useRef, useState } from "preact/hooks";
 import { call, ApiError } from "../api/client";
 import { clearToken } from "../api/token";
+import { summarizeActions } from "./actionSummary";
 
-type Action = {
+export type Action = {
   type: string;
   data: Record<string, unknown>;
 };
+
+type ConfirmResult = { type: string; ok: boolean; error?: string };
 
 type Message =
   | { id: string; role: "user"; text: string; ts: number }
@@ -16,14 +19,21 @@ type Message =
       ts: number;
       actions?: Action[];
       pendingId?: string;
-      status?: "pending" | "confirmed" | "rejected" | "saved" | "error";
-    };
+      status?: "pending" | "confirmed" | "saved" | "rejected" | "error";
+      confirmNote?: string;
+    }
+  | { id: string; role: "assistant"; text: string; ts: number; status: "loading" };
 
 type ChatResponse = {
   reply_to_user: string;
   actions: Action[];
   needs_confirmation: boolean;
   raw_log_id: string;
+};
+
+type ConfirmResponse = {
+  ok: boolean;
+  results: ConfirmResult[];
 };
 
 const STORAGE_KEY = "schedule:chat-history";
@@ -44,8 +54,17 @@ function loadHistory(): Message[] {
 
 function saveHistory(messages: Message[]) {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(messages.slice(-100)));
+    const toSave = messages.filter((m) => m.status !== "loading");
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(toSave.slice(-100)));
   } catch {}
+}
+
+function formatConfirmNote(results: ConfirmResult[]): string {
+  const ok = results.filter((r) => r.ok);
+  const fail = results.filter((r) => !r.ok);
+  if (fail.length === 0) return `Записано: ${ok.length} из ${results.length}.`;
+  const lines = fail.map((r) => `${r.type}: ${r.error || "ошибка"}`);
+  return `Частично: ${ok.length} ок, ${fail.length} ошибок.\n${lines.join("\n")}`;
 }
 
 export default function ChatSidebar({ open, onClose }: { open: boolean; onClose: () => void }) {
@@ -73,7 +92,15 @@ export default function ChatSidebar({ open, onClose }: { open: boolean; onClose:
     const text = input.trim();
     if (!text || busy) return;
     const userMsg: Message = { id: uid(), role: "user", text, ts: Date.now() };
-    setMessages((m) => [...m, userMsg]);
+    const loadingId = uid();
+    const loadingMsg: Message = {
+      id: loadingId,
+      role: "assistant",
+      text: "думаю…",
+      status: "loading",
+      ts: Date.now(),
+    };
+    setMessages((m) => [...m, userMsg, loadingMsg]);
     setInput("");
     setBusy(true);
     try {
@@ -87,14 +114,26 @@ export default function ChatSidebar({ open, onClose }: { open: boolean; onClose:
         status: res.needs_confirmation ? "pending" : "saved",
         ts: Date.now(),
       };
-      setMessages((m) => [...m, assistantMsg]);
+      setMessages((m) => [...m.filter((x) => x.id !== loadingId), assistantMsg]);
 
-      // When the model marked needs_confirmation=false (substances, body metrics,
-      // simple things), auto-execute the actions and refresh the dashboard.
       if (!res.needs_confirmation && res.raw_log_id) {
         try {
-          await call("confirm", { raw_log_id: res.raw_log_id, decision: "confirm" });
+          const confirmRes = await call<ConfirmResponse>("confirm", {
+            raw_log_id: res.raw_log_id,
+            decision: "confirm",
+          });
           window.dispatchEvent(new CustomEvent("schedule:data-changed"));
+          setMessages((arr) =>
+            arr.map((m) =>
+              m.id === assistantMsg.id
+                ? {
+                    ...m,
+                    status: confirmRes.ok ? "saved" : "error",
+                    confirmNote: formatConfirmNote(confirmRes.results || []),
+                  }
+                : m,
+            ),
+          );
         } catch (_) {
           setMessages((arr) =>
             arr.map((m) => (m.id === assistantMsg.id ? { ...m, status: "error" } : m)),
@@ -102,10 +141,15 @@ export default function ChatSidebar({ open, onClose }: { open: boolean; onClose:
         }
       }
     } catch (err) {
-      const text = err instanceof ApiError ? `error ${err.status}: ${JSON.stringify(err.body)}` : (err instanceof Error ? err.message : "unknown error");
+      const errText =
+        err instanceof ApiError
+          ? `error ${err.status}: ${JSON.stringify(err.body)}`
+          : err instanceof Error
+            ? err.message
+            : "unknown error";
       setMessages((m) => [
-        ...m,
-        { id: uid(), role: "assistant", text, status: "error", ts: Date.now() },
+        ...m.filter((x) => x.id !== loadingId),
+        { id: uid(), role: "assistant", text: errText, status: "error", ts: Date.now() },
       ]);
     } finally {
       setBusy(false);
@@ -114,16 +158,22 @@ export default function ChatSidebar({ open, onClose }: { open: boolean; onClose:
 
   const decide = async (msgId: string, accept: boolean) => {
     const msg = messages.find((m) => m.id === msgId);
-    if (!msg || msg.role !== "assistant" || !msg.pendingId) return;
+    if (!msg || msg.role !== "assistant" || !msg.pendingId || msg.status === "loading") return;
     setBusy(true);
     try {
-      await call("confirm", {
+      const confirmRes = await call<ConfirmResponse>("confirm", {
         raw_log_id: msg.pendingId,
         decision: accept ? "confirm" : "reject",
       });
       setMessages((arr) =>
         arr.map((m) =>
-          m.id === msgId ? { ...m, status: accept ? "saved" : "rejected" } : m,
+          m.id === msgId
+            ? {
+                ...m,
+                status: accept ? (confirmRes.ok ? "saved" : "error") : "rejected",
+                confirmNote: accept ? formatConfirmNote(confirmRes.results || []) : undefined,
+              }
+            : m,
         ),
       );
       if (accept) {
@@ -131,7 +181,15 @@ export default function ChatSidebar({ open, onClose }: { open: boolean; onClose:
       }
     } catch (err) {
       setMessages((arr) =>
-        arr.map((m) => (m.id === msgId ? { ...m, status: "error" } : m)),
+        arr.map((m) =>
+          m.id === msgId
+            ? {
+                ...m,
+                status: "error",
+                confirmNote: err instanceof Error ? err.message : String(err),
+              }
+            : m,
+        ),
       );
     } finally {
       setBusy(false);
@@ -171,23 +229,23 @@ export default function ChatSidebar({ open, onClose }: { open: boolean; onClose:
             <span class="chat-header-subtitle">type or paste anything</span>
           </div>
           <div class="chat-header-actions-wrap">
-            <button class="btn btn--ghost btn--icon" onClick={clear} title="clear history">
+            <button class="btn btn--ghost btn--icon" onClick={clear} title="clear history" type="button">
               <span class="btn__icon-wrap">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
                   <path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
                 </svg>
               </span>
             </button>
-            <button class="btn btn--ghost btn--icon" onClick={logout} title="logout">
+            <button class="btn btn--ghost btn--icon" onClick={logout} title="logout" type="button">
               <span class="btn__icon-wrap">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
                   <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9" />
                 </svg>
               </span>
             </button>
-            <button class="btn btn--ghost btn--icon" onClick={onClose} title="close (Esc)">
+            <button class="btn btn--ghost btn--icon" onClick={onClose} title="close (Esc)" type="button">
               <span class="btn__icon-wrap">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
                   <path d="M18 6 6 18M6 6l12 12" />
                 </svg>
               </span>
@@ -205,7 +263,7 @@ export default function ChatSidebar({ open, onClose }: { open: boolean; onClose:
             </div>
           )}
           {messages.map((m) => (
-            <ChatBubble key={m.id} msg={m} onDecide={decide} />
+            <ChatBubble key={m.id} msg={m} onDecide={decide} busy={busy} />
           ))}
         </div>
 
@@ -221,7 +279,7 @@ export default function ChatSidebar({ open, onClose }: { open: boolean; onClose:
             disabled={busy}
           ></textarea>
           <div class="chat-input-actions-wrap">
-            <span class="chat-input-hint">⌘/ — toggle · esc — close</span>
+            <span class="chat-input-hint">{busy ? "обрабатываю…" : "⌘/ — toggle · esc — close"}</span>
             <button
               class="btn btn--primary"
               onClick={send}
@@ -237,7 +295,15 @@ export default function ChatSidebar({ open, onClose }: { open: boolean; onClose:
   );
 }
 
-function ChatBubble({ msg, onDecide }: { msg: Message; onDecide: (id: string, accept: boolean) => void }) {
+function ChatBubble({
+  msg,
+  onDecide,
+  busy,
+}: {
+  msg: Message;
+  onDecide: (id: string, accept: boolean) => void;
+  busy: boolean;
+}) {
   if (msg.role === "user") {
     return (
       <div class="chat-row chat-row--user">
@@ -248,43 +314,85 @@ function ChatBubble({ msg, onDecide }: { msg: Message; onDecide: (id: string, ac
     );
   }
 
+  if (msg.status === "loading") {
+    return (
+      <div class="chat-row chat-row--assistant">
+        <div class="chat-bubble chat-bubble--assistant chat-bubble--loading">
+          <div class="chat-loading-wrap">
+            <span class="chat-loading-dot"></span>
+            <span class="chat-loading-dot"></span>
+            <span class="chat-loading-dot"></span>
+          </div>
+          <span class="chat-bubble__text chat-bubble__text--muted">{msg.text}</span>
+        </div>
+      </div>
+    );
+  }
+
   const showButtons = msg.status === "pending" && msg.actions && msg.actions.length > 0;
-  const statusLabel: Record<NonNullable<typeof msg.status>, string> = {
+  const statusLabel: Record<string, string> = {
     pending: "ждёт подтверждения",
     confirmed: "подтверждено",
     saved: "записано",
     rejected: "отклонено",
     error: "ошибка",
   };
+  const summaries = msg.actions?.length ? summarizeActions(msg.actions) : [];
 
   return (
     <div class="chat-row chat-row--assistant">
       <div class="chat-bubble chat-bubble--assistant">
         <span class="chat-bubble__text">{msg.text}</span>
-        {msg.actions && msg.actions.length > 0 && (
-          <div class="chat-actions-preview-wrap">
-            {msg.actions.map((a, i) => (
-              <div key={i} class="chat-action-card">
-                <div class="chat-action-card__head">
-                  <span class="chat-action-card__type">{a.type}</span>
-                </div>
-                <pre class="chat-action-card__body">{JSON.stringify(a.data, null, 2)}</pre>
-              </div>
-            ))}
+
+        {summaries.length > 0 && (
+          <div class="chat-actions-human-wrap">
+            <span class="chat-actions-human-title">будет записано:</span>
+            <ul class="chat-actions-human-list">
+              {summaries.map((line, i) => (
+                <li key={i} class="chat-actions-human-item">
+                  <span>{line}</span>
+                </li>
+              ))}
+            </ul>
           </div>
         )}
+
+        {msg.actions && msg.actions.length > 0 && (
+          <details class="chat-actions-details">
+            <summary class="chat-actions-details__summary">
+              <span>технические детали (JSON)</span>
+            </summary>
+            <div class="chat-actions-preview-wrap">
+              {msg.actions.map((a, i) => (
+                <div key={i} class="chat-action-card">
+                  <div class="chat-action-card__head">
+                    <span class="chat-action-card__type">{a.type}</span>
+                  </div>
+                  <pre class="chat-action-card__body">{JSON.stringify(a.data, null, 2)}</pre>
+                </div>
+              ))}
+            </div>
+          </details>
+        )}
+
         <div class="chat-bubble__meta-wrap">
           {msg.status && (
             <span class={`chat-bubble__status chat-bubble__status--${msg.status}`}>
-              {statusLabel[msg.status]}
+              {statusLabel[msg.status] ?? msg.status}
             </span>
           )}
+          {msg.confirmNote && <span class="chat-bubble__confirm-note">{msg.confirmNote}</span>}
           {showButtons && (
             <div class="chat-confirm-wrap">
-              <button class="btn btn--primary" onClick={() => onDecide(msg.id, true)} type="button">
+              <button
+                class="btn btn--primary"
+                onClick={() => onDecide(msg.id, true)}
+                type="button"
+                disabled={busy}
+              >
                 <span class="btn__text-wrap">да</span>
               </button>
-              <button class="btn" onClick={() => onDecide(msg.id, false)} type="button">
+              <button class="btn" onClick={() => onDecide(msg.id, false)} type="button" disabled={busy}>
                 <span class="btn__text-wrap">нет</span>
               </button>
             </div>

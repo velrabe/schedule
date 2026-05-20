@@ -764,6 +764,236 @@ button.kanban-card:hover {
   font-size: 10px;
 }
 
+/* ---------------- nutrition tab ---------------- */
+
+.nutri-wrap {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  padding: 12px;
+  gap: 12px;
+}
+
+.nutri-empty-wrap {
+  display: flex;
+  width: 100%;
+  padding: 32px;
+  justify-content: center;
+}
+
+.nutri-empty {
+  font-size: 12px;
+  color: var(--text-3);
+  font-family: var(--mono);
+}
+
+.nutri-target-wrap {
+  display: flex;
+  flex-direction: row;
+  align-items: baseline;
+  width: 100%;
+  gap: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border);
+}
+
+.nutri-target-label {
+  font-size: 10px;
+  font-family: var(--mono);
+  color: var(--text-3);
+  text-transform: uppercase;
+}
+
+.nutri-target-val {
+  font-size: 12px;
+  font-family: var(--mono);
+  color: var(--text);
+}
+
+.nutri-scroll-wrap {
+  display: flex;
+  flex-direction: row;
+  width: 100%;
+  gap: 12px;
+  overflow-x: auto;
+  padding-bottom: 8px;
+}
+
+.nutri-day-col {
+  display: flex;
+  flex-direction: column;
+  flex: 0 0 auto;
+  width: 260px;
+  padding: 10px;
+  gap: 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.nutri-day-head-wrap {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  gap: 4px;
+}
+
+.nutri-day-date {
+  font-size: 12px;
+  font-family: var(--mono);
+  font-weight: 600;
+}
+
+.nutri-day-balance {
+  font-size: 11px;
+  font-family: var(--mono);
+  color: var(--text-2);
+}
+
+.nutri-day-balance--over {
+  color: var(--danger);
+}
+
+.nutri-bar-wrap {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  gap: 4px;
+}
+
+.nutri-bar-head-wrap {
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+  width: 100%;
+}
+
+.nutri-bar-label {
+  font-size: 9px;
+  font-family: var(--mono);
+  color: var(--text-3);
+  text-transform: uppercase;
+}
+
+.nutri-bar-val {
+  font-size: 9px;
+  font-family: var(--mono);
+  color: var(--text-2);
+}
+
+.nutri-bar-track {
+  display: flex;
+  flex-direction: row;
+  width: 100%;
+  height: 8px;
+  background: var(--bg);
+  border-radius: 4px;
+  overflow: hidden;
+  position: relative;
+}
+
+.nutri-bar-fill {
+  display: block;
+  height: 100%;
+  border-radius: 4px 0 0 4px;
+  background: var(--accent);
+}
+
+.nutri-bar-fill--burn {
+  background: #2db38a;
+}
+
+.nutri-bar-fill--overflow {
+  position: absolute;
+  left: 0;
+  top: 0;
+  background: rgba(0, 0, 0, 0.25);
+  opacity: 0.5;
+}
+
+.nutri-bar-fill--danger {
+  background: var(--danger);
+}
+
+.nutri-meals-wrap {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  gap: 4px;
+  margin-top: 4px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+}
+
+.nutri-meal-empty {
+  font-size: 10px;
+  color: var(--text-3);
+  font-family: var(--mono);
+}
+
+.nutri-meal-row {
+  display: grid;
+  grid-template-columns: 52px 1fr auto;
+  grid-template-rows: auto auto;
+  gap: 2px 8px;
+  width: 100%;
+  font-size: 11px;
+  font-family: var(--mono);
+}
+
+.nutri-meal-slot {
+  grid-row: span 2;
+  font-size: 9px;
+  color: var(--text-3);
+  text-transform: uppercase;
+}
+
+.nutri-meal-name {
+  color: var(--text);
+}
+
+.nutri-meal-kcal {
+  color: #b6791a;
+  text-align: right;
+}
+
+.nutri-meal-macro {
+  grid-column: 2 / 4;
+  font-size: 10px;
+  color: var(--text-3);
+}
+
+.nutri-acts-wrap {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  gap: 4px;
+  padding-top: 6px;
+  border-top: 1px dashed var(--border);
+}
+
+.nutri-act-row {
+  display: flex;
+  flex-direction: row;
+  width: 100%;
+  gap: 8px;
+  font-size: 10px;
+  font-family: var(--mono);
+}
+
+.nutri-act-type {
+  flex: 1 1 auto;
+  color: var(--text-2);
+}
+
+.nutri-act-kcal {
+  color: #2db38a;
+}
+
+.nutri-act-dur {
+  color: var(--text-3);
+}
+
 /* ---------------- auth gate ---------------- */
 
 .auth-gate-wrap {
@@ -1080,6 +1310,122 @@ button.kanban-card:hover {
   flex-direction: row;
   align-items: center;
   gap: 6px;
+}
+
+.chat-bubble--loading {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 10px;
+}
+
+.chat-loading-wrap {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 4px;
+}
+
+.chat-loading-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+  animation: chat-pulse 1s ease-in-out infinite;
+}
+
+.chat-loading-dot:nth-child(2) {
+  animation-delay: 0.15s;
+}
+
+.chat-loading-dot:nth-child(3) {
+  animation-delay: 0.3s;
+}
+
+@keyframes chat-pulse {
+  0%,
+  80%,
+  100% {
+    opacity: 0.25;
+    transform: scale(0.85);
+  }
+  40% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.chat-bubble__text--muted {
+  color: var(--text-3);
+  font-style: italic;
+}
+
+.chat-actions-human-wrap {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+  gap: 6px;
+}
+
+.chat-actions-human-title {
+  font-size: 10px;
+  font-family: var(--mono);
+  color: var(--text-3);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.chat-actions-human-list {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  gap: 4px;
+}
+
+.chat-actions-human-item {
+  display: flex;
+  width: 100%;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--text);
+}
+
+.chat-actions-details {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  margin-top: 8px;
+}
+
+.chat-actions-details__summary {
+  display: flex;
+  width: 100%;
+  cursor: pointer;
+  font-size: 10px;
+  font-family: var(--mono);
+  color: var(--text-3);
+  list-style: none;
+}
+
+.chat-actions-details__summary::-webkit-details-marker {
+  display: none;
+}
+
+.chat-bubble__confirm-note {
+  display: block;
+  width: 100%;
+  font-size: 11px;
+  font-family: var(--mono);
+  color: var(--text-2);
+  white-space: pre-wrap;
+  line-height: 1.4;
 }
 
 .chat-actions-preview-wrap {
