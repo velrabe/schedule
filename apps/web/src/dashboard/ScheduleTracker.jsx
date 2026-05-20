@@ -1876,12 +1876,17 @@ function diffMinutes(start, end) {
   return ((e - s + 24 * 60) % (24 * 60)) || 0;
 }
 
-function DateStripControls({ canLoadPast, onToday }) {
+function DateStripControls({ canLoadPast, canLoadFuture, onToday }) {
   return html`
     <div class="date-strip-controls-wrap">
-      ${canLoadPast
-        ? html`<span class="date-strip-hint">← прокрути влево — подгрузить ещё 30 дней</span>`
-        : html`<span class="date-strip-hint date-strip-hint--muted">начало истории</span>`}
+      <div class="date-strip-hints-wrap">
+        ${canLoadPast
+          ? html`<span class="date-strip-hint">← край — ещё 15 дней</span>`
+          : html`<span class="date-strip-hint date-strip-hint--muted">начало истории</span>`}
+        ${canLoadFuture
+          ? html`<span class="date-strip-hint">край → — ещё 15 дней</span>`
+          : html`<span class="date-strip-hint date-strip-hint--muted">конец горизонта</span>`}
+      </div>
       <button class="btn btn--ghost" onClick=${onToday} type="button" title="к сегодня">
         <span class="btn__text-wrap">today</span>
       </button>
@@ -2427,8 +2432,18 @@ function KanbanTab({ days, sessions, meals = [], activities = [], setSessions, l
     return [...set];
   }, [days, sessions]);
 
-  const { today, visibleDates, scrollRef, todayColRef, onScroll, canLoadPast, scrollToToday } =
-    useDateStrip(knownDates, { active });
+  const {
+    today,
+    visibleDates,
+    scrollRef,
+    todayColRef,
+    pastSentinelRef,
+    futureSentinelRef,
+    onScroll,
+    canLoadPast,
+    canLoadFuture,
+    scrollToToday,
+  } = useDateStrip(knownDates, { active });
 
   const sessionsByDate = useMemo(() => {
     const map = new Map();
@@ -2554,8 +2569,9 @@ function KanbanTab({ days, sessions, meals = [], activities = [], setSessions, l
   return html`
     <div class="kanban-wrap">
       ${saving && html`<div class="kanban-saving"><span>сохраняю…</span></div>`}
-      <${DateStripControls} canLoadPast=${canLoadPast} onToday=${scrollToToday} />
+      <${DateStripControls} canLoadPast=${canLoadPast} canLoadFuture=${canLoadFuture} onToday=${scrollToToday} />
       <div class="kanban-scroll-wrap date-strip-scroll" ref=${scrollRef} onScroll=${onScroll}>
+        <div class="date-strip-sentinel date-strip-sentinel--past" ref=${pastSentinelRef}></div>
         ${visibleDates.map((date) => {
           const day = byDate.get(date);
           const list = sessionsByDate.get(date) || [];
@@ -2650,6 +2666,7 @@ function KanbanTab({ days, sessions, meals = [], activities = [], setSessions, l
             </div>
           `;
         })}
+        <div class="date-strip-sentinel date-strip-sentinel--future" ref=${futureSentinelRef}></div>
       </div>
     </div>
   `;
@@ -2775,8 +2792,18 @@ function NutritionTab({ days, meals = [], activities = [], active = true, liveMo
     return [...set];
   }, [days, meals, activities]);
 
-  const { today, visibleDates, scrollRef, todayColRef, onScroll, canLoadPast, scrollToToday } =
-    useDateStrip(knownDates, { active });
+  const {
+    today,
+    visibleDates,
+    scrollRef,
+    todayColRef,
+    pastSentinelRef,
+    futureSentinelRef,
+    onScroll,
+    canLoadPast,
+    canLoadFuture,
+    scrollToToday,
+  } = useDateStrip(knownDates, { active });
 
   const mealsByDate = useMemo(() => {
     const map = new Map();
@@ -2802,8 +2829,9 @@ function NutritionTab({ days, meals = [], activities = [], active = true, liveMo
         <span class="nutri-target-label">цель на день</span>
         <span class="nutri-target-val">${NUTRITION_TARGET.kcal} kcal · C${NUTRITION_TARGET.carbs} · P${NUTRITION_TARGET.protein} · F${NUTRITION_TARGET.fat}</span>
       </div>
-      <${DateStripControls} canLoadPast=${canLoadPast} onToday=${scrollToToday} />
+      <${DateStripControls} canLoadPast=${canLoadPast} canLoadFuture=${canLoadFuture} onToday=${scrollToToday} />
       <div class="nutri-scroll-wrap date-strip-scroll" ref=${scrollRef} onScroll=${onScroll}>
+        <div class="date-strip-sentinel date-strip-sentinel--past" ref=${pastSentinelRef}></div>
         ${visibleDates.map((date) => {
           const dayMeals = mealsByDate.get(date) || [];
           const dayActs = actsByDate.get(date) || [];
@@ -2869,6 +2897,7 @@ function NutritionTab({ days, meals = [], activities = [], active = true, liveMo
             </div>
           `;
         })}
+        <div class="date-strip-sentinel date-strip-sentinel--future" ref=${futureSentinelRef}></div>
       </div>
     </div>
   `;

@@ -1,7 +1,14 @@
 import { useState, useMemo, useEffect, useLayoutEffect, useRef, useCallback } from "preact/hooks";
 
-export const DATE_STRIP_PAGE = 30;
-export const DATE_STRIP_FUTURE = 14;
+/** Days rendered on each side of today at first paint. */
+export const DATE_STRIP_RADIUS = 15;
+/** Days added when an edge sentinel enters the viewport. */
+export const DATE_STRIP_CHUNK = 15;
+
+/** @deprecated use DATE_STRIP_RADIUS */
+export const DATE_STRIP_PAGE = DATE_STRIP_CHUNK;
+/** @deprecated use DATE_STRIP_RADIUS */
+export const DATE_STRIP_FUTURE = DATE_STRIP_RADIUS;
 
 export function localTodayISO(tz = "Asia/Ho_Chi_Minh") {
   try {
@@ -36,46 +43,58 @@ function rangeDates(from, to) {
   return out;
 }
 
-function centerTodayColumn(sc, col) {
+function instantCenterToday(sc, col) {
   if (!sc || !col) return;
+  const prev = sc.style.scrollBehavior;
+  sc.style.scrollBehavior = "auto";
   const left = col.offsetLeft + col.offsetWidth / 2 - sc.clientWidth / 2;
   sc.scrollLeft = Math.max(0, left);
+  sc.style.scrollBehavior = prev;
 }
 
 /**
  * @param {string[]} knownDates
- * @param {{ active?: boolean }} [options] — when tab becomes active, re-center today
+ * @param {{ active?: boolean }} [options]
  */
 export function useDateStrip(knownDates = [], options = {}) {
   const { active = true } = options;
   const today = localTodayISO();
 
   const dataMin = useMemo(() => {
-    if (!knownDates.length) return addDaysISO(today, -(DATE_STRIP_PAGE - 1));
+    if (!knownDates.length) return addDaysISO(today, -DATE_STRIP_RADIUS);
     return knownDates.reduce((m, d) => minISO(d, m), knownDates[0]);
   }, [knownDates, today]);
 
   const dataMax = useMemo(() => {
-    const horizon = addDaysISO(today, DATE_STRIP_FUTURE);
+    const horizon = addDaysISO(today, DATE_STRIP_RADIUS);
     if (!knownDates.length) return horizon;
     const maxKnown = knownDates.reduce((m, d) => maxISO(d, m), knownDates[0]);
     return maxISO(maxKnown, horizon);
   }, [knownDates, today]);
 
-  const defaultStart = useMemo(
-    () => maxISO(dataMin, addDaysISO(today, -(DATE_STRIP_PAGE - 1))),
-    [dataMin, today],
-  );
+  const initialStart = useMemo(() => maxISO(dataMin, addDaysISO(today, -DATE_STRIP_RADIUS)), [dataMin, today]);
+  const initialEnd = useMemo(() => minISO(dataMax, addDaysISO(today, DATE_STRIP_RADIUS)), [dataMax, today]);
 
-  const defaultEnd = useMemo(() => addDaysISO(today, DATE_STRIP_FUTURE), [today]);
+  const scrollRef = useRef(null);
+  const todayColRef = useRef(null);
+  const pastSentinelRef = useRef(null);
+  const futureSentinelRef = useRef(null);
+  const userScrolledRef = useRef(false);
+  const loadingPastRef = useRef(false);
+  const loadingFutureRef = useRef(false);
+  const pendingScrollRef = useRef(null);
+  const instantCenteredRef = useRef(false);
 
-  const [windowStart, setWindowStart] = useState(defaultStart);
-  const [windowEnd, setWindowEnd] = useState(defaultEnd);
+  const [windowStart, setWindowStart] = useState(initialStart);
+  const [windowEnd, setWindowEnd] = useState(initialEnd);
 
+  // Calendar day rolled over — re-anchor strip around today.
   useEffect(() => {
-    setWindowStart(maxISO(dataMin, addDaysISO(today, -(DATE_STRIP_PAGE - 1))));
-    setWindowEnd(addDaysISO(today, DATE_STRIP_FUTURE));
-  }, [today, dataMin]);
+    setWindowStart(maxISO(dataMin, addDaysISO(today, -DATE_STRIP_RADIUS)));
+    setWindowEnd(minISO(dataMax, addDaysISO(today, DATE_STRIP_RADIUS)));
+    userScrolledRef.current = false;
+    instantCenteredRef.current = false;
+  }, [today, dataMin, dataMax]);
 
   const visibleDates = useMemo(
     () => rangeDates(windowStart, windowEnd),
@@ -83,63 +102,42 @@ export function useDateStrip(knownDates = [], options = {}) {
   );
 
   const canLoadPast = windowStart > dataMin;
-
-  const scrollRef = useRef(null);
-  const todayColRef = useRef(null);
-  const userScrolledRef = useRef(false);
-  const loadingPastRef = useRef(false);
-  const pendingScrollRef = useRef(null);
+  const canLoadFuture = windowEnd < dataMax;
 
   const scrollToToday = useCallback(() => {
     userScrolledRef.current = false;
-    const sc = scrollRef.current;
-    const col = todayColRef.current;
-    centerTodayColumn(sc, col);
+    instantCenteredRef.current = false;
+    instantCenterToday(scrollRef.current, todayColRef.current);
+    instantCenteredRef.current = true;
   }, []);
 
-  // Re-center when tab becomes visible again.
   useEffect(() => {
     if (!active) return;
     userScrolledRef.current = false;
+    instantCenteredRef.current = false;
   }, [active]);
 
-  // Center today after layout (double rAF + resize while not user-scrolled).
+  // One-shot instant center when tab opens (no smooth scroll, no resize loop).
   useLayoutEffect(() => {
-    if (!active) return;
+    if (!active || userScrolledRef.current || instantCenteredRef.current) return;
+    if (pendingScrollRef.current) return;
     const sc = scrollRef.current;
     const col = todayColRef.current;
     if (!sc || !col) return;
+    instantCenterToday(sc, col);
+    instantCenteredRef.current = true;
+  }, [active, today, windowStart, windowEnd, visibleDates.length]);
 
-    let cancelled = false;
-    const run = () => {
-      if (cancelled || userScrolledRef.current) return;
-      centerTodayColumn(sc, col);
-    };
-
-    run();
-    const id = requestAnimationFrame(() => {
-      run();
-      requestAnimationFrame(run);
-    });
-
-    const ro = new ResizeObserver(() => {
-      if (!userScrolledRef.current) run();
-    });
-    ro.observe(sc);
-
-    return () => {
-      cancelled = true;
-      cancelAnimationFrame(id);
-      ro.disconnect();
-    };
-  }, [active, windowStart, windowEnd, visibleDates.length, today]);
-
+  // Preserve scroll position when prepending past days.
   useLayoutEffect(() => {
     const pending = pendingScrollRef.current;
     if (!pending || !scrollRef.current) return;
     const sc = scrollRef.current;
+    const prev = sc.style.scrollBehavior;
+    sc.style.scrollBehavior = "auto";
     const delta = sc.scrollWidth - pending.width;
     sc.scrollLeft = pending.left + delta;
+    sc.style.scrollBehavior = prev;
     pendingScrollRef.current = null;
     loadingPastRef.current = false;
   }, [windowStart]);
@@ -151,26 +149,60 @@ export function useDateStrip(knownDates = [], options = {}) {
     loadingPastRef.current = true;
     pendingScrollRef.current = { width: sc.scrollWidth, left: sc.scrollLeft };
     setWindowStart((ws) => {
-      const next = addDaysISO(ws, -DATE_STRIP_PAGE);
+      const next = addDaysISO(ws, -DATE_STRIP_CHUNK);
       return next < dataMin ? dataMin : next;
     });
   }, [canLoadPast, dataMin]);
 
+  const loadMoreFuture = useCallback(() => {
+    if (!canLoadFuture || loadingFutureRef.current) return;
+    loadingFutureRef.current = true;
+    setWindowEnd((we) => {
+      const next = addDaysISO(we, DATE_STRIP_CHUNK);
+      return next > dataMax ? dataMax : next;
+    });
+    loadingFutureRef.current = false;
+  }, [canLoadFuture, dataMax]);
+
+  // Load ±CHUNK when edge sentinel enters viewport (not on every scroll tick).
+  useEffect(() => {
+    const root = scrollRef.current;
+    const past = pastSentinelRef.current;
+    const future = futureSentinelRef.current;
+    if (!active || !root) return;
+
+    const io = new IntersectionObserver(
+      (entries) => {
+        for (const e of entries) {
+          if (!e.isIntersecting) continue;
+          if (e.target === past) loadMorePast();
+          if (e.target === future) loadMoreFuture();
+        }
+      },
+      { root, threshold: 0, rootMargin: "48px" },
+    );
+
+    if (past) io.observe(past);
+    if (future) io.observe(future);
+    return () => io.disconnect();
+  }, [active, loadMorePast, loadMoreFuture, windowStart, windowEnd]);
+
   const onScroll = useCallback(() => {
     const sc = scrollRef.current;
     if (!sc) return;
-    if (sc.scrollLeft > 120) userScrolledRef.current = true;
-    if (loadingPastRef.current || !canLoadPast) return;
-    if (sc.scrollLeft < 96) loadMorePast();
-  }, [canLoadPast, loadMorePast]);
+    if (sc.scrollLeft > 80) userScrolledRef.current = true;
+  }, []);
 
   return {
     today,
     visibleDates,
     scrollRef,
     todayColRef,
+    pastSentinelRef,
+    futureSentinelRef,
     onScroll,
     canLoadPast,
+    canLoadFuture,
     scrollToToday,
   };
 }

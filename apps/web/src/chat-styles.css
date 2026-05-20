@@ -1443,6 +1443,19 @@ button.kanban-card:hover {
   gap: 8px;
 }
 
+.date-strip-hints-wrap {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+  width: auto;
+  gap: 0;
+}
+
+.date-strip-hints-wrap .date-strip-hint {
+  margin-right: 12px;
+}
+
 .date-strip-hint {
   font-size: 10px;
   font-family: var(--mono);
@@ -1454,7 +1467,18 @@ button.kanban-card:hover {
 }
 
 .date-strip-scroll {
-  scroll-behavior: smooth;
+  scroll-behavior: auto;
+  overflow-anchor: none;
+}
+
+.date-strip-sentinel {
+  display: block;
+  flex: 0 0 8px;
+  width: 8px;
+  min-width: 8px;
+  height: 1px;
+  align-self: stretch;
+  pointer-events: none;
 }
 
 .kanban-col-wrap--future,
