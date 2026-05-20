@@ -9,6 +9,7 @@ import {
   DAY_TYPES,
 } from "./seed.js";
 import { useDateStrip, localTodayISO } from "./useDateStrip.js";
+import { NutriBar, NutriRingRow, activityTypeLabel, activityDetailLabel } from "./nutriViz.jsx";
 
 const html = htm.bind(h);
 const STORE_KEY = "schedule-tracker:v1";
@@ -338,8 +339,8 @@ function App(props = {}) {
         setSessions=${setSessions}
       />`}
       ${tab === "calendar" && html`<${CalendarTab} days=${days} sessions=${sessions} meals=${liveData?.meals || []} activities=${liveData?.activities || []} />`}
-      ${tab === "kanban" && html`<${KanbanTab} days=${days} sessions=${sessions} meals=${liveData?.meals || []} activities=${liveData?.activities || []} setSessions=${setSessions} liveMode=${Boolean(liveData)} />`}
-      ${tab === "nutrition" && html`<${NutritionTab} days=${days} meals=${liveData?.meals || []} activities=${liveData?.activities || []} />`}
+      ${tab === "kanban" && html`<${KanbanTab} days=${days} sessions=${sessions} meals=${liveData?.meals || []} activities=${liveData?.activities || []} setSessions=${setSessions} liveMode=${Boolean(liveData)} active=${true} />`}
+      ${tab === "nutrition" && html`<${NutritionTab} days=${days} meals=${liveData?.meals || []} activities=${liveData?.activities || []} active=${true} />`}
       ${tab === "sessions" && html`<${SessionsTab} sessions=${sessions} setSessions=${setSessions} />`}
       ${tab === "events" && html`<${EventsTab} events=${events} setEvents=${setEvents} />`}
       ${tab === "insights" && html`<${InsightsTab} days=${days} sessions=${sessions} />`}
@@ -1873,35 +1874,6 @@ const MEAL_SLOT_RU = {
   snack: "снек",
 };
 
-function NutriBar({ label, value, target, unit = "", tone = "in", compact = false }) {
-  const pct = target > 0 ? Math.min(100, (value / target) * 100) : 0;
-  const overflow = target > 0 && value > target ? Math.min(100, ((value - target) / target) * 100) : 0;
-  const over2x = value >= target * 2;
-  return html`
-    <div class=${`nutri-bar-wrap ${compact ? "nutri-bar-wrap--compact" : ""}`}>
-      <div class="nutri-bar-head-wrap">
-        <span class="nutri-bar-label">${label}</span>
-        <span class="nutri-bar-val">${Math.round(value)}${unit} / ${target}${unit}</span>
-      </div>
-      <div class="nutri-bar-track">
-        <div
-          class=${`nutri-bar-fill nutri-bar-fill--${tone} ${over2x ? "nutri-bar-fill--danger" : ""}`}
-          style=${{ width: `${pct}%` }}
-        ></div>
-        ${overflow > 0 && html`
-          <div class="nutri-bar-fill nutri-bar-fill--overflow" style=${{ width: `${overflow}%` }}></div>
-        `}
-      </div>
-    </div>
-  `;
-}
-
-function formatActivityLabel(a) {
-  const type = String(a.type || "activity");
-  if (a.notes) return a.notes;
-  if (a.source === "base_move") return "бытовое движение";
-  return type.replace(/_/g, " ");
-}
 
 // ---------------- calendar view ----------------
 
@@ -2115,11 +2087,15 @@ function CalendarDayDetail({ date, day, sessions, meals = [], activitiesList = [
               баланс ${Math.round(balance)} / ${NUTRITION_TARGET.kcal}
             </span>
           </div>
-          <${NutriBar} label="kcal in" value=${kcalIn} target=${NUTRITION_TARGET.kcal} />
-          <${NutriBar} label="kcal out" value=${kcalOut} target=${NUTRITION_TARGET.kcal} tone="burn" />
-          <${NutriBar} label="carbs" value=${macros.c} target=${NUTRITION_TARGET.carbs} unit="g" />
-          <${NutriBar} label="protein" value=${macros.p} target=${NUTRITION_TARGET.protein} unit="g" />
-          <${NutriBar} label="fat" value=${macros.f} target=${NUTRITION_TARGET.fat} unit="g" />
+          <${NutriRingRow}
+            items=${[
+              { key: "kin", label: "in", value: kcalIn, target: NUTRITION_TARGET.kcal, kind: "kcal" },
+              { key: "kout", label: "out", value: kcalOut, target: NUTRITION_TARGET.kcal, kind: "activity" },
+              { key: "c", label: "C", value: macros.c, target: NUTRITION_TARGET.carbs, kind: "carbs" },
+              { key: "p", label: "P", value: macros.p, target: NUTRITION_TARGET.protein, kind: "protein" },
+              { key: "f", label: "F", value: macros.f, target: NUTRITION_TARGET.fat, kind: "fat" },
+            ]}
+          />
         </div>
       `}
 
@@ -2129,9 +2105,29 @@ function CalendarDayDetail({ date, day, sessions, meals = [], activitiesList = [
           ${sortedMeals.map((m) => {
             const slotLabel = MEAL_SLOT_RU[m.slot] || m.slot || "еда";
             const mk = Number(m.kcal) || 0;
+            const rings = [];
+            if (mk > 0) rings.push({ key: "k", label: "kcal", value: mk, target: NUTRITION_TARGET.kcal, kind: "kcal" });
+            if (m.carbs_g != null)
+              rings.push({
+                key: "c",
+                label: "C",
+                value: Number(m.carbs_g),
+                target: NUTRITION_TARGET.carbs,
+                kind: "carbs",
+              });
+            if (m.protein_g != null)
+              rings.push({
+                key: "p",
+                label: "P",
+                value: Number(m.protein_g),
+                target: NUTRITION_TARGET.protein,
+                kind: "protein",
+              });
+            if (m.fat_g != null)
+              rings.push({ key: "f", label: "F", value: Number(m.fat_g), target: NUTRITION_TARGET.fat, kind: "fat" });
             return html`
-              <div class="cal-detail-item-wrap" key=${m.id}>
-                <div class="cal-detail-item-head-wrap">
+              <div class="cal-detail-item-wrap cal-detail-item-wrap--compact" key=${m.id}>
+                <div class="cal-detail-item-head-wrap cal-detail-item-head-wrap--compact">
                   <span class="cal-detail-item__slot">${slotLabel}</span>
                   <span class="cal-detail-item__name">${m.name}</span>
                   <span class="cal-detail-item__kcal">${mk > 0 ? `${Math.round(mk)} kcal` : "—"}</span>
@@ -2140,11 +2136,8 @@ function CalendarDayDetail({ date, day, sessions, meals = [], activitiesList = [
                     ${m.protein_g != null ? ` P${Math.round(Number(m.protein_g))}` : ""}
                     ${m.fat_g != null ? ` F${Math.round(Number(m.fat_g))}` : ""}
                   </span>
+                  ${rings.length > 0 && html`<${NutriRingRow} items=${rings} />`}
                 </div>
-                ${mk > 0 && html`<${NutriBar} label="kcal" value=${mk} target=${NUTRITION_TARGET.kcal} compact=${true} />`}
-                ${m.carbs_g != null && html`<${NutriBar} label="carbs" value=${Number(m.carbs_g)} target=${NUTRITION_TARGET.carbs} unit="g" compact=${true} tone="macro" />`}
-                ${m.protein_g != null && html`<${NutriBar} label="protein" value=${Number(m.protein_g)} target=${NUTRITION_TARGET.protein} unit="g" compact=${true} tone="macro" />`}
-                ${m.fat_g != null && html`<${NutriBar} label="fat" value=${Number(m.fat_g)} target=${NUTRITION_TARGET.fat} unit="g" compact=${true} tone="macro" />`}
               </div>
             `;
           })}
@@ -2156,27 +2149,32 @@ function CalendarDayDetail({ date, day, sessions, meals = [], activitiesList = [
           <span class="cal-detail-section-title">активность</span>
           ${sortedActs.map((a) => {
             const burn = Number(a.calories_burned) || 0;
-            const typeLabel = String(a.type || "activity").replace(/_/g, " ");
+            const typeLabel = activityTypeLabel(a);
             return html`
-              <div class="cal-detail-item-wrap cal-detail-item-wrap--act" key=${a.id}>
-                <div class="cal-detail-item-head-wrap">
+              <div class="cal-detail-item-wrap cal-detail-item-wrap--act cal-detail-item-wrap--compact" key=${a.id}>
+                <div class="cal-detail-item-head-wrap cal-detail-item-head-wrap--compact">
                   <span class="cal-detail-item__slot cal-detail-item__slot--act">${typeLabel}</span>
-                  <span class="cal-detail-item__name">${formatActivityLabel(a)}</span>
+                  <span class="cal-detail-item__name">${activityDetailLabel(a)}</span>
                   <span class="cal-detail-item__kcal cal-detail-item__kcal--burn">${burn > 0 ? `${Math.round(burn)} kcal` : "—"}</span>
                   ${a.duration_min != null && html`<span class="cal-detail-item__dur">${a.duration_min}m</span>`}
+                  ${burn > 0 &&
+                  html`<${NutriRingRow}
+                    items=${[{ key: "b", label: "out", value: burn, target: NUTRITION_TARGET.kcal, kind: "activity" }]}
+                  />`}
                 </div>
-                ${burn > 0 && html`<${NutriBar} label="burn" value=${burn} target=${NUTRITION_TARGET.kcal} tone="burn" compact=${true} />`}
               </div>
             `;
           })}
           ${sortedActs.length > 1 && html`
-            <div class="cal-detail-item-wrap cal-detail-item-wrap--act-total">
-              <div class="cal-detail-item-head-wrap">
+            <div class="cal-detail-item-wrap cal-detail-item-wrap--act-total cal-detail-item-wrap--compact" key="act-total">
+              <div class="cal-detail-item-head-wrap cal-detail-item-head-wrap--compact">
                 <span class="cal-detail-item__slot cal-detail-item__slot--act">итого</span>
                 <span class="cal-detail-item__name">все активности</span>
                 <span class="cal-detail-item__kcal cal-detail-item__kcal--burn">${Math.round(kcalOut)} kcal</span>
+                <${NutriRingRow}
+                  items=${[{ key: "t", label: "out", value: kcalOut, target: NUTRITION_TARGET.kcal, kind: "activity" }]}
+                />
               </div>
-              <${NutriBar} label="burn total" value=${kcalOut} target=${NUTRITION_TARGET.kcal} tone="burn" compact=${true} />
             </div>
           `}
         </div>
@@ -2223,7 +2221,7 @@ const KANBAN_CATEGORIES = [
   "sleep",
 ];
 
-function KanbanTab({ days, sessions, meals = [], activities = [], setSessions, liveMode = false }) {
+function KanbanTab({ days, sessions, meals = [], activities = [], setSessions, liveMode = false, active = true }) {
   const byDate = useMemo(() => {
     const map = new Map();
     for (const d of days) map.set(d.date, d);
@@ -2238,7 +2236,7 @@ function KanbanTab({ days, sessions, meals = [], activities = [], setSessions, l
   }, [days, sessions]);
 
   const { today, visibleDates, scrollRef, todayColRef, onScroll, canLoadPast, scrollToToday } =
-    useDateStrip(knownDates);
+    useDateStrip(knownDates, { active });
 
   const sessionsByDate = useMemo(() => {
     const map = new Map();
@@ -2576,7 +2574,7 @@ function KanbanSessionEditor({ value, isNew = false, onSave, onCancel, onDelete 
 
 // ---------------- nutrition view ----------------
 
-function NutritionTab({ days, meals = [], activities = [] }) {
+function NutritionTab({ days, meals = [], activities = [], active = true }) {
   const knownDates = useMemo(() => {
     const set = new Set();
     for (const d of days) set.add(d.date);
@@ -2586,7 +2584,7 @@ function NutritionTab({ days, meals = [], activities = [] }) {
   }, [days, meals, activities]);
 
   const { today, visibleDates, scrollRef, todayColRef, onScroll, canLoadPast, scrollToToday } =
-    useDateStrip(knownDates);
+    useDateStrip(knownDates, { active });
 
   const mealsByDate = useMemo(() => {
     const map = new Map();
@@ -2633,11 +2631,11 @@ function NutritionTab({ days, meals = [], activities = [] }) {
                   баланс ${Math.round(balance)} / ${NUTRITION_TARGET.kcal}
                 </span>
               </div>
-              <${NutriBar} label="kcal in" value=${kcalIn} target=${NUTRITION_TARGET.kcal} />
-              <${NutriBar} label="kcal out" value=${kcalOut} target=${NUTRITION_TARGET.kcal} tone="burn" />
-              <${NutriBar} label="carbs" value=${carbs} target=${NUTRITION_TARGET.carbs} unit="g" />
-              <${NutriBar} label="protein" value=${protein} target=${NUTRITION_TARGET.protein} unit="g" />
-              <${NutriBar} label="fat" value=${fat} target=${NUTRITION_TARGET.fat} unit="g" />
+              <${NutriBar} label="kcal in" value=${kcalIn} target=${NUTRITION_TARGET.kcal} kind="kcal" />
+              <${NutriBar} label="kcal out" value=${kcalOut} target=${NUTRITION_TARGET.kcal} kind="activity" />
+              <${NutriBar} label="carbs" value=${carbs} target=${NUTRITION_TARGET.carbs} unit="g" kind="carbs" />
+              <${NutriBar} label="protein" value=${protein} target=${NUTRITION_TARGET.protein} unit="g" kind="protein" />
+              <${NutriBar} label="fat" value=${fat} target=${NUTRITION_TARGET.fat} unit="g" kind="fat" />
               <div class="nutri-meals-wrap">
                 ${dayMeals.length === 0 && html`<span class="nutri-meal-empty">нет приёмов пищи</span>`}
                 ${dayMeals.map((m) => html`
@@ -2657,7 +2655,7 @@ function NutritionTab({ days, meals = [], activities = [] }) {
                 <div class="nutri-acts-wrap">
                   ${dayActs.map((a) => html`
                     <div class="nutri-act-row" key=${a.id}>
-                      <span class="nutri-act-type">${a.type}</span>
+                      <span class="nutri-act-type">${activityTypeLabel(a)}</span>
                       <span class="nutri-act-kcal">🔥 ${Math.round(Number(a.calories_burned) || 0)}</span>
                       ${a.duration_min != null && html`<span class="nutri-act-dur">${a.duration_min}m</span>`}
                     </div>

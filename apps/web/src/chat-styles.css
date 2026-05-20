@@ -810,7 +810,7 @@ button.kanban-card:hover {
 }
 
 .cal-detail-item__slot--act {
-  color: #2db38a;
+  color: #e89a4d;
 }
 
 .cal-detail-item__name {
@@ -827,7 +827,7 @@ button.kanban-card:hover {
 }
 
 .cal-detail-item__kcal--burn {
-  color: #2db38a;
+  color: #e89a4d;
 }
 
 .cal-detail-item__macro {
@@ -853,21 +853,170 @@ button.kanban-card:hover {
   padding-top: 0;
 }
 
-.nutri-bar-wrap--compact {
-  gap: 2px;
+.cal-detail-item-wrap--compact {
+  padding: 4px 0;
+  gap: 0;
 }
 
-.nutri-bar-wrap--compact .nutri-bar-track {
-  height: 5px;
+.cal-detail-item-head-wrap--compact {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+  width: 100%;
+  gap: 0;
+  font-size: 11px;
+  font-family: var(--mono);
 }
 
-.nutri-bar-wrap--compact .nutri-bar-label,
-.nutri-bar-wrap--compact .nutri-bar-val {
+.cal-detail-item-head-wrap--compact .cal-detail-item__slot {
+  flex: 0 0 auto;
+  width: 56px;
+  margin-right: 8px;
+}
+
+.cal-detail-item-head-wrap--compact .cal-detail-item__name {
+  flex: 1 1 120px;
+  min-width: 0;
+}
+
+.cal-detail-item-head-wrap--compact .cal-detail-item__kcal {
+  flex: 0 0 auto;
+  margin-left: 8px;
+}
+
+.cal-detail-item-head-wrap--compact .cal-detail-item__macro {
+  flex: 0 0 100%;
+  font-size: 10px;
+  color: var(--text-3);
+  margin-top: 2px;
+}
+
+.cal-detail-item-head-wrap--compact .cal-detail-item__dur {
+  flex: 0 0 auto;
+  margin-left: 8px;
+}
+
+.cal-detail-item-head-wrap--compact .nutri-ring-row-wrap {
+  flex: 0 0 auto;
+  margin-left: auto;
+}
+
+.cal-detail-nutri-summary-wrap .nutri-ring-row-wrap {
+  margin-top: 6px;
+}
+
+.nutri-ring-row-wrap {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  width: auto;
+}
+
+.nutri-ring-row__item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: auto;
+  margin-right: 6px;
+}
+
+.nutri-ring-row__label {
   font-size: 8px;
+  font-family: var(--mono);
+  color: var(--text-3);
+  line-height: 1;
+  margin-top: 1px;
 }
 
-.nutri-bar-fill--macro {
-  background: #7a8fad;
+.nutri-ring-wrap {
+  display: flex;
+  width: 24px;
+  height: 24px;
+}
+
+.nutri-ring {
+  display: block;
+}
+
+.nutri-ring__bg {
+  stroke: var(--border);
+}
+
+/* ring + bar colors: ok | over | over2x (kcal only) */
+.nutri-ring--kcal.nutri-ring--ok .nutri-ring__fg,
+.nutri-bar-fill--kcal.nutri-bar-fill--ok {
+  stroke: #5cb87a;
+  background: #5cb87a;
+}
+
+.nutri-ring--kcal.nutri-ring--over .nutri-ring__fg,
+.nutri-bar-fill--kcal.nutri-bar-fill--over {
+  stroke: #2d6b45;
+  background: #2d6b45;
+}
+
+.nutri-ring--kcal.nutri-ring--over2x .nutri-ring__fg,
+.nutri-bar-fill--kcal.nutri-bar-fill--over2x {
+  stroke: var(--danger);
+  background: var(--danger);
+}
+
+.nutri-ring--protein.nutri-ring--ok .nutri-ring__fg,
+.nutri-bar-fill--protein.nutri-bar-fill--ok {
+  stroke: #5eb0e8;
+  background: #5eb0e8;
+}
+
+.nutri-ring--protein.nutri-ring--over .nutri-ring__fg,
+.nutri-bar-fill--protein.nutri-bar-fill--over,
+.nutri-ring--protein.nutri-ring--over2x .nutri-ring__fg,
+.nutri-bar-fill--protein.nutri-bar-fill--over2x {
+  stroke: #2a6a99;
+  background: #2a6a99;
+}
+
+.nutri-ring--carbs.nutri-ring--ok .nutri-ring__fg,
+.nutri-bar-fill--carbs.nutri-bar-fill--ok {
+  stroke: #e0c24a;
+  background: #e0c24a;
+}
+
+.nutri-ring--carbs.nutri-ring--over .nutri-ring__fg,
+.nutri-bar-fill--carbs.nutri-bar-fill--over,
+.nutri-ring--carbs.nutri-ring--over2x .nutri-ring__fg,
+.nutri-bar-fill--carbs.nutri-bar-fill--over2x {
+  stroke: #9a7f18;
+  background: #9a7f18;
+}
+
+.nutri-ring--fat.nutri-ring--ok .nutri-ring__fg,
+.nutri-bar-fill--fat.nutri-bar-fill--ok {
+  stroke: #e07a6a;
+  background: #e07a6a;
+}
+
+.nutri-ring--fat.nutri-ring--over .nutri-ring__fg,
+.nutri-bar-fill--fat.nutri-bar-fill--over,
+.nutri-ring--fat.nutri-ring--over2x .nutri-ring__fg,
+.nutri-bar-fill--fat.nutri-bar-fill--over2x {
+  stroke: #8b3a32;
+  background: #8b3a32;
+}
+
+.nutri-ring--activity.nutri-ring--ok .nutri-ring__fg,
+.nutri-bar-fill--activity.nutri-bar-fill--ok {
+  stroke: #e89a4d;
+  background: #e89a4d;
+}
+
+.nutri-ring--activity.nutri-ring--over .nutri-ring__fg,
+.nutri-bar-fill--activity.nutri-bar-fill--over,
+.nutri-ring--activity.nutri-ring--over2x .nutri-ring__fg,
+.nutri-bar-fill--activity.nutri-bar-fill--over2x {
+  stroke: #b86a20;
+  background: #b86a20;
 }
 
 .cal-detail-nutri {
@@ -1092,23 +1241,14 @@ button.kanban-card:hover {
   display: block;
   height: 100%;
   border-radius: 4px 0 0 4px;
-  background: var(--accent);
-}
-
-.nutri-bar-fill--burn {
-  background: #2db38a;
 }
 
 .nutri-bar-fill--overflow {
   position: absolute;
   left: 0;
   top: 0;
-  background: rgba(0, 0, 0, 0.25);
-  opacity: 0.5;
-}
-
-.nutri-bar-fill--danger {
-  background: var(--danger);
+  opacity: 0.45;
+  border-radius: 0;
 }
 
 .nutri-meals-wrap {

@@ -93,7 +93,7 @@ Available action types (use in actions[].type):
                                                                                     // type: work | sport | walk | chill | sleep | chores | food | transport | social
   - create_meal                 { date, time?, slot, name, kcal, protein_g, fat_g, carbs_g, confidence, notes? }
   - create_activity             { date, time?, type, duration_min?, calories_burned?, intensity?, source?, notes? }
-                                                                                    // source: manual | base_move | apple_health | strava
+                                                                                    // source: manual | move | base_move | apple_health | strava
   - create_substance            { date, time?, name, amount?, unit?, notes? }
   - create_body_metric          { date, time?, metric, value, unit?, notes? }
   - update_day                  { date, wake_time?, sleep_time?, sleep_hours?, mood?, energy?, focus?, weight_kg?, day_type?, kcal_target?, carbs_target_g?, protein_target_g?, fat_target_g?, notes? }

@@ -90,9 +90,9 @@ Always insert:
 - a session row: type=sport, category=sport_<X>, project=<X> if specific.
 - AND optionally an activities row when calories_burned or extra metadata is provided.
 
-WALK as base daily move (НЕ тренировка):
-- If user says "набегал шагов", "за день нашагал", "ходьба за день", "просто ходьба бытовая" → activities table with type=walking, source="base_move".
-- If user says "пошёл прогуляться", "вечерняя прогулка", "часик погулял" → session with type=walk, category=walk (this is a session, not base move).
+MOVE — дневное движение вне тренировок (логируется в конце дня, НЕ сессия):
+- If user says "набегал шагов", "за день нашагал", "ходьба за день", "просто ходьба бытовая", "движение за день", "move за день" → activities table with type=move, source=move (legacy: type=walking + source=base_move still accepted).
+- If user says "пошёл прогуляться", "вечерняя прогулка", "часик погулял" → session with type=walk, category=walk (this is a session, not move).
 `;
 
 const NUTRITION = `

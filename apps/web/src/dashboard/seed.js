@@ -420,7 +420,7 @@ export const MEALS = [
 ];
 
 export const ACTIVITIES = [
-  { date: "2026-05-18", time: null, type: "walking", duration_min: 130, calories_burned: 537, source: "base_move", notes: "бытовая ходьба за весь день" },
+  { date: "2026-05-18", time: null, type: "move", duration_min: 130, calories_burned: 537, source: "move", notes: "движение за день" },
 ];
 
 export const CATEGORIES = [

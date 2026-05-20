@@ -36,12 +36,18 @@ function rangeDates(from, to) {
   return out;
 }
 
+function centerTodayColumn(sc, col) {
+  if (!sc || !col) return;
+  const left = col.offsetLeft + col.offsetWidth / 2 - sc.clientWidth / 2;
+  sc.scrollLeft = Math.max(0, left);
+}
+
 /**
- * Horizontal date strip: past ← today → future.
- * Initially renders ~30 days ending at today + future buffer.
- * Scrolling to the left edge prepends another page of older days.
+ * @param {string[]} knownDates
+ * @param {{ active?: boolean }} [options] — when tab becomes active, re-center today
  */
-export function useDateStrip(knownDates = []) {
+export function useDateStrip(knownDates = [], options = {}) {
+  const { active = true } = options;
   const today = localTodayISO();
 
   const dataMin = useMemo(() => {
@@ -69,7 +75,7 @@ export function useDateStrip(knownDates = []) {
   useEffect(() => {
     setWindowStart(maxISO(dataMin, addDaysISO(today, -(DATE_STRIP_PAGE - 1))));
     setWindowEnd(addDaysISO(today, DATE_STRIP_FUTURE));
-  }, [today, dataMin, defaultEnd]);
+  }, [today, dataMin]);
 
   const visibleDates = useMemo(
     () => rangeDates(windowStart, windowEnd),
@@ -80,27 +86,53 @@ export function useDateStrip(knownDates = []) {
 
   const scrollRef = useRef(null);
   const todayColRef = useRef(null);
-  const didScrollToToday = useRef(false);
+  const userScrolledRef = useRef(false);
   const loadingPastRef = useRef(false);
   const pendingScrollRef = useRef(null);
 
   const scrollToToday = useCallback(() => {
+    userScrolledRef.current = false;
+    const sc = scrollRef.current;
+    const col = todayColRef.current;
+    centerTodayColumn(sc, col);
+  }, []);
+
+  // Re-center when tab becomes visible again.
+  useEffect(() => {
+    if (!active) return;
+    userScrolledRef.current = false;
+  }, [active]);
+
+  // Center today after layout (double rAF + resize while not user-scrolled).
+  useLayoutEffect(() => {
+    if (!active) return;
     const sc = scrollRef.current;
     const col = todayColRef.current;
     if (!sc || !col) return;
-    sc.scrollLeft = col.offsetLeft - sc.clientWidth / 2 + col.clientWidth / 2;
-  }, []);
 
-  useEffect(() => {
-    didScrollToToday.current = false;
-  }, [today]);
+    let cancelled = false;
+    const run = () => {
+      if (cancelled || userScrolledRef.current) return;
+      centerTodayColumn(sc, col);
+    };
 
-  useEffect(() => {
-    if (didScrollToToday.current) return;
-    if (!scrollRef.current || !todayColRef.current) return;
-    scrollToToday();
-    didScrollToToday.current = true;
-  }, [visibleDates.length, scrollToToday]);
+    run();
+    const id = requestAnimationFrame(() => {
+      run();
+      requestAnimationFrame(run);
+    });
+
+    const ro = new ResizeObserver(() => {
+      if (!userScrolledRef.current) run();
+    });
+    ro.observe(sc);
+
+    return () => {
+      cancelled = true;
+      cancelAnimationFrame(id);
+      ro.disconnect();
+    };
+  }, [active, windowStart, windowEnd, visibleDates.length, today]);
 
   useLayoutEffect(() => {
     const pending = pendingScrollRef.current;
@@ -126,7 +158,9 @@ export function useDateStrip(knownDates = []) {
 
   const onScroll = useCallback(() => {
     const sc = scrollRef.current;
-    if (!sc || loadingPastRef.current || !canLoadPast) return;
+    if (!sc) return;
+    if (sc.scrollLeft > 120) userScrolledRef.current = true;
+    if (loadingPastRef.current || !canLoadPast) return;
     if (sc.scrollLeft < 96) loadMorePast();
   }, [canLoadPast, loadMorePast]);
 
