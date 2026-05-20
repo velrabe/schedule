@@ -233,7 +233,7 @@ function App(props = {}) {
     ? {
         days: liveData.days.map(ensureId),
         sessions: liveData.sessions.map(ensureId),
-        events: SEED_EVENTS.map(ensureId),
+        events: (liveData.events || []).map(ensureId),
       }
     : (loadState() || {
         days: SEED_DAYS.map(ensureId),
@@ -289,6 +289,7 @@ function App(props = {}) {
     if (!liveData) return;
     setDays(liveData.days.map(ensureId));
     setSessions(liveData.sessions.map(ensureId));
+    setEvents((liveData.events || []).map(ensureId));
   }, [liveData]);
 
   useEffect(() => {
@@ -429,7 +430,13 @@ function App(props = {}) {
         onOpenRecord=${openRecordEditor}
       />`}
       ${tab === "sessions" && html`<${SessionsTab} sessions=${sessions} setSessions=${setSessions} />`}
-      ${tab === "events" && html`<${EventsTab} events=${events} setEvents=${setEvents} />`}
+      ${tab === "events" &&
+      html`<${EventsTab}
+        events=${events}
+        setEvents=${setEvents}
+        liveMode=${Boolean(liveData)}
+        onOpenRecord=${openRecordEditor}
+      />`}
       ${tab === "insights" &&
       html`<${InsightsTab} days=${days} sessions=${sessions} />`}
 
@@ -1253,7 +1260,7 @@ function SessionsTab({ sessions, setSessions }) {
 
 // ---------------- Events tab ----------------
 
-function EventsTab({ events, setEvents }) {
+function EventsTab({ events, setEvents, liveMode = false, onOpenRecord }) {
   const { sort, toggleSort, filters, setFilter, search, setSearch } = useSheetState("events", {
     id: "date",
     dir: "asc",
@@ -1272,7 +1279,14 @@ function EventsTab({ events, setEvents }) {
         filterOptions: ["info", "warning", "danger"],
         filterMode: "exact",
       },
-      { id: "detail", label: "detail", thClass: "col-w--xl" },
+      { id: "end_date", label: "конец", thClass: "col-w--md" },
+      { id: "detail", label: "detail", thClass: "col-w--lg" },
+      {
+        id: "budget_amount",
+        label: "бюджет",
+        thClass: "col-w--sm",
+        sortAccessor: (r) => Number(r.budget_amount) || 0,
+      },
     ],
     [kinds],
   );
@@ -1289,15 +1303,24 @@ function EventsTab({ events, setEvents }) {
   }, [view]);
 
   const addEvent = useCallback(() => {
-    const newEvent = {
+    const row = {
+      _new: true,
       id: uid(),
-      date: new Date().toISOString().slice(0, 10),
-      kind: "",
-      severity: "info",
+      date: localTodayISO(),
+      end_date: "",
+      kind: "visa",
+      severity: "warning",
       detail: "",
+      budget_amount: "",
+      budget_currency: "RUB",
+      budget_account: "savings_rub",
     };
-    setEvents((prev) => [...prev, newEvent]);
-  }, [setEvents]);
+    if (liveMode && onOpenRecord) {
+      onOpenRecord({ kind: "event", record: row });
+      return;
+    }
+    setEvents((prev) => [...prev, row]);
+  }, [liveMode, onOpenRecord]);
 
   const updateEvent = useCallback(
     (id, patch) => {
@@ -1335,62 +1358,77 @@ function EventsTab({ events, setEvents }) {
           setFilter=${setFilter}
         />
         <tbody>
-          ${view.map(
-            (e) => html`
-              <tr key=${e.id}>
+          ${view.map((e) => {
+            const editable = liveMode && onOpenRecord;
+            return html`
+              <tr
+                key=${e.id}
+                class=${editable ? "sheet-row--clickable" : ""}
+                onClick=${editable ? () => onOpenRecord({ kind: "event", record: e }) : undefined}
+              >
                 <td>
                   <div class="sheet__td">
-                    <input
-                      class="session-row__input"
-                      type="date"
-                      value=${e.date}
-                      onChange=${(ev) => updateEvent(e.id, { date: ev.currentTarget.value })}
-                    />
+                    ${editable
+                      ? html`<span>${e.date}</span>`
+                      : html`
+                        <input
+                          class="session-row__input"
+                          type="date"
+                          value=${e.date}
+                          onChange=${(ev) => updateEvent(e.id, { date: ev.currentTarget.value })}
+                        />
+                      `}
                   </div>
                 </td>
                 <td>
                   <div class="sheet__td">
-                    <input
-                      class="session-row__input"
-                      type="text"
-                      value=${e.kind}
-                      onChange=${(ev) => updateEvent(e.id, { kind: ev.currentTarget.value })}
-                    />
+                    ${editable
+                      ? html`<span>${e.kind || "—"}</span>`
+                      : html`
+                        <input
+                          class="session-row__input"
+                          type="text"
+                          value=${e.kind}
+                          onChange=${(ev) => updateEvent(e.id, { kind: ev.currentTarget.value })}
+                        />
+                      `}
                   </div>
                 </td>
                 <td>
                   <div class="sheet__td">
-                    <select
-                      class="session-row__select"
-                      value=${e.severity}
-                      onChange=${(ev) => updateEvent(e.id, { severity: ev.currentTarget.value })}
-                    >
-                      <option value="info">info</option>
-                      <option value="warning">warning</option>
-                      <option value="danger">danger</option>
-                    </select>
+                    ${editable
+                      ? html`<span>${e.severity}</span>`
+                      : html`
+                        <select
+                          class="session-row__select"
+                          value=${e.severity}
+                          onChange=${(ev) => updateEvent(e.id, { severity: ev.currentTarget.value })}
+                        >
+                          <option value="info">info</option>
+                          <option value="warning">warning</option>
+                          <option value="danger">danger</option>
+                        </select>
+                      `}
                   </div>
                 </td>
                 <td>
                   <div class="sheet__td">
-                    <input
-                      class="session-row__input"
-                      type="text"
-                      value=${e.detail}
-                      onChange=${(ev) => updateEvent(e.id, { detail: ev.currentTarget.value })}
-                    />
-                    <button
-                      class="btn btn--ghost btn--icon"
-                      onClick=${() => removeEvent(e.id)}
-                      title="delete"
-                    >
-                      <span class="btn__icon-wrap">${I.x()}</span>
-                    </button>
+                    <span>${e.end_date || "—"}</span>
+                  </div>
+                </td>
+                <td>
+                  <div class="sheet__td">
+                    <span>${e.detail || "—"}</span>
+                  </div>
+                </td>
+                <td>
+                  <div class="sheet__td">
+                    <span>${e.budget_amount ? `${e.budget_amount} ${e.budget_currency || "RUB"}` : "—"}</span>
                   </div>
                 </td>
               </tr>
-            `,
-          )}
+            `;
+          })}
         </tbody>
       </table>
     </div>

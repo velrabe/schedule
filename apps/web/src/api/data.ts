@@ -147,9 +147,14 @@ export type ActivityRow = {
 export type EventRow = {
   id: string;
   date: string;
+  end_date?: string | null;
   kind: string;
   detail: string | null;
   severity: string;
+  budget_amount?: number | null;
+  budget_currency?: string | null;
+  budget_account?: string | null;
+  finance_planned_item_id?: string | null;
 };
 
 export type RawLogRow = {

@@ -2,7 +2,7 @@ import { h } from "preact";
 import { useMemo, useCallback } from "preact/hooks";
 import htm from "htm";
 import { localTodayISO } from "./useDateStrip.js";
-import { addDaysISO, mergeFinanceTableRows } from "./financeInsights.js";
+import { addDaysISO, mergeFinanceTableRows, PLAN_HORIZON_DAYS } from "./financeInsights.js";
 import { financeTxnLabel, financeTxnShortMeta } from "./financeDisplay.js";
 import { useSheetState, applySheet, SheetHeader, Toolbar, sheetIcons } from "./sheetUi.js";
 
@@ -205,7 +205,7 @@ export default function FinanceTransactionsTab({
         </table>
       </div>
       <div class="footer-bar">
-        <span>${view.length} в таблице · ${factCount} факт · ${plannedCount} план (с ${today} по ${addDaysISO(today, 400)})</span>
+        <span>${view.length} в таблице · ${factCount} факт · ${plannedCount} план (6 мес · до ${addDaysISO(today, PLAN_HORIZON_DAYS)})</span>
       </div>
     </div>
   `;

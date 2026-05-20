@@ -30,6 +30,7 @@ import {
   replaceFinanceWrite,
   type FinanceRow,
 } from "../_shared/financeBalanceSync.ts";
+import { afterEventWrite, beforeEventDelete } from "../_shared/eventFinanceSync.ts";
 
 const ALLOWED = new Set([
   "days",
@@ -168,6 +169,9 @@ Deno.serve(async (req) => {
       if (resource === "finance_transactions" && data) {
         await afterFinanceWrite(db, String((data as Record<string, unknown>).id));
       }
+      if (resource === "events" && data) {
+        await afterEventWrite(db, String((data as Record<string, unknown>).id));
+      }
       return json({ row: data });
     }
 
@@ -182,6 +186,9 @@ Deno.serve(async (req) => {
       }
       if (resource === "finance_transactions" && data) {
         await afterFinanceWrite(db, String((data as Record<string, unknown>).id));
+      }
+      if (resource === "events" && data) {
+        await afterEventWrite(db, String((data as Record<string, unknown>).id));
       }
       return json({ row: data });
     }
@@ -236,6 +243,11 @@ Deno.serve(async (req) => {
         if (oldFinance) await replaceFinanceWrite(db, oldFinance, newId);
         else await afterFinanceWrite(db, newId);
       }
+      if (resource === "events" && id) {
+        await afterEventWrite(db, id);
+      } else if (resource === "events" && row0) {
+        await afterEventWrite(db, String(row0.id));
+      }
 
       return json({ rows: data });
     }
@@ -254,6 +266,9 @@ Deno.serve(async (req) => {
       }
       if (resource === "sessions" && id) {
         await afterFoodSessionDelete(db, id);
+      }
+      if (resource === "events" && id) {
+        await beforeEventDelete(db, id);
       }
       let q = table.delete();
       if (id) q = q.eq("id", id);

@@ -2,7 +2,13 @@ import { h } from "preact";
 import { useMemo, useState, useCallback } from "preact/hooks";
 import htm from "htm";
 import { localTodayISO } from "./useDateStrip.js";
-import { buildBalanceSeries, fmtRub, plannedItemLabel, accountsTotalRub } from "./financeInsights.js";
+import {
+  buildBalanceSeries,
+  fmtRub,
+  plannedItemLabel,
+  accountsTotalRub,
+  PLAN_HORIZON_DAYS,
+} from "./financeInsights.js";
 import FinanceBalanceChart from "./FinanceBalanceChart.jsx";
 import FinanceDayDrawer from "./FinanceDayDrawer.jsx";
 
@@ -29,7 +35,7 @@ export default function FinanceChartTab({
         snapshots: balance_snapshots,
         plannedItems: finance_planned_items,
         historyDays: 60,
-        planDays: 150,
+        planDays: PLAN_HORIZON_DAYS,
       }),
     [today, accounts, finance, balance_snapshots, finance_planned_items],
   );

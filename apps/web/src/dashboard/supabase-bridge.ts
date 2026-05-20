@@ -103,7 +103,33 @@ export type FinanceShape = FinanceRow;
 export type AccountShape = AccountRow;
 export type BalanceSnapshotShape = BalanceSnapshotRow;
 export type PlannedItemShape = PlannedItemRow;
-export type EventShape = EventRow;
+export type EventShape = {
+  id: string;
+  date: string;
+  end_date: string;
+  kind: string;
+  detail: string;
+  severity: string;
+  budget_amount: number | "";
+  budget_currency: string;
+  budget_account: string;
+  finance_planned_item_id: string;
+};
+
+export function mapEvent(r: EventRow): EventShape {
+  return {
+    id: r.id,
+    date: r.date,
+    end_date: r.end_date || "",
+    kind: r.kind || "",
+    detail: r.detail || "",
+    severity: r.severity || "info",
+    budget_amount: r.budget_amount ?? "",
+    budget_currency: r.budget_currency || "RUB",
+    budget_account: r.budget_account || "",
+    finance_planned_item_id: r.finance_planned_item_id || "",
+  };
+}
 
 export type Snapshot = {
   days: DayShape[];
@@ -153,7 +179,7 @@ export function useSupabaseSnapshot() {
           accounts: raw.accounts,
           balance_snapshots: raw.balance_snapshots,
           finance_planned_items: raw.finance_planned_items,
-          events: raw.events,
+          events: raw.events.map(mapEvent),
           raw,
         },
       });

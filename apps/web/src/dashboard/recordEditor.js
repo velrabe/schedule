@@ -133,6 +133,29 @@ const KIND_META = {
       { key: "notes", label: "заметки", type: "textarea", optional: true },
     ],
   },
+  event: {
+    resource: "events",
+    title: "Событие",
+    subtitle: (r) => {
+      if (r._new) return "новое событие";
+      return `${r.date}${r.end_date ? " → " + r.end_date : ""} · ${r.kind || ""}`;
+    },
+    fields: [
+      { key: "date", label: "начало", type: "date" },
+      { key: "end_date", label: "конец", type: "date", optional: true },
+      { key: "kind", label: "тип", type: "text" },
+      { key: "detail", label: "описание", type: "textarea", optional: true },
+      {
+        key: "severity",
+        label: "важность",
+        type: "select",
+        options: ["info", "warning", "danger"],
+      },
+      { key: "budget_amount", label: "бюджет", type: "number", optional: true },
+      { key: "budget_currency", label: "валюта бюджета", type: "select", options: CURRENCY_OPTIONS, optional: true },
+      { key: "budget_account", label: "счёт", type: "select", options: DEFAULT_ACCOUNTS, optional: true },
+    ],
+  },
   session: {
     resource: "sessions",
     title: "Сессия",
@@ -194,6 +217,17 @@ export function recordToForm(kind, record, linkedExpense = null) {
         note: record.note || "",
         ...expense,
       };
+    case "event":
+      return {
+        date: record.date || "",
+        end_date: record.end_date || "",
+        kind: record.kind || "",
+        detail: record.detail || "",
+        severity: record.severity || "info",
+        budget_amount: record.budget_amount ?? "",
+        budget_currency: record.budget_currency || "RUB",
+        budget_account: record.budget_account || "",
+      };
     case "finance":
       return {
         date: record.date || "",
@@ -253,6 +287,17 @@ export function formToDbPatch(kind, form) {
         notes: strOrNull(form.note),
       };
     }
+    case "event":
+      return {
+        date: form.date,
+        end_date: strOrNull(form.end_date),
+        kind: form.kind || "other",
+        detail: strOrNull(form.detail),
+        severity: form.severity || "info",
+        budget_amount: numOrNull(form.budget_amount),
+        budget_currency: strOrNull(form.budget_currency) || "RUB",
+        budget_account: strOrNull(form.budget_account),
+      };
     case "finance": {
       const txn_type = form.txn_type || "expense";
       return {

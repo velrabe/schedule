@@ -177,14 +177,24 @@ export default function RecordEditDrawer({
         expense_session_id: expenseSessionId || undefined,
       };
 
-      if (target.kind === "session" && setSessions) {
+      if (target.kind === "session" && setSessions && !isNew) {
         const ui = formToSessionUi(form);
         setSessions((prev) =>
           prev.map((s) => (s.id === target.record.id ? { ...s, ...ui } : s)),
         );
       }
 
-      await manualPatch(meta.resource, target.record.id, patch, extra);
+      if (isNew) {
+        const { insertRow, notifyDataChanged } = await import("../api/manual");
+        const row = { ...patch };
+        if (target.record.id && !String(target.record.id).startsWith("plan:")) {
+          row.id = target.record.id;
+        }
+        await insertRow(meta.resource, row);
+        notifyDataChanged();
+      } else {
+        await manualPatch(meta.resource, target.record.id, patch, extra);
+      }
       onClose();
     } catch (e) {
       const msg = e?.message || String(e);

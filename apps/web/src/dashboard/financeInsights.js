@@ -1,5 +1,8 @@
 /** Plan/fact balance series in RUB for Insights chart. */
 
+/** ~6 months forward for daily food + table planned rows. */
+export const PLAN_HORIZON_DAYS = 183;
+
 export const FX_RUB_PER_UNIT = {
   RUB: 1,
   VND: 10000 / 3692220,
@@ -134,7 +137,7 @@ export function mergeFinanceTableRows(
   finance = [],
   plannedItems = [],
   today,
-  planHorizonDays = 400,
+  planHorizonDays = PLAN_HORIZON_DAYS,
 ) {
   const plannedFrom = today;
   const plannedTo = addDaysISO(today, planHorizonDays);
@@ -157,7 +160,7 @@ export function buildBalanceSeries({
   snapshots = [],
   plannedItems = [],
   historyDays = 90,
-  planDays = 180,
+  planDays = PLAN_HORIZON_DAYS,
   fx = FX_RUB_PER_UNIT,
 }) {
   const fromDate = addDaysISO(today, -historyDays);
@@ -205,6 +208,27 @@ export function buildBalanceSeries({
     today,
     totalRubNow: todayBal,
   };
+}
+
+/** Thin chart: keep last N points so SVG stays visible. */
+export function downsampleChartSeries(dates, fact, plan, maxPoints = 120) {
+  if (dates.length <= maxPoints) return { dates, fact, plan };
+  const step = Math.max(1, Math.floor(dates.length / maxPoints));
+  const outD = [];
+  const outF = [];
+  const outP = [];
+  for (let i = 0; i < dates.length; i += step) {
+    outD.push(dates[i]);
+    outF.push(fact[i]);
+    outP.push(plan[i]);
+  }
+  const last = dates.length - 1;
+  if (outD[outD.length - 1] !== dates[last]) {
+    outD.push(dates[last]);
+    outF.push(fact[last]);
+    outP.push(plan[last]);
+  }
+  return { dates: outD, fact: outF, plan: outP };
 }
 
 export function fmtRub(n) {
