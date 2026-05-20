@@ -71,6 +71,7 @@ Go to `Project Settings → Edge Functions → Environment variables` and add:
 | Name | Value |
 |---|---|
 | `GEMINI_API_KEY` | from step 2 |
+| `GEMINI_MODEL` | optional, default `gemini-2.0-flash-lite` — see below |
 | `APP_PASSWORD` | your shared password |
 | `JWT_SECRET` | output of `openssl rand -hex 32` |
 
@@ -143,6 +144,22 @@ If using a custom domain:
    - For apex domain (`example.com`): A records to `185.199.108.153`, `…109.153`, `…110.153`, `…111.153`.
    - For subdomain (`schedule.example.com`): CNAME to `<your-user>.github.io`.
 3. In `Settings → Pages` set the custom domain.
+
+---
+
+## Gemini models (chat / log)
+
+The chat edge function calls Google Gemini with **JSON output** (meals, sessions, etc.). Model is set via `GEMINI_MODEL` in Supabase secrets; default after deploy: **`gemini-2.0-flash-lite`**.
+
+| Model | When to use |
+|---|---|
+| `gemini-2.0-flash-lite` | **Default.** Lighter, cheaper quota — enough for parsing “добавь обед / сдвинь сессию”. |
+| `gemini-2.0-flash` | Slightly smarter if lite mis-parses rare cases. |
+| `gemini-2.5-flash` | Newest Flash; may hit free-tier limits sooner. |
+
+**Free tier:** limits are per **API key / project** (RPM, RPD), not per app. If you see “rate limit” in chat, wait a minute or enable **billing** in [AI Studio](https://aistudio.google.com/) — personal usage is usually cents, not dollars.
+
+To switch: Supabase → Edge Functions → Secrets → `GEMINI_MODEL=gemini-2.0-flash-lite` → redeploy `chat` (or push to `main`).
 
 ---
 
