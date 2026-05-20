@@ -178,7 +178,7 @@ export function buildBalanceSeries({
 
   const plannedExpanded = expandPlannedItems(plannedItems, fromDate, toDate, fx);
   const plannedByDate = groupDeltasByDate(plannedExpanded);
-  const markers = plannedExpanded.filter((p) => p.date > today);
+  const markers = chartPlanMarkers(plannedExpanded, today);
 
   const todayBal = snapMap.get(today) ?? accountsTotalRub(accounts, fx);
   let run = todayBal;
@@ -210,6 +210,23 @@ export function buildBalanceSeries({
     today,
     totalRubNow: todayBal,
   };
+}
+
+/**
+ * Dots on the plan line: rent, subscriptions, events — not daily food.
+ * Daily planned items still affect the plan curve, only markers are omitted.
+ */
+export function chartPlanMarkers(plannedExpanded, today) {
+  return (plannedExpanded || []).filter((p) => {
+    if (p.date <= today) return false;
+    const item = p.item || {};
+    const rec = (item.recurrence || "once").toLowerCase();
+    if (rec === "daily") return false;
+    const cat = (item.category || "").toLowerCase();
+    const title = (item.title || "").toLowerCase();
+    if (cat === "food" || title === "еда") return false;
+    return true;
+  });
 }
 
 /** Thin chart: keep last N points so SVG stays visible. */

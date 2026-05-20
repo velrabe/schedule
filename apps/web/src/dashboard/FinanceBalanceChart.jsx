@@ -55,17 +55,18 @@ export default function FinanceBalanceChart({
     if (!sampled.dates.length || !all.length) return null;
 
     const W = 800;
-    const H = 220;
-    const padL = 48;
-    const padB = 24;
-    const padT = 8;
-    const padR = 12;
+    const H = 280;
+    const padL = 8;
+    const padB = 28;
+    const padT = 12;
+    const padR = 10;
     const innerW = W - padL - padR;
     const innerH = H - padT - padB;
 
     const maxV = Math.max(...all, 0);
     const minV = Math.min(...all, 0);
-    const padY = Math.max((maxV - minV) * 0.1, 5000);
+    const span = maxV - minV;
+    const padY = span > 0 ? span * 0.1 : Math.max(Math.abs(maxV) * 0.05, 1);
     const yMax = maxV + padY;
     const yMin = minV - padY;
     const range = yMax - yMin || 1;
@@ -230,35 +231,50 @@ export default function FinanceBalanceChart({
                 >${d.slice(5)}</text>
               `;
             })}
+            ${markers.map((m, i) => {
+              const idx = dates.indexOf(m.date);
+              if (idx < 0 || plan[idx] == null) return null;
+              const si = sampled.dates.indexOf(m.date);
+              if (si < 0 || sampled.plan[si] == null) return null;
+              const y = yAt(sampled.plan[si]);
+              const x = xAt(si);
+              const color = m.deltaRub < 0 ? "var(--danger)" : "var(--success)";
+              return html`
+                <g key=${"m-" + i}>
+                  <line
+                    x1=${x}
+                    x2=${x}
+                    y1=${y}
+                    y2=${padT + innerH}
+                    stroke=${color}
+                    stroke-width="1"
+                    stroke-opacity="0.35"
+                  />
+                  <circle cx=${x} cy=${y} r="2.5" fill=${color} stroke="var(--bg)" stroke-width="1" />
+                </g>
+              `;
+            })}
             ${planD &&
             html`
               <path
                 d=${planD}
                 fill="none"
                 stroke="var(--success)"
-                stroke-width="1.25"
-                stroke-dasharray="4 3"
+                stroke-width="2"
+                stroke-dasharray="5 4"
+                stroke-linecap="round"
               />
             `}
             ${factD &&
             html`
-              <path d=${factD} fill="none" stroke="var(--info)" stroke-width="1.5" />
+              <path
+                d=${factD}
+                fill="none"
+                stroke="var(--info)"
+                stroke-width="2.25"
+                stroke-linecap="round"
+              />
             `}
-            ${markers.map((m, i) => {
-              const idx = dates.indexOf(m.date);
-              if (idx < 0 || plan[idx] == null) return null;
-              const si = sampled.dates.indexOf(m.date);
-              if (si < 0 || sampled.plan[si] == null) return null;
-              return html`
-                <circle
-                  key=${"m-" + i}
-                  cx=${xAt(si)}
-                  cy=${yAt(sampled.plan[si])}
-                  r="2"
-                  fill=${m.deltaRub < 0 ? "var(--danger)" : "var(--success)"}
-                />
-              `;
-            })}
             ${hoverIdx >= 0 &&
             html`
               <line
@@ -308,6 +324,7 @@ export default function FinanceBalanceChart({
           <span class="legend-swatch legend-swatch--dashed" style="border-color: var(--success)"></span>
           <span class="legend-label">план</span>
         </div>
+        <span class="balance-chart-hint">точки — крупные плановые списания (без ежедневной еды)</span>
         <span class="balance-chart-hint">клик по дню — операции и баланс</span>
       </div>
     </div>

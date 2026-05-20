@@ -1908,8 +1908,8 @@ button.kanban-card:hover {
 .balance-chart-layout {
   display: flex;
   flex-direction: row;
+  align-items: stretch;
   width: 100%;
-  height: 220px;
   gap: 6px;
 }
 
@@ -1918,9 +1918,10 @@ button.kanban-card:hover {
   flex-direction: column;
   justify-content: space-between;
   flex-shrink: 0;
+  align-self: stretch;
   width: 36px;
   margin: 0;
-  padding: 8px 0 24px 0;
+  padding: 12px 0 28px 0;
   box-sizing: border-box;
 }
 
@@ -1942,6 +1943,9 @@ button.kanban-card:hover {
   min-width: 0;
   margin: 0;
   padding: 0;
+  aspect-ratio: 800 / 280;
+  min-height: 200px;
+  max-height: 42vh;
 }
 
 .balance-chart-svg {
@@ -1951,6 +1955,7 @@ button.kanban-card:hover {
   margin: 0;
   padding: 0;
   cursor: crosshair;
+  overflow: visible;
 }
 
 .balance-chart-hit--active {
