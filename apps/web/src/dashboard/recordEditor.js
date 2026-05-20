@@ -67,6 +67,22 @@ const KIND_META = {
       { key: "notes", label: "заметки", type: "textarea" },
     ],
   },
+  finance: {
+    resource: "finance_transactions",
+    title: "Операция",
+    subtitle: (r) => `${r.amount} ${r.currency || ""}`,
+    fields: [
+      { key: "date", label: "дата", type: "date" },
+      { key: "time", label: "время", type: "time", optional: true },
+      { key: "amount", label: "сумма", type: "number" },
+      { key: "currency", label: "валюта", type: "text" },
+      { key: "account", label: "счёт", type: "text", optional: true },
+      { key: "category", label: "категория", type: "text", optional: true },
+      { key: "merchant", label: "магазин", type: "text", optional: true },
+      { key: "txn_type", label: "тип", type: "select", options: ["expense", "income", "transfer"] },
+      { key: "notes", label: "заметки", type: "textarea", optional: true },
+    ],
+  },
   session: {
     resource: "sessions",
     title: "Сессия",
@@ -123,6 +139,18 @@ export function recordToForm(kind, record) {
         project: record.project || "",
         note: record.note || "",
       };
+    case "finance":
+      return {
+        date: record.date || "",
+        time: trimTime(record.time),
+        amount: record.amount ?? "",
+        currency: record.currency || "VND",
+        account: record.account || "",
+        category: record.category || "",
+        merchant: record.merchant || "",
+        txn_type: record.txn_type || "expense",
+        notes: record.notes || "",
+      };
     default:
       return {};
   }
@@ -168,6 +196,18 @@ export function formToDbPatch(kind, form) {
         notes: strOrNull(form.note),
       };
     }
+    case "finance":
+      return {
+        date: form.date,
+        time: strOrNull(form.time),
+        amount: numOrNull(form.amount) ?? 0,
+        currency: form.currency || "VND",
+        account: strOrNull(form.account),
+        category: strOrNull(form.category),
+        merchant: strOrNull(form.merchant),
+        txn_type: form.txn_type || "expense",
+        notes: strOrNull(form.notes),
+      };
     default:
       return {};
   }

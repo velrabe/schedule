@@ -62,6 +62,12 @@ const RESOURCES: Record<string, ResourceConfig> = {
     dateCol: "date",
     defaultOrder: [{ col: "date", asc: false }],
   },
+  accounts: {
+    table: "accounts",
+    dateCol: "updated_at",
+    isTimestamp: true,
+    defaultOrder: [{ col: "id", asc: true }],
+  },
   events: {
     table: "events",
     dateCol: "date",

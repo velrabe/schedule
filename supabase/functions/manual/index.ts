@@ -13,6 +13,12 @@ import {
   diffMinutes,
   inferSessionType,
 } from "../_shared/actions.ts";
+import {
+  afterFoodSessionWrite,
+  afterFoodSessionDelete,
+  afterMealWrite,
+  isFoodSession,
+} from "../_shared/foodMealSync.ts";
 
 const ALLOWED = new Set([
   "days",
@@ -120,12 +126,24 @@ Deno.serve(async (req) => {
     if (op === "insert") {
       const { data, error } = await table.insert(normalizedRow).select().single();
       if (error) throw error;
+      if (resource === "sessions" && data && isFoodSession(data as Record<string, unknown>)) {
+        await afterFoodSessionWrite(db, String((data as Record<string, unknown>).id));
+      }
+      if (resource === "meals" && data) {
+        await afterMealWrite(db, String((data as Record<string, unknown>).id));
+      }
       return json({ row: data });
     }
 
     if (op === "upsert") {
       const { data, error } = await table.upsert(normalizedRow).select().single();
       if (error) throw error;
+      if (resource === "sessions" && data && isFoodSession(data as Record<string, unknown>)) {
+        await afterFoodSessionWrite(db, String((data as Record<string, unknown>).id));
+      }
+      if (resource === "meals" && data) {
+        await afterMealWrite(db, String((data as Record<string, unknown>).id));
+      }
       return json({ row: data });
     }
 
@@ -138,11 +156,31 @@ Deno.serve(async (req) => {
       }
       const { data, error } = await q.select();
       if (error) throw error;
+      const row0 = (data as Record<string, unknown>[] | null)?.[0];
+      if (resource === "sessions" && id) {
+        await afterFoodSessionWrite(db, id);
+      } else if (resource === "sessions" && row0) {
+        await afterFoodSessionWrite(db, String(row0.id));
+      }
+      if (resource === "meals" && id) {
+        await afterMealWrite(db, id);
+      } else if (resource === "meals" && row0) {
+        await afterMealWrite(db, String(row0.id));
+      }
       return json({ rows: data });
     }
 
     if (op === "delete") {
       if (!id && !match) return json({ error: "id_or_match_required" }, { status: 400 });
+      if (resource === "meals" && id) {
+        const { data: meal } = await db.from("meals").select("session_id").eq("id", id).maybeSingle();
+        if (meal?.session_id) {
+          await db.from("sessions").delete().eq("id", meal.session_id);
+        }
+      }
+      if (resource === "sessions" && id) {
+        await afterFoodSessionDelete(db, id);
+      }
       let q = table.delete();
       if (id) q = q.eq("id", id);
       if (match) {

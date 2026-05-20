@@ -12,6 +12,7 @@ import {
   labelSession,
   trimTime,
 } from "./sessionSchedule.ts";
+import { isFoodSession, syncMealsForSessions, afterFoodSessionDelete } from "./foodMealSync.ts";
 
 export class SwallowRequiredError extends Error {
   code = "swallow_required";
@@ -239,11 +240,13 @@ export async function executeSessionActions(
     allWarnings.push(...resolved.warnings);
 
     for (const id of resolved.deletedIds) {
+      await afterFoodSessionDelete(db, id);
       const { error: delErr } = await db.from("sessions").delete().eq("id", id);
       if (delErr) throw delErr;
       allDeleted.push(id);
     }
 
+    const writtenSessions: SessionLike[] = [];
     for (const s of resolved.sessions) {
       const payload = {
         date: s.date,
@@ -265,7 +268,10 @@ export async function executeSessionActions(
         if (insErr) throw insErr;
       }
       allUpdated.push(s);
+      writtenSessions.push(s);
     }
+
+    await syncMealsForSessions(db, writtenSessions.filter((s) => isFoodSession(s)), sourceLogId);
   }
 
   return { updated: allUpdated, deletedIds: allDeleted, warnings: allWarnings };

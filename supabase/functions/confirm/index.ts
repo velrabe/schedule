@@ -18,6 +18,7 @@ import {
   isSessionScheduleAction,
   SwallowRequiredError,
 } from "../_shared/sessionConfirm.ts";
+import { afterMealWrite } from "../_shared/foodMealSync.ts";
 import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
 
 type Action = { type: string; data: Record<string, unknown> };
@@ -193,6 +194,7 @@ async function execute(db: SupabaseClient, action: Action, sourceLogId: string):
         .select()
         .single();
       if (error) throw error;
+      await afterMealWrite(db, String(data.id), sourceLogId);
       return data;
     }
     case "create_activity": {

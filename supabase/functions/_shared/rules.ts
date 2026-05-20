@@ -118,9 +118,13 @@ const NUTRITION = `
 Daily targets (default; LLM may read from days.kcal_target if user overrides):
 - kcal=1800, carbs=180g, protein=116g, fat=64g
 
-"Сессия" for food (завтрак/обед 13:30–14:00) → create_meal with time + slot, NOT a work session. Use sessions table only for work/sport/walk/chores blocks.
+Food blocks (завтрак/обед/ужин/снек) → create_session with type=food, category=food. Put slot hint in project or notes ("завтрак", "обед", "breakfast", "snack"). Server auto-creates a linked meals row (one meal per food session). Multiple food sessions per day are OK (e.g. two snacks at different times).
 
-For every meal create a create_meal action with:
+If user also gives macros (kcal, protein_g, …) in the same message → add create_meal with the same date/time/slot/name and macros (links to session automatically), OR update_session + create_meal — prefer create_session first, then create_meal with matching slot/time.
+
+For meal-only chat without explicit schedule block, create_meal still works (creates food session).
+
+For every meal (create_meal or synced from food session) include:
 - slot ∈ { breakfast, lunch, dinner, snack } — derive from time-of-day if absent:
     05:00–11:00 → breakfast
     11:00–16:00 → lunch

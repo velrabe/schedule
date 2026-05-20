@@ -8,6 +8,7 @@ export type Resource =
   | "substances"
   | "body_metrics"
   | "finance_transactions"
+  | "accounts"
   | "events"
   | "raw_logs";
 
@@ -50,6 +51,7 @@ export type MealRow = {
   date: string;
   time: string | null;
   slot: string | null;
+  session_id: string | null;
   name: string;
   portion_grams: number | null;
   kcal: number | null;
@@ -91,7 +93,17 @@ export type FinanceRow = {
   category: string | null;
   merchant: string | null;
   txn_type: string;
+  session_id: string | null;
   notes: string | null;
+};
+
+export type AccountRow = {
+  id: string;
+  name: string;
+  currency: string;
+  balance: number;
+  notes: string | null;
+  archived: boolean;
 };
 
 export type ActivityRow = {
@@ -135,7 +147,7 @@ export async function fetchRows<T = unknown>(
 
 // Bulk fetcher for the dashboard's initial load.
 export async function fetchDashboardSnapshot(opts: { from?: string; to?: string } = {}) {
-  const [days, sessions, meals, substances, body_metrics, finance, activities, events] =
+  const [days, sessions, meals, substances, body_metrics, finance, accounts, activities, events] =
     await Promise.all([
       fetchRows<DayRow>("days", { ...opts, limit: 1000, order: "asc" }),
       fetchRows<SessionRow>("sessions", { ...opts, limit: 5000, order: "asc" }),
@@ -143,8 +155,9 @@ export async function fetchDashboardSnapshot(opts: { from?: string; to?: string 
       fetchRows<SubstanceRow>("substances", { ...opts, limit: 2000, order: "asc" }),
       fetchRows<BodyMetricRow>("body_metrics", { ...opts, limit: 2000, order: "asc" }),
       fetchRows<FinanceRow>("finance_transactions", { ...opts, limit: 2000, order: "asc" }),
+      fetchRows<AccountRow>("accounts", { limit: 50, order: "asc" }),
       fetchRows<ActivityRow>("activities", { ...opts, limit: 2000, order: "asc" }),
       fetchRows<EventRow>("events", { ...opts, limit: 1000, order: "asc" }),
     ]);
-  return { days, sessions, meals, substances, body_metrics, finance, activities, events };
+  return { days, sessions, meals, substances, body_metrics, finance, accounts, activities, events };
 }

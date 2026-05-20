@@ -164,7 +164,7 @@ export default function RecordEditDrawer({
       const msg = e?.message || String(e);
       if (msg === "Failed to fetch") {
         alert("Не удалось связаться с API (manual).");
-      } else if (e?.status) {
+      } else if (e instanceof ApiError) {
         alert(`Ошибка ${e.status}: ${JSON.stringify(e.body ?? msg)}`);
       } else {
         alert(msg);

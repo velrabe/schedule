@@ -20,6 +20,10 @@ import {
   activityTypeLabel,
   activityDetailLabel,
 } from "./nutriViz.jsx";
+import {
+  mergeMealsWithFoodSessions,
+  mealCountForNutrition,
+} from "./mergeNutrition.js";
 
 const html = htm.bind(h);
 const STORE_KEY = "schedule-tracker:v1";
@@ -239,10 +243,31 @@ function App(props = {}) {
   const [events, setEvents] = useState(initial.events);
   const [tab, setTab] = useState(localStorage.getItem("schedule-tracker:tab") || "days");
   const [recordEditor, setRecordEditor] = useState(null);
-  const openRecordEditor = useCallback((target) => {
-    if (!target?.record?.id) return;
-    setRecordEditor(target);
-  }, []);
+
+  const mergedMeals = useMemo(
+    () =>
+      liveData
+        ? mergeMealsWithFoodSessions(sessions, liveData.meals || [])
+        : mergeMealsWithFoodSessions(sessions, []),
+    [liveData, sessions],
+  );
+
+  const openRecordEditor = useCallback(
+    (target) => {
+      if (!target?.record) return;
+      const rec = target.record;
+      if (target.kind === "meal" && rec._synthetic && rec.session_id) {
+        const sess = sessions.find((s) => s.id === rec.session_id);
+        if (sess) {
+          setRecordEditor({ kind: "session", record: sess });
+          return;
+        }
+      }
+      if (!rec.id) return;
+      setRecordEditor(target);
+    },
+    [sessions],
+  );
   const closeRecordEditor = useCallback(() => setRecordEditor(null), []);
 
   // When liveData changes (e.g. after a chat confirm), refresh local state.
@@ -341,7 +366,8 @@ function App(props = {}) {
         <${TabBtn} id="days" active=${tab} onClick=${setTab} label="Days" count=${days.length} />
         <${TabBtn} id="calendar" active=${tab} onClick=${setTab} label="Calendar" count=${null} />
         <${TabBtn} id="kanban" active=${tab} onClick=${setTab} label="Kanban" count=${null} />
-        <${TabBtn} id="nutrition" active=${tab} onClick=${setTab} label="Nutrition" count=${liveData?.meals?.length ?? null} />
+        <${TabBtn} id="nutrition" active=${tab} onClick=${setTab} label="Nutrition" count=${liveData ? mealCountForNutrition(sessions, liveData.meals) : null} />
+        <${TabBtn} id="finance" active=${tab} onClick=${setTab} label="Finance" count=${liveData?.finance?.length ?? null} />
         <${TabBtn} id="sessions" active=${tab} onClick=${setTab} label="Sessions" count=${sessions.length} />
         <${TabBtn} id="events" active=${tab} onClick=${setTab} label="Events" count=${events.length} />
         <${TabBtn} id="insights" active=${tab} onClick=${setTab} label="Insights" count=${null} />
@@ -358,19 +384,28 @@ function App(props = {}) {
       html`<${CalendarTab}
         days=${days}
         sessions=${sessions}
-        meals=${liveData?.meals || []}
+        meals=${mergedMeals}
         activities=${liveData?.activities || []}
         liveMode=${Boolean(liveData)}
         setSessions=${setSessions}
         setDays=${setDays}
         onOpenRecord=${openRecordEditor}
       />`}
-      ${tab === "kanban" && html`<${KanbanTab} days=${days} sessions=${sessions} meals=${liveData?.meals || []} activities=${liveData?.activities || []} setSessions=${setSessions} liveMode=${Boolean(liveData)} active=${true} />`}
+      ${tab === "kanban" && html`<${KanbanTab} days=${days} sessions=${sessions} meals=${mergedMeals} activities=${liveData?.activities || []} setSessions=${setSessions} liveMode=${Boolean(liveData)} active=${true} />`}
       ${tab === "nutrition" &&
       html`<${NutritionTab}
         days=${days}
-        meals=${liveData?.meals || []}
+        meals=${mergedMeals}
         activities=${liveData?.activities || []}
+        active=${true}
+        liveMode=${Boolean(liveData)}
+        onOpenRecord=${openRecordEditor}
+      />`}
+      ${tab === "finance" &&
+      html`<${FinanceTab}
+        days=${days}
+        accounts=${liveData?.accounts || []}
+        finance=${liveData?.finance || []}
         active=${true}
         liveMode=${Boolean(liveData)}
         onOpenRecord=${openRecordEditor}
@@ -2136,17 +2171,7 @@ function CalendarDayDetail({
   setDays,
   onOpenRecord,
 }) {
-  const sortedMeals = useMemo(
-    () =>
-      [...meals].sort((a, b) => {
-        const order = { breakfast: 0, lunch: 1, dinner: 2, snack: 3 };
-        const sa = order[a.slot] ?? 9;
-        const sb = order[b.slot] ?? 9;
-        if (sa !== sb) return sa - sb;
-        return String(a.time || "").localeCompare(String(b.time || ""));
-      }),
-    [meals],
-  );
+  const sortedMeals = useMemo(() => meals, [meals]);
 
   const sortedActs = useMemo(
     () => [...activitiesList].sort((a, b) => String(a.time || "").localeCompare(String(b.time || ""))),
@@ -2820,6 +2845,107 @@ function NutritionTab({ days, meals = [], activities = [], active = true, liveMo
                   `)}
                 </div>
               `}
+            </div>
+          `;
+        })}
+        <div class="date-strip-sentinel date-strip-sentinel--future" ref=${futureSentinelRef}></div>
+      </div>
+    </div>
+  `;
+}
+
+// ---------------- finance view ----------------
+
+const ACCOUNT_LABELS = {
+  savings_rub: "Savings RUB",
+  ip_rub: "Счёт ИП",
+  vcb_vnd: "Bank VND",
+  cash_vnd: "Наличные",
+};
+
+function fmtMoney(amount, currency) {
+  const n = Number(amount) || 0;
+  if (currency === "VND") return `${Math.round(n).toLocaleString("ru-RU")} ₫`;
+  if (currency === "RUB") return `${Math.round(n).toLocaleString("ru-RU")} ₽`;
+  return `${n} ${currency || ""}`;
+}
+
+function FinanceTab({ days, accounts = [], finance = [], active = true, liveMode = false, onOpenRecord }) {
+  const knownDates = useMemo(() => {
+    const set = new Set();
+    for (const d of days) set.add(d.date);
+    for (const t of finance) set.add(t.date);
+    return [...set];
+  }, [days, finance]);
+
+  const {
+    today,
+    visibleDates,
+    scrollRef,
+    todayColRef,
+    pastSentinelRef,
+    futureSentinelRef,
+    onScroll,
+    canLoadPast,
+    canLoadFuture,
+    scrollToToday,
+  } = useDateStrip(knownDates, { active });
+
+  const txByDate = useMemo(() => {
+    const map = new Map();
+    for (const t of finance) {
+      if (!map.has(t.date)) map.set(t.date, []);
+      map.get(t.date).push(t);
+    }
+    for (const [, list] of map) {
+      list.sort((a, b) => String(a.time || "").localeCompare(String(b.time || "")));
+    }
+    return map;
+  }, [finance]);
+
+  const activeAccounts = accounts.filter((a) => !a.archived);
+
+  return html`
+    <div class="finance-wrap">
+      <div class="finance-accounts-wrap">
+        ${activeAccounts.length === 0 && html`<span class="finance-empty">счета не загружены</span>`}
+        ${activeAccounts.map((a) => html`
+          <div class="finance-account-card-wrap" key=${a.id}>
+            <span class="finance-account-name">${a.name || ACCOUNT_LABELS[a.id] || a.id}</span>
+            <span class="finance-account-balance">${fmtMoney(a.balance, a.currency)}</span>
+          </div>
+        `)}
+      </div>
+      <${DateStripControls} canLoadPast=${canLoadPast} canLoadFuture=${canLoadFuture} onToday=${scrollToToday} />
+      <div class="finance-scroll-wrap date-strip-scroll" ref=${scrollRef} onScroll=${onScroll}>
+        <div class="date-strip-sentinel date-strip-sentinel--past" ref=${pastSentinelRef}></div>
+        ${visibleDates.map((date) => {
+          const dayTx = txByDate.get(date) || [];
+          const isToday = date === today;
+          const expense = dayTx
+            .filter((t) => (t.txn_type || "expense") === "expense")
+            .reduce((a, t) => a + Math.abs(Number(t.amount) || 0), 0);
+          return html`
+            <div class=${`finance-day-col ${isToday ? "finance-day-col--today" : ""}`} key=${date} ref=${isToday ? todayColRef : null}>
+              <div class="finance-day-head-wrap">
+                <span class="finance-day-date">${date}${isToday ? " · today" : ""}</span>
+                ${expense > 0 && html`<span class="finance-day-total">расход ${fmtMoney(expense, dayTx[0]?.currency || "VND")}</span>`}
+              </div>
+              <div class="finance-tx-wrap">
+                ${dayTx.length === 0 && html`<span class="finance-empty">нет операций</span>`}
+                ${dayTx.map((t) => html`
+                  <${RecordOpenRow}
+                    key=${t.id}
+                    className="finance-tx-row"
+                    onOpen=${onOpenRecord ? () => onOpenRecord({ kind: "finance", record: t }) : null}
+                    disabled=${!liveMode}
+                  >
+                    <span class="finance-tx-amount">${fmtMoney(t.amount, t.currency)}</span>
+                    <span class="finance-tx-meta">${t.category || "—"} · ${t.merchant || t.account || ""}</span>
+                    ${t.notes && html`<span class="finance-tx-note">${t.notes}</span>`}
+                  </${RecordOpenRow}>
+                `)}
+              </div>
             </div>
           `;
         })}
