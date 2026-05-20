@@ -1,6 +1,7 @@
 import { h, Fragment } from "preact";
 import { useState, useEffect, useCallback } from "preact/hooks";
 import htm from "htm";
+import { ApiError } from "../api/client.ts";
 import { manualPatch } from "./manualSave.js";
 import {
   getRecordEditorMeta,
@@ -132,7 +133,16 @@ export default function RecordEditDrawer({
       await manualPatch(meta.resource, target.record.id, patch);
       onClose();
     } catch (e) {
-      alert(e?.message || String(e));
+      const msg = e?.message || String(e);
+      if (msg === "Failed to fetch") {
+        alert(
+          "Не удалось связаться с API (manual). Проверь, что задеплоена edge function manual и VITE_FUNCTIONS_URL в GitHub Secrets.",
+        );
+      } else if (e instanceof ApiError) {
+        alert(`Ошибка ${e.status}: ${JSON.stringify(e.body ?? msg)}`);
+      } else {
+        alert(msg);
+      }
     } finally {
       setSaving(false);
     }
@@ -151,7 +161,14 @@ export default function RecordEditDrawer({
       notifyDataChanged();
       onClose();
     } catch (e) {
-      alert(e?.message || String(e));
+      const msg = e?.message || String(e);
+      if (msg === "Failed to fetch") {
+        alert("Не удалось связаться с API (manual).");
+      } else if (e?.status) {
+        alert(`Ошибка ${e.status}: ${JSON.stringify(e.body ?? msg)}`);
+      } else {
+        alert(msg);
+      }
     } finally {
       setDeleting(false);
     }

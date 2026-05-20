@@ -2,10 +2,17 @@
 // Body: { resource, op, row?, id?, match? }
 // op ∈ insert | update | delete | upsert
 
-import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
-import { corsHeaders } from "../_shared/cors.ts";
-import { verifyToken } from "../_shared/jwt.ts";
-import { db } from "../_shared/db.ts";
+import { preflight, json } from "../_shared/cors.ts";
+import { requireAuth } from "../_shared/jwt.ts";
+import { admin } from "../_shared/db.ts";
+import {
+  normalizeDayPatch,
+  normalizeMealPayload,
+  normalizeSessionPayload,
+  padTime,
+  diffMinutes,
+  inferSessionType,
+} from "../_shared/actions.ts";
 
 const ALLOWED = new Set([
   "days",
@@ -24,89 +31,118 @@ const ALLOWED = new Set([
 
 const ALLOWED_OPS = new Set(["insert", "update", "delete", "upsert"]);
 
-serve(async (req) => {
-  if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
-  if (req.method !== "POST") {
-    return new Response(JSON.stringify({ error: "method_not_allowed" }), {
-      status: 405,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+function normalizeManualRow(
+  resource: string,
+  op: string,
+  row: Record<string, unknown>,
+): Record<string, unknown> {
+  if (resource === "sessions") {
+    if (op === "update") return normalizeSessionUpdatePatch(row);
+    if (op === "insert" || op === "upsert") return normalizeSessionPayload(row);
   }
-
-  const auth = req.headers.get("Authorization") || "";
-  const token = auth.replace(/^Bearer\s+/, "");
-  try {
-    await verifyToken(token);
-  } catch {
-    return new Response(JSON.stringify({ error: "unauthorized" }), {
-      status: 401,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+  if (resource === "meals" && (op === "insert" || op === "upsert" || op === "update")) {
+    return normalizeMealPayload(row);
   }
+  if (resource === "days" && (op === "upsert" || op === "update")) {
+    return normalizeDayPatch(row);
+  }
+  if (resource === "activities" && row.time != null) {
+    return { ...row, time: padTime(row.time) };
+  }
+  return row;
+}
 
-  let body: any;
+function normalizeSessionUpdatePatch(raw: Record<string, unknown>): Record<string, unknown> {
+  const patch: Record<string, unknown> = { ...raw };
+  if ("start" in patch) {
+    patch.start_time = padTime(patch.start);
+    delete patch.start;
+  }
+  if ("end" in patch) {
+    patch.end_time = padTime(patch.end);
+    delete patch.end;
+  }
+  if ("start_time" in patch) patch.start_time = padTime(patch.start_time);
+  if ("end_time" in patch) patch.end_time = padTime(patch.end_time);
+  if ("note" in patch) {
+    patch.notes = patch.note;
+    delete patch.note;
+  }
+  if (patch.start_time && patch.end_time) {
+    patch.duration_min = diffMinutes(String(patch.start_time), String(patch.end_time));
+  }
+  if (patch.category != null && patch.type == null) {
+    patch.type = inferSessionType(String(patch.category));
+  }
+  return patch;
+}
+
+Deno.serve(async (req) => {
+  const pre = preflight(req);
+  if (pre) return pre;
+  if (req.method !== "POST") return json({ error: "method_not_allowed" }, { status: 405 });
+
+  const JWT_SECRET = Deno.env.get("JWT_SECRET");
+  if (!JWT_SECRET) return json({ error: "server_misconfigured" }, { status: 500 });
+
+  const auth = await requireAuth(req, JWT_SECRET);
+  if (auth instanceof Response) return auth;
+
+  let body: {
+    resource?: string;
+    op?: string;
+    row?: Record<string, unknown>;
+    id?: string;
+    match?: Record<string, unknown>;
+  };
   try {
     body = await req.json();
   } catch {
-    return new Response(JSON.stringify({ error: "bad_json" }), {
-      status: 400,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    return json({ error: "bad_json" }, { status: 400 });
   }
 
-  const { resource, op, row, id, match } = body || {};
-  if (!ALLOWED.has(resource)) {
-    return new Response(JSON.stringify({ error: "resource_not_allowed", resource }), {
-      status: 400,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+  const { resource, op, id, match } = body;
+  const row = body.row ?? {};
+
+  if (!resource || !ALLOWED.has(resource)) {
+    return json({ error: "resource_not_allowed", resource }, { status: 400 });
   }
-  if (!ALLOWED_OPS.has(op)) {
-    return new Response(JSON.stringify({ error: "op_not_allowed", op }), {
-      status: 400,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+  if (!op || !ALLOWED_OPS.has(op)) {
+    return json({ error: "op_not_allowed", op }, { status: 400 });
   }
+
+  const db = admin();
+  const normalizedRow = normalizeManualRow(resource, op, row);
 
   try {
     const table = db.from(resource);
 
     if (op === "insert") {
-      const { data, error } = await table.insert(row).select().single();
+      const { data, error } = await table.insert(normalizedRow).select().single();
       if (error) throw error;
-      return ok({ row: data });
+      return json({ row: data });
     }
 
     if (op === "upsert") {
-      const { data, error } = await table.upsert(row).select().single();
+      const { data, error } = await table.upsert(normalizedRow).select().single();
       if (error) throw error;
-      return ok({ row: data });
+      return json({ row: data });
     }
 
     if (op === "update") {
-      if (!id && !match) {
-        return new Response(JSON.stringify({ error: "id_or_match_required" }), {
-          status: 400,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-      let q = table.update(row);
+      if (!id && !match) return json({ error: "id_or_match_required" }, { status: 400 });
+      let q = table.update(normalizedRow);
       if (id) q = q.eq("id", id);
       if (match) {
         for (const [k, v] of Object.entries(match)) q = q.eq(k, v as never);
       }
       const { data, error } = await q.select();
       if (error) throw error;
-      return ok({ rows: data });
+      return json({ rows: data });
     }
 
     if (op === "delete") {
-      if (!id && !match) {
-        return new Response(JSON.stringify({ error: "id_or_match_required" }), {
-          status: 400,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
+      if (!id && !match) return json({ error: "id_or_match_required" }, { status: 400 });
       let q = table.delete();
       if (id) q = q.eq("id", id);
       if (match) {
@@ -114,21 +150,12 @@ serve(async (req) => {
       }
       const { data, error } = await q.select();
       if (error) throw error;
-      return ok({ rows: data });
+      return json({ rows: data });
     }
 
-    return ok({ ok: true });
+    return json({ ok: true });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
-    return new Response(JSON.stringify({ error: "db_error", detail: msg }), {
-      status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    return json({ error: "db_error", detail: msg }, { status: 500 });
   }
 });
-
-function ok(payload: Record<string, unknown>) {
-  return new Response(JSON.stringify(payload), {
-    headers: { ...corsHeaders, "Content-Type": "application/json" },
-  });
-}
