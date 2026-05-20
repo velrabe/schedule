@@ -9,7 +9,14 @@ import {
   DAY_TYPES,
 } from "./seed.js";
 import { useDateStrip, localTodayISO } from "./useDateStrip.js";
-import { NutriBar, NutriRingRow, activityTypeLabel, activityDetailLabel } from "./nutriViz.jsx";
+import {
+  NutriBar,
+  NutriRingRow,
+  activityTypeLabel,
+  activityDetailLabel,
+  ringsForMeal,
+  mealMacroText,
+} from "./nutriViz.jsx";
 
 const html = htm.bind(h);
 const STORE_KEY = "schedule-tracker:v1";
@@ -2027,6 +2034,34 @@ function CalendarTab({ days, sessions, meals = [], activities = [] }) {
   `;
 }
 
+function CalDetailNutriColumn({ slotLabel, name, kcalText, macroText = "", rings = [], variant = "meal", durationMin }) {
+  const isAct = variant === "act";
+  return html`
+    <div class=${`cal-detail-col-wrap ${isAct ? "cal-detail-col-wrap--act" : ""}`}>
+      <div class="cal-detail-col-slot-wrap">
+        <span class=${`cal-detail-col-slot ${isAct ? "cal-detail-col-slot--act" : ""}`}>${slotLabel}</span>
+      </div>
+      <div class="cal-detail-col-name-wrap">
+        <span class="cal-detail-col-name">${name}</span>
+      </div>
+      <div class="cal-detail-col-kcal-wrap">
+        <span class=${`cal-detail-col-kcal ${isAct ? "cal-detail-col-kcal--burn" : ""}`}>${kcalText}</span>
+      </div>
+      ${macroText && html`
+        <div class="cal-detail-col-macro-wrap">
+          <span class="cal-detail-col-macro">${macroText}</span>
+        </div>
+      `}
+      ${durationMin != null && html`
+        <div class="cal-detail-col-dur-wrap">
+          <span class="cal-detail-col-dur">${durationMin}m</span>
+        </div>
+      `}
+      ${rings.length > 0 && html`<${NutriRingRow} items=${rings} layout="col" />`}
+    </div>
+  `;
+}
+
 function CalendarDayDetail({ date, day, sessions, meals = [], activitiesList = [] }) {
   const sortedMeals = useMemo(
     () =>
@@ -2099,84 +2134,39 @@ function CalendarDayDetail({ date, day, sessions, meals = [], activitiesList = [
         </div>
       `}
 
-      ${sortedMeals.length > 0 && html`
-        <div class="cal-detail-section-wrap">
-          <span class="cal-detail-section-title">приёмы пищи</span>
-          ${sortedMeals.map((m) => {
-            const slotLabel = MEAL_SLOT_RU[m.slot] || m.slot || "еда";
-            const mk = Number(m.kcal) || 0;
-            const rings = [];
-            if (mk > 0) rings.push({ key: "k", label: "kcal", value: mk, target: NUTRITION_TARGET.kcal, kind: "kcal" });
-            if (m.carbs_g != null)
-              rings.push({
-                key: "c",
-                label: "C",
-                value: Number(m.carbs_g),
-                target: NUTRITION_TARGET.carbs,
-                kind: "carbs",
-              });
-            if (m.protein_g != null)
-              rings.push({
-                key: "p",
-                label: "P",
-                value: Number(m.protein_g),
-                target: NUTRITION_TARGET.protein,
-                kind: "protein",
-              });
-            if (m.fat_g != null)
-              rings.push({ key: "f", label: "F", value: Number(m.fat_g), target: NUTRITION_TARGET.fat, kind: "fat" });
-            return html`
-              <div class="cal-detail-item-wrap cal-detail-item-wrap--compact" key=${m.id}>
-                <div class="cal-detail-item-head-wrap cal-detail-item-head-wrap--compact">
-                  <span class="cal-detail-item__slot">${slotLabel}</span>
-                  <span class="cal-detail-item__name">${m.name}</span>
-                  <span class="cal-detail-item__kcal">${mk > 0 ? `${Math.round(mk)} kcal` : "—"}</span>
-                  <span class="cal-detail-item__macro">
-                    ${m.carbs_g != null ? `C${Math.round(Number(m.carbs_g))}` : ""}
-                    ${m.protein_g != null ? ` P${Math.round(Number(m.protein_g))}` : ""}
-                    ${m.fat_g != null ? ` F${Math.round(Number(m.fat_g))}` : ""}
-                  </span>
-                  ${rings.length > 0 && html`<${NutriRingRow} items=${rings} />`}
-                </div>
-              </div>
-            `;
-          })}
-        </div>
-      `}
-
-      ${sortedActs.length > 0 && html`
-        <div class="cal-detail-section-wrap cal-detail-section-wrap--acts">
-          <span class="cal-detail-section-title">активность</span>
-          ${sortedActs.map((a) => {
-            const burn = Number(a.calories_burned) || 0;
-            const typeLabel = activityTypeLabel(a);
-            return html`
-              <div class="cal-detail-item-wrap cal-detail-item-wrap--act cal-detail-item-wrap--compact" key=${a.id}>
-                <div class="cal-detail-item-head-wrap cal-detail-item-head-wrap--compact">
-                  <span class="cal-detail-item__slot cal-detail-item__slot--act">${typeLabel}</span>
-                  <span class="cal-detail-item__name">${activityDetailLabel(a)}</span>
-                  <span class="cal-detail-item__kcal cal-detail-item__kcal--burn">${burn > 0 ? `${Math.round(burn)} kcal` : "—"}</span>
-                  ${a.duration_min != null && html`<span class="cal-detail-item__dur">${a.duration_min}m</span>`}
-                  ${burn > 0 &&
-                  html`<${NutriRingRow}
-                    items=${[{ key: "b", label: "out", value: burn, target: NUTRITION_TARGET.kcal, kind: "activity" }]}
-                  />`}
-                </div>
-              </div>
-            `;
-          })}
-          ${sortedActs.length > 1 && html`
-            <div class="cal-detail-item-wrap cal-detail-item-wrap--act-total cal-detail-item-wrap--compact" key="act-total">
-              <div class="cal-detail-item-head-wrap cal-detail-item-head-wrap--compact">
-                <span class="cal-detail-item__slot cal-detail-item__slot--act">итого</span>
-                <span class="cal-detail-item__name">все активности</span>
-                <span class="cal-detail-item__kcal cal-detail-item__kcal--burn">${Math.round(kcalOut)} kcal</span>
-                <${NutriRingRow}
-                  items=${[{ key: "t", label: "out", value: kcalOut, target: NUTRITION_TARGET.kcal, kind: "activity" }]}
+      ${(sortedMeals.length > 0 || sortedActs.length > 0) && html`
+        <div class="cal-detail-section-wrap cal-detail-section-wrap--cols">
+          <div class="cal-detail-columns-wrap">
+            ${sortedMeals.map((m) => {
+              const mk = Number(m.kcal) || 0;
+              return html`
+                <${CalDetailNutriColumn}
+                  key=${m.id}
+                  slotLabel=${MEAL_SLOT_RU[m.slot] || m.slot || "еда"}
+                  name=${m.name}
+                  kcalText=${mk > 0 ? `${Math.round(mk)} kcal` : "—"}
+                  macroText=${mealMacroText(m)}
+                  rings=${ringsForMeal(m, NUTRITION_TARGET)}
                 />
-              </div>
-            </div>
-          `}
+              `;
+            })}
+            ${sortedActs.map((a) => {
+              const burn = Number(a.calories_burned) || 0;
+              return html`
+                <${CalDetailNutriColumn}
+                  key=${a.id}
+                  variant="act"
+                  slotLabel=${activityTypeLabel(a)}
+                  name=${activityDetailLabel(a)}
+                  kcalText=${burn > 0 ? `${Math.round(burn)} kcal` : "—"}
+                  durationMin=${a.duration_min}
+                  rings=${burn > 0
+                    ? [{ key: "b", label: "out", value: burn, target: NUTRITION_TARGET.kcal, kind: "activity" }]
+                    : []}
+                />
+              `;
+            })}
+          </div>
         </div>
       `}
 

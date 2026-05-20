@@ -844,6 +844,131 @@ button.kanban-card:hover {
   text-align: right;
 }
 
+.cal-detail-section-wrap--cols {
+  padding-top: 8px;
+  padding-bottom: 8px;
+}
+
+.cal-detail-columns-wrap {
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
+  width: 100%;
+  overflow-x: auto;
+}
+
+.cal-detail-col-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  flex: 1 1 0;
+  min-width: 0;
+  padding: 0 8px;
+  border-right: 1px solid var(--border);
+}
+
+.cal-detail-col-wrap:last-child {
+  border-right: none;
+}
+
+.cal-detail-col-slot-wrap {
+  display: flex;
+  width: 100%;
+  justify-content: center;
+  margin-bottom: 6px;
+}
+
+.cal-detail-col-slot {
+  font-size: 9px;
+  font-family: var(--mono);
+  color: var(--text-3);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  text-align: center;
+}
+
+.cal-detail-col-slot--act {
+  color: #e89a4d;
+}
+
+.cal-detail-col-name-wrap {
+  display: flex;
+  width: 100%;
+  margin-bottom: 4px;
+}
+
+.cal-detail-col-name {
+  font-size: 11px;
+  font-family: var(--mono);
+  color: var(--text);
+  line-height: 1.35;
+  text-align: center;
+  word-break: break-word;
+}
+
+.cal-detail-col-kcal-wrap {
+  display: flex;
+  width: 100%;
+  justify-content: center;
+  margin-bottom: 4px;
+}
+
+.cal-detail-col-kcal {
+  font-size: 11px;
+  font-family: var(--mono);
+  color: #b6791a;
+  white-space: nowrap;
+}
+
+.cal-detail-col-kcal--burn {
+  color: #e89a4d;
+}
+
+.cal-detail-col-macro-wrap {
+  display: flex;
+  width: 100%;
+  justify-content: center;
+  margin-bottom: 6px;
+}
+
+.cal-detail-col-macro {
+  font-size: 10px;
+  font-family: var(--mono);
+  color: var(--text-3);
+}
+
+.cal-detail-col-dur-wrap {
+  display: flex;
+  width: 100%;
+  justify-content: center;
+  margin-bottom: 4px;
+}
+
+.cal-detail-col-dur {
+  font-size: 10px;
+  font-family: var(--mono);
+  color: var(--text-3);
+}
+
+.cal-detail-col-wrap .nutri-ring-row-wrap {
+  width: 100%;
+  justify-content: center;
+}
+
+.nutri-ring-row-wrap--col {
+  flex-direction: column;
+  align-items: center;
+}
+
+.nutri-ring-row-wrap--col .nutri-ring-row__item {
+  margin-right: 0;
+  margin-bottom: 4px;
+}
+
+.nutri-ring-row-wrap--col .nutri-ring-row__item:last-child {
+  margin-bottom: 0;
+}
+
 .cal-detail-section-wrap--sessions {
   border-bottom: none;
 }

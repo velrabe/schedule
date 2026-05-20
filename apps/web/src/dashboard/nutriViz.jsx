@@ -52,10 +52,10 @@ export function NutriRing({ value, target, kind = "kcal", size = 24, title = "" 
   `;
 }
 
-/** Inline row of rings with short labels (calendar). */
-export function NutriRingRow({ items }) {
+/** Inline rings with short labels (calendar). layout: row | col */
+export function NutriRingRow({ items, layout = "row" }) {
   return html`
-    <div class="nutri-ring-row-wrap">
+    <div class=${`nutri-ring-row-wrap ${layout === "col" ? "nutri-ring-row-wrap--col" : ""}`}>
       ${items.map(
         (it) => html`
           <div class="nutri-ring-row__item" key=${it.key || it.label}>
@@ -112,4 +112,26 @@ export function activityDetailLabel(a) {
   const type = activityTypeLabel(a);
   if (type === "move") return "движение за день";
   return type;
+}
+
+/** Ring items for one meal column. */
+export function ringsForMeal(m, target) {
+  const mk = Number(m.kcal) || 0;
+  const rings = [];
+  if (mk > 0) rings.push({ key: "k", label: "kcal", value: mk, target: target.kcal, kind: "kcal" });
+  if (m.carbs_g != null)
+    rings.push({ key: "c", label: "C", value: Number(m.carbs_g), target: target.carbs, kind: "carbs" });
+  if (m.protein_g != null)
+    rings.push({ key: "p", label: "P", value: Number(m.protein_g), target: target.protein, kind: "protein" });
+  if (m.fat_g != null)
+    rings.push({ key: "f", label: "F", value: Number(m.fat_g), target: target.fat, kind: "fat" });
+  return rings;
+}
+
+export function mealMacroText(m) {
+  const parts = [];
+  if (m.carbs_g != null) parts.push(`C${Math.round(Number(m.carbs_g))}`);
+  if (m.protein_g != null) parts.push(`P${Math.round(Number(m.protein_g))}`);
+  if (m.fat_g != null) parts.push(`F${Math.round(Number(m.fat_g))}`);
+  return parts.join(" ");
 }
