@@ -66,6 +66,14 @@ function fromBody(status: number, body: ErrorBody): FormattedError | null {
     };
   }
 
+  if (body.error === "image_too_large") {
+    return {
+      message: body.message || "Изображение слишком большое",
+      hint: "Сделай скрин меньше или обрежь — приложение сжимает до ~1 МБ, но исходник мог быть огромным.",
+      technical: detail || JSON.stringify(body, null, 2),
+    };
+  }
+
   if (body.error === "llm_failed") {
     return {
       message: "Не удалось обработать сообщение (ошибка ИИ)",

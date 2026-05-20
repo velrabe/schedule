@@ -3,6 +3,7 @@ import { call, ApiError } from "../api/client";
 import { clearToken } from "../api/token";
 import { summarizeActions } from "./actionSummary";
 import { formatApiError } from "./formatApiError";
+import { prepareImageFile, isImagePasteItem, type PreparedImage } from "./imageAttach";
 
 export type Action = {
   type: string;
@@ -14,7 +15,7 @@ type ConfirmResult = { type: string; ok: boolean; error?: string };
 type SwallowWarning = { victim_id: string; message: string; victim_label?: string };
 
 type Message =
-  | { id: string; role: "user"; text: string; ts: number }
+  | { id: string; role: "user"; text: string; ts: number; imagePreview?: string; imageName?: string }
   | {
       id: string;
       role: "assistant";
@@ -90,8 +91,11 @@ export default function ChatSidebar({ open, onClose }: { open: boolean; onClose:
   const [messages, setMessages] = useState<Message[]>(() => loadHistory());
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
+  const [pendingImage, setPendingImage] = useState<PreparedImage | null>(null);
+  const [imageBusy, setImageBusy] = useState(false);
   const listRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     saveHistory(messages);
@@ -107,10 +111,54 @@ export default function ChatSidebar({ open, onClose }: { open: boolean; onClose:
     if (open && textareaRef.current) textareaRef.current.focus();
   }, [open]);
 
+  const attachFile = async (file: File) => {
+    setImageBusy(true);
+    try {
+      const prepared = await prepareImageFile(file);
+      setPendingImage(prepared);
+    } catch (e) {
+      alert(e instanceof Error ? e.message : String(e));
+    } finally {
+      setImageBusy(false);
+    }
+  };
+
+  const onPickImage = () => fileInputRef.current?.click();
+
+  const onFileChange = (e: Event) => {
+    const inputEl = e.currentTarget as HTMLInputElement;
+    const file = inputEl.files?.[0];
+    if (file) void attachFile(file);
+    inputEl.value = "";
+  };
+
+  const onPaste = (e: ClipboardEvent) => {
+    const items = e.clipboardData?.items;
+    if (!items) return;
+    for (const item of items) {
+      if (isImagePasteItem(item)) {
+        const file = item.getAsFile();
+        if (file) {
+          e.preventDefault();
+          void attachFile(file);
+        }
+        break;
+      }
+    }
+  };
+
   const send = async () => {
     const text = input.trim();
-    if (!text || busy) return;
-    const userMsg: Message = { id: uid(), role: "user", text, ts: Date.now() };
+    const img = pendingImage;
+    if ((!text && !img) || busy || imageBusy) return;
+    const userMsg: Message = {
+      id: uid(),
+      role: "user",
+      text: text || (img ? "📷 скрин" : ""),
+      ts: Date.now(),
+      imagePreview: img?.previewUrl,
+      imageName: img?.name,
+    };
     const loadingId = uid();
     const loadingMsg: Message = {
       id: loadingId,
@@ -121,13 +169,18 @@ export default function ChatSidebar({ open, onClose }: { open: boolean; onClose:
     };
     setMessages((m) => [...m, userMsg, loadingMsg]);
     setInput("");
+    setPendingImage(null);
     setBusy(true);
     try {
       const history = messages
         .filter((m) => m.role === "user" || (m.role === "assistant" && m.status !== "loading"))
         .slice(-8)
         .map((m) => ({ role: m.role as "user" | "assistant", text: m.text }));
-      const res = await call<ChatResponse>("chat", { message: text, history });
+      const res = await call<ChatResponse>("chat", {
+        message: text,
+        history,
+        ...(img ? { image_base64: img.base64, image_mime: img.mime } : {}),
+      });
       const assistantMsg: Message = {
         id: uid(),
         role: "assistant",
@@ -279,7 +332,7 @@ export default function ChatSidebar({ open, onClose }: { open: boolean; onClose:
         <div class="chat-header-wrap">
           <div class="chat-header-title-wrap">
             <span class="chat-header-title">log</span>
-            <span class="chat-header-subtitle">type or paste anything</span>
+            <span class="chat-header-subtitle">текст · скрин · вставка Ctrl+V</span>
           </div>
           <div class="chat-header-actions-wrap">
             <button class="btn btn--ghost btn--icon" onClick={clear} title="clear history" type="button">
@@ -321,25 +374,64 @@ export default function ChatSidebar({ open, onClose }: { open: boolean; onClose:
         </div>
 
         <div class="chat-input-wrap">
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            class="chat-file-input"
+            onChange=${onFileChange}
+          />
+          ${pendingImage && html`
+            <div class="chat-attach-preview-wrap">
+              <img class="chat-attach-preview-img" src=${pendingImage.previewUrl} alt="" />
+              <div class="chat-attach-preview-meta-wrap">
+                <span class="chat-attach-preview-name">${pendingImage.name}</span>
+                <button
+                  type="button"
+                  class="btn btn--ghost"
+                  onClick=${() => setPendingImage(null)}
+                  disabled=${busy}
+                >
+                  <span class="btn__text-wrap">убрать</span>
+                </button>
+              </div>
+            </div>
+          `}
           <textarea
             ref={textareaRef}
             class="chat-textarea"
-            placeholder="напиши что-нибудь… enter — отправить, shift+enter — перенос"
-            value={input}
+            placeholder="напиши или прикрепи скрин… enter — отправить"
+            value=${input}
             onInput={(e) => setInput((e.currentTarget as HTMLTextAreaElement).value)}
-            onKeyDown={onKey}
-            rows={2}
-            disabled={busy}
+            onKeyDown=${onKey}
+            onPaste=${onPaste}
+            rows=${2}
+            disabled=${busy || imageBusy}
           ></textarea>
           <div class="chat-input-actions-wrap">
-            <span class="chat-input-hint">{busy ? "обрабатываю…" : "⌘/ — toggle · esc — close"}</span>
+            <button
+              type="button"
+              class="btn btn--ghost btn--icon"
+              onClick=${onPickImage}
+              disabled=${busy || imageBusy}
+              title="прикрепить изображение"
+            >
+              <span class="btn__icon-wrap">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                  <rect x="3" y="5" width="18" height="14" rx="2" />
+                  <circle cx="8.5" cy="10" r="1.5" />
+                  <path d="m21 15-5-5L5 21" />
+                </svg>
+              </span>
+            </button>
+            <span class="chat-input-hint">${busy ? "обрабатываю…" : imageBusy ? "сжимаю…" : "⌘/ — toggle"}</span>
             <button
               class="btn btn--primary"
-              onClick={send}
-              disabled={busy || !input.trim()}
+              onClick=${send}
+              disabled=${busy || imageBusy || (!input.trim() && !pendingImage)}
               type="button"
             >
-              <span class="btn__text-wrap">{busy ? "…" : "send"}</span>
+              <span class="btn__text-wrap">${busy ? "…" : "send"}</span>
             </button>
           </div>
         </div>
@@ -361,7 +453,12 @@ function ChatBubble({
     return (
       <div class="chat-row chat-row--user">
         <div class="chat-bubble chat-bubble--user">
-          <span class="chat-bubble__text">{msg.text}</span>
+          ${msg.imagePreview && html`
+            <div class="chat-bubble-image-wrap">
+              <img class="chat-bubble-image" src=${msg.imagePreview} alt=${msg.imageName || "image"} />
+            </div>
+          `}
+          ${msg.text && html`<span class="chat-bubble__text">${msg.text}</span>`}
         </div>
       </div>
     );

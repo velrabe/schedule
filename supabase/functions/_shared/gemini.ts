@@ -19,26 +19,39 @@ export type GeminiRequest = {
   };
 };
 
-/** Override in Supabase secrets: GEMINI_MODEL (e.g. gemini-2.0-flash-lite for free tier). */
+/** Text-only default (cheapest free tier). */
 const DEFAULT_MODEL = "gemini-2.0-flash-lite";
+/** Vision default when request includes images (lite is weaker on screenshots). */
+const DEFAULT_VISION_MODEL = "gemini-2.0-flash";
 
-function resolveModel(): string {
+function resolveModel(hasImage: boolean): string {
   const env = Deno.env.get("GEMINI_MODEL")?.trim();
-  return env || DEFAULT_MODEL;
+  if (env) return env;
+  return hasImage ? DEFAULT_VISION_MODEL : DEFAULT_MODEL;
 }
 
 function endpointFor(model: string): string {
   return `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
 }
 
+function requestHasImage(req: GeminiRequest): boolean {
+  for (const c of req.contents) {
+    for (const p of c.parts) {
+      if ("inlineData" in p && p.inlineData?.data) return true;
+    }
+  }
+  return false;
+}
+
 export async function generate(req: GeminiRequest): Promise<{
   text: string;
   json: unknown;
   usage?: { promptTokens: number; outputTokens: number };
+  model: string;
 }> {
   const key = Deno.env.get("GEMINI_API_KEY");
   if (!key) throw new Error("GEMINI_API_KEY is not set");
-  const model = resolveModel();
+  const model = resolveModel(requestHasImage(req));
   const endpoint = endpointFor(model);
 
   // Gemini free tier occasionally returns 503 / 429 / 500. Retry with exp backoff.
@@ -76,6 +89,7 @@ export async function generate(req: GeminiRequest): Promise<{
   return {
     text,
     json: parsed,
+    model,
     usage: {
       promptTokens: data.usageMetadata?.promptTokenCount ?? 0,
       outputTokens: data.usageMetadata?.candidatesTokenCount ?? 0,

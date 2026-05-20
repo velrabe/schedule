@@ -45,8 +45,12 @@ Deno.serve(async (req) => {
     body = await req.json();
   } catch {}
   const message = (body.message || "").trim();
-  if (!message && !body.image_base64) {
+  const hasImage = Boolean(body.image_base64?.length);
+  if (!message && !hasImage) {
     return json({ error: "empty_message" }, { status: 400 });
+  }
+  if (hasImage && body.image_base64!.length > 1_400_000) {
+    return json({ error: "image_too_large", message: "Сжми скрин или отправь меньший файл." }, { status: 413 });
   }
 
   const db = admin();
@@ -89,9 +93,21 @@ Deno.serve(async (req) => {
     },
   };
 
+  const imageInstructions = hasImage
+    ? `
+IMAGE INPUT:
+- User attached a photo/screenshot. Read text, numbers, times, macros, prices, receipts, app UI.
+- Food: extract meal name, kcal, protein/fat/carbs if visible → create_meal (+ create_session food if time known).
+- Receipt / bank: amount, currency, merchant → create_finance_transaction (expense) + account if inferable.
+- Schedule screenshot: sessions with start/end, category, project → create_session / update_session.
+- If unreadable, ask_clarification with a specific question — do not guess macros.
+`
+    : "";
+
   // 3. Build prompt
   const systemPrompt = `You are a structured life-logging assistant.
 Return ONLY JSON matching the supplied schema — no prose outside JSON.
+${imageInstructions}
 
 ${loadRules(ALL_DOMAINS)}
 
@@ -215,13 +231,18 @@ ${JSON.stringify(context, null, 2)}
 
   const userParts: GeminiContent["parts"] = [];
   if (message) userParts.push({ text: message });
-  if (body.image_base64) {
+  if (hasImage) {
     userParts.push({
       inlineData: {
         mimeType: body.image_mime || "image/jpeg",
-        data: body.image_base64,
+        data: body.image_base64!,
       },
     });
+    if (!message) {
+      userParts.unshift({
+        text: "Разбери прикреплённое изображение и предложи actions для записи в трекер.",
+      });
+    }
   }
 
   const historyContents: GeminiContent[] = (body.history || [])
@@ -239,6 +260,7 @@ ${JSON.stringify(context, null, 2)}
     needs_confirmation: boolean;
     domains?: string[];
   };
+  let modelUsed = "";
   try {
     const out = await generate({
       systemInstruction: { parts: [{ text: systemPrompt }] },
@@ -252,6 +274,7 @@ ${JSON.stringify(context, null, 2)}
       throw new Error(`Gemini returned non-JSON: ${out.text.slice(0, 200)}`);
     }
     parsed = out.json as typeof parsed;
+    modelUsed = out.model;
     if (Array.isArray(parsed.actions)) {
       parsed.actions = parsed.actions.map((a) => normalizeAction(a));
     }
@@ -311,5 +334,6 @@ ${JSON.stringify(context, null, 2)}
     actions: parsed.actions || [],
     needs_confirmation: parsed.needs_confirmation,
     swallow_warnings: (parsed as { swallow_warnings?: unknown }).swallow_warnings ?? [],
+    model: modelUsed,
   });
 });

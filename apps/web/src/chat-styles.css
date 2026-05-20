@@ -2272,6 +2272,55 @@ button.kanban-card:hover {
   overflow-x: auto;
 }
 
+.chat-file-input {
+  display: none;
+  width: 0;
+  height: 0;
+  margin: 0;
+  padding: 0;
+}
+
+.chat-attach-preview-wrap {
+  display: flex;
+  flex-direction: row;
+  width: 100%;
+  gap: 8px;
+  align-items: flex-start;
+}
+
+.chat-attach-preview-img {
+  max-width: 72px;
+  max-height: 72px;
+  object-fit: cover;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+}
+
+.chat-attach-preview-meta-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.chat-attach-preview-name {
+  font-size: 10px;
+  color: var(--text-2);
+  font-family: var(--mono);
+}
+
+.chat-bubble-image-wrap {
+  display: flex;
+  width: 100%;
+  margin-bottom: 6px;
+}
+
+.chat-bubble-image {
+  max-width: 100%;
+  max-height: 200px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+}
+
 .chat-input-wrap {
   display: flex;
   flex-direction: column;

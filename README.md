@@ -147,19 +147,30 @@ If using a custom domain:
 
 ---
 
-## Gemini models (chat / log)
+## Gemini models (chat / log / images)
 
-The chat edge function calls Google Gemini with **JSON output** (meals, sessions, etc.). Model is set via `GEMINI_MODEL` in Supabase secrets; default after deploy: **`gemini-2.0-flash-lite`**.
+Chat supports **text + screenshots** (`image_base64` in `/chat`). The UI compresses images before upload.
 
 | Model | When to use |
 |---|---|
-| `gemini-2.0-flash-lite` | **Default.** Lighter, cheaper quota — enough for parsing “добавь обед / сдвинь сессию”. |
-| `gemini-2.0-flash` | Slightly smarter if lite mis-parses rare cases. |
-| `gemini-2.5-flash` | Newest Flash; may hit free-tier limits sooner. |
+| `gemini-2.0-flash-lite` | **Default for text only.** Lowest quota use. |
+| `gemini-2.0-flash` | **Default when a photo is attached** (auto if `GEMINI_MODEL` unset). Better for receipts, macros, schedules. |
+| `gemini-2.5-flash` | Smarter but burns free quota faster — avoid for heavy daily use. |
 
-**Free tier:** limits are per **API key / project** (RPM, RPD), not per app. If you see “rate limit” in chat, wait a minute or enable **billing** in [AI Studio](https://aistudio.google.com/) — personal usage is usually cents, not dollars.
+Set explicitly: Supabase → Edge Functions → Secrets → `GEMINI_MODEL=gemini-2.0-flash` → redeploy `chat`.
 
-To switch: Supabase → Edge Functions → Secrets → `GEMINI_MODEL=gemini-2.0-flash-lite` → redeploy `chat` (or push to `main`).
+### Free tier reality (2026)
+
+There is **no** reliable “unlimited free” vision API for production. All hosted options cap RPM/RPD per key:
+
+| Provider | Vision | Typical free limit | Notes |
+|---|---|---|---|
+| **Google Gemini** | yes | ~15 RPM, low RPD on free | Best fit for this app (JSON + images). Enable **billing** in [AI Studio](https://aistudio.google.com/) — personal use is usually **cents/month**, quota jumps sharply. |
+| **Groq** | limited models | high text RPM | Great for text-only; vision models change often, no structured JSON guarantee. |
+| **OpenRouter** | some free routes | ~50 req/day free | Good for experiments, not daily driver. |
+| **Local Ollama** (Qwen2-VL, LLaVA) | yes | unlimited on your GPU | Zero API quota; you host and wire yourself. |
+
+**Practical advice:** keep `GEMINI_API_KEY`, use `gemini-2.0-flash-lite` for text, let the app auto-pick `gemini-2.0-flash` for images, and **turn on billing** on the Google Cloud project if you hit 429 after ~10 minutes of active testing.
 
 ---
 
@@ -173,8 +184,8 @@ To switch: Supabase → Edge Functions → Secrets → `GEMINI_MODEL=gemini-2.0-
 
 ## How chat works
 
-1. You type a message.
-2. Frontend `POST /chat { message }`.
+1. You type a message and/or attach a screenshot (📷 button or paste).
+2. Frontend `POST /chat { message, image_base64?, image_mime? }`.
 3. Edge function:
    - Saves the raw message to `raw_logs` (status=pending).
    - Builds context: open work sessions, today's day row, today's sessions.
