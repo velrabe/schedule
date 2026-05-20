@@ -19,6 +19,11 @@ import {
   afterMealWrite,
   isFoodSession,
 } from "../_shared/foodMealSync.ts";
+import {
+  syncSessionExpense,
+  deleteSessionExpenses,
+  type SessionExpenseInput,
+} from "../_shared/sessionExpenseSync.ts";
 
 const ALLOWED = new Set([
   "days",
@@ -107,8 +112,28 @@ Deno.serve(async (req) => {
     return json({ error: "bad_json" }, { status: 400 });
   }
 
-  const { resource, op, id, match } = body;
+  const { resource, op, id, match, expense, expense_session_id } = body;
   const row = body.row ?? {};
+
+  async function applyExpenseForSession(
+    sessionId: string,
+    sessionRow: Record<string, unknown>,
+  ): Promise<void> {
+    if (expense === undefined) return;
+    await syncSessionExpense(
+      db,
+      sessionId,
+      {
+        date: String(sessionRow.date),
+        start_time: sessionRow.start_time != null ? String(sessionRow.start_time) : null,
+        category: sessionRow.category != null ? String(sessionRow.category) : null,
+        type: sessionRow.type != null ? String(sessionRow.type) : null,
+        project: sessionRow.project != null ? String(sessionRow.project) : null,
+        notes: sessionRow.notes != null ? String(sessionRow.notes) : null,
+      },
+      expense,
+    );
+  }
 
   if (!resource || !ALLOWED.has(resource)) {
     return json({ error: "resource_not_allowed", resource }, { status: 400 });
@@ -167,6 +192,26 @@ Deno.serve(async (req) => {
       } else if (resource === "meals" && row0) {
         await afterMealWrite(db, String(row0.id));
       }
+
+      if (expense !== undefined) {
+        let sid = expense_session_id || (resource === "sessions" ? id : null);
+        if (resource === "meals") {
+          const mealId = id || (row0 ? String(row0.id) : null);
+          if (mealId) {
+            const { data: meal } = await db.from("meals").select("session_id, date, time").eq("id", mealId)
+              .single();
+            if (meal?.session_id) {
+              sid = String(meal.session_id);
+              const { data: sess } = await db.from("sessions").select("*").eq("id", sid).single();
+              if (sess) await applyExpenseForSession(sid, sess as Record<string, unknown>);
+            }
+          }
+        } else if (sid) {
+          const { data: sess } = await db.from("sessions").select("*").eq("id", sid).single();
+          if (sess) await applyExpenseForSession(sid, sess as Record<string, unknown>);
+        }
+      }
+
       return json({ rows: data });
     }
 

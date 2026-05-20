@@ -16,12 +16,23 @@ export type ManualResource =
 
 export type ManualOp = "insert" | "update" | "delete" | "upsert";
 
+export type SessionExpensePayload = {
+  amount?: number | null;
+  currency?: string | null;
+  account?: string | null;
+  category?: string | null;
+  merchant?: string | null;
+  notes?: string | null;
+} | null;
+
 export type ManualPayload = {
   resource: ManualResource;
   op: ManualOp;
   row?: Record<string, unknown>;
   id?: string;
   match?: Record<string, unknown>;
+  expense?: SessionExpensePayload;
+  expense_session_id?: string;
 };
 
 export async function manual<T = unknown>(payload: ManualPayload): Promise<T> {
@@ -39,7 +50,8 @@ export const updateRow = (
   resource: ManualResource,
   id: string,
   row: Record<string, unknown>,
-) => manual<{ rows: unknown[] }>({ resource, op: "update", id, row });
+  extra?: { expense?: SessionExpensePayload; expense_session_id?: string },
+) => manual<{ rows: unknown[] }>({ resource, op: "update", id, row, ...extra });
 
 export const deleteRow = (resource: ManualResource, id: string) =>
   manual<{ rows: unknown[] }>({ resource, op: "delete", id });

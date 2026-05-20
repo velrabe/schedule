@@ -2420,6 +2420,22 @@ button.kanban-card:hover {
   padding: 12px 16px;
 }
 
+.record-drawer-section-wrap {
+  display: flex;
+  width: 100%;
+  margin-top: 8px;
+  margin-bottom: 4px;
+  padding-top: 12px;
+  border-top: 1px dashed var(--border);
+}
+
+.record-drawer-section-title {
+  font-size: 11px;
+  color: var(--text-2);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
 .record-drawer-field-wrap {
   display: flex;
   flex-direction: column;

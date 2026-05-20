@@ -1,7 +1,7 @@
 /** Persist a single row edit via the manual edge function. */
-export async function manualPatch(resource, id, row) {
+export async function manualPatch(resource, id, row, extra = {}) {
   const { updateRow, notifyDataChanged } = await import("../api/manual");
-  await updateRow(resource, id, row);
+  await updateRow(resource, id, row, extra);
   notifyDataChanged();
 }
 

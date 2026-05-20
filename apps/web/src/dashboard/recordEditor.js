@@ -3,6 +3,15 @@
 export const MEAL_SLOTS = ["breakfast", "lunch", "dinner", "snack"];
 export const CONFIDENCE_OPTIONS = ["high", "medium", "low"];
 export const ACTIVITY_TYPES = ["move", "walking", "run", "sport", "gym", "other"];
+export const CURRENCY_OPTIONS = ["VND", "RUB", "USD"];
+export const DEFAULT_ACCOUNTS = ["cash_vnd", "vcb_vnd", "savings_rub", "ip_rub"];
+
+const EXPENSE_FIELDS = [
+  { key: "expense_amount", label: "стоимость", type: "number", optional: true, group: "expense" },
+  { key: "expense_currency", label: "валюта", type: "select", options: CURRENCY_OPTIONS, optional: true, group: "expense" },
+  { key: "expense_account", label: "счёт списания", type: "select", options: DEFAULT_ACCOUNTS, optional: true, group: "expense" },
+  { key: "expense_category", label: "категория расхода", type: "text", optional: true, group: "expense" },
+];
 
 function trimTime(t) {
   if (!t) return "";
@@ -33,6 +42,36 @@ function diffMinutes(start, end) {
   return ((e - s + 24 * 60) % (24 * 60)) || 0;
 }
 
+function expenseToFormFields(linked) {
+  if (!linked) {
+    return {
+      expense_amount: "",
+      expense_currency: "VND",
+      expense_account: "cash_vnd",
+      expense_category: "",
+      expense_merchant: "",
+      expense_notes: "",
+      expense_id: "",
+    };
+  }
+  return {
+    expense_amount: linked.amount ?? "",
+    expense_currency: linked.currency || "VND",
+    expense_account: linked.account || "",
+    expense_category: linked.category || "",
+    expense_merchant: linked.merchant || "",
+    expense_notes: linked.notes || "",
+    expense_id: linked.id || "",
+  };
+}
+
+export function withAccountOptions(fields, accountIds = []) {
+  const opts = accountIds.length ? accountIds : DEFAULT_ACCOUNTS;
+  return fields.map((f) =>
+    f.key === "expense_account" ? { ...f, options: opts } : f,
+  );
+}
+
 const KIND_META = {
   meal: {
     resource: "meals",
@@ -50,6 +89,7 @@ const KIND_META = {
       { key: "portion_grams", label: "порция, г", type: "number" },
       { key: "confidence", label: "уверенность", type: "select", options: CONFIDENCE_OPTIONS, optional: true },
       { key: "notes", label: "заметки", type: "textarea" },
+      ...EXPENSE_FIELDS,
     ],
   },
   activity: {
@@ -94,6 +134,7 @@ const KIND_META = {
       { key: "category", label: "категория", type: "text" },
       { key: "project", label: "проект", type: "text", optional: true },
       { key: "note", label: "заметка", type: "textarea", optional: true },
+      ...EXPENSE_FIELDS,
     ],
   },
 };
@@ -102,8 +143,9 @@ export function getRecordEditorMeta(kind) {
   return KIND_META[kind] || null;
 }
 
-export function recordToForm(kind, record) {
+export function recordToForm(kind, record, linkedExpense = null) {
   if (!record) return {};
+  const expense = expenseToFormFields(linkedExpense);
   switch (kind) {
     case "meal":
       return {
@@ -118,6 +160,8 @@ export function recordToForm(kind, record) {
         portion_grams: record.portion_grams ?? "",
         confidence: record.confidence || "",
         notes: record.notes || "",
+        ...expense,
+        expense_category: expense.expense_category || "food",
       };
     case "activity":
       return {
@@ -138,6 +182,7 @@ export function recordToForm(kind, record) {
         category: record.category || "",
         project: record.project || "",
         note: record.note || "",
+        ...expense,
       };
     case "finance":
       return {
@@ -225,4 +270,8 @@ export function formToSessionUi(form) {
     project: form.project || "",
     note: form.note || "",
   };
+}
+
+export function isExpenseField(field) {
+  return field.group === "expense";
 }

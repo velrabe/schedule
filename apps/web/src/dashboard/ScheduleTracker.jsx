@@ -24,6 +24,7 @@ import {
   mergeMealsWithFoodSessions,
   mealCountForNutrition,
 } from "./mergeNutrition.js";
+import { expenseForSession, fmtExpenseShort } from "./sessionFinance.js";
 
 const html = htm.bind(h);
 const STORE_KEY = "schedule-tracker:v1";
@@ -385,6 +386,7 @@ function App(props = {}) {
         days=${days}
         sessions=${sessions}
         meals=${mergedMeals}
+        finance=${liveData?.finance || []}
         activities=${liveData?.activities || []}
         liveMode=${Boolean(liveData)}
         setSessions=${setSessions}
@@ -396,6 +398,7 @@ function App(props = {}) {
       html`<${NutritionTab}
         days=${days}
         meals=${mergedMeals}
+        finance=${liveData?.finance || []}
         activities=${liveData?.activities || []}
         active=${true}
         liveMode=${Boolean(liveData)}
@@ -419,6 +422,8 @@ function App(props = {}) {
         onClose=${closeRecordEditor}
         liveMode=${Boolean(liveData)}
         setSessions=${setSessions}
+        finance=${liveData?.finance || []}
+        accounts=${liveData?.accounts || []}
       />
     </div>
   `;
@@ -1958,7 +1963,7 @@ const MEAL_SLOT_RU = {
 
 // ---------------- calendar view ----------------
 
-function CalendarTab({ days, sessions, meals = [], activities = [], liveMode = false, setSessions, setDays, onOpenRecord }) {
+function CalendarTab({ days, sessions, meals = [], finance = [], activities = [], liveMode = false, setSessions, setDays, onOpenRecord }) {
   const byDate = useMemo(() => {
     const map = new Map();
     for (const d of days) map.set(d.date, d);
@@ -2100,6 +2105,7 @@ function CalendarTab({ days, sessions, meals = [], activities = [], liveMode = f
             day=${byDate.get(selected)}
             sessions=${sessionsByDate.get(selected) || []}
             meals=${mealsByDate.get(selected) || []}
+            finance=${finance}
             activitiesList=${activitiesByDate.get(selected) || []}
             liveMode=${liveMode}
             setSessions=${setSessions}
@@ -2165,6 +2171,7 @@ function CalendarDayDetail({
   day,
   sessions,
   meals = [],
+  finance = [],
   activitiesList = [],
   liveMode = false,
   setSessions,
@@ -2325,7 +2332,9 @@ function CalendarDayDetail({
         <span class="cal-detail-section-title">сессии</span>
         <div class="cal-detail-sessions-wrap">
           ${sorted.length === 0 && html`<div class="cal-detail-empty-wrap"><span>сессии не записаны</span></div>`}
-          ${sorted.map((s) => html`
+          ${sorted.map((s) => {
+            const exp = expenseForSession(s.id, finance);
+            return html`
             <${RecordOpenRow}
               key=${s.id}
               className="cal-detail-session"
@@ -2339,9 +2348,10 @@ function CalendarDayDetail({
               </div>
               <span class="cal-detail-session__cat">${s.category}</span>
               <span class="cal-detail-session__proj">${s.project || "—"}</span>
-              <span class="cal-detail-session__note">${s.note || ""}</span>
+              <span class="cal-detail-session__note">${s.note || ""}${exp ? ` · ${fmtExpenseShort(exp)}` : ""}</span>
             </${RecordOpenRow}>
-          `)}
+          `;
+          })}
         </div>
       </div>
     </div>
@@ -2736,7 +2746,7 @@ function KanbanSessionEditor({ value, isNew = false, onSave, onCancel, onDelete 
 
 // ---------------- nutrition view ----------------
 
-function NutritionTab({ days, meals = [], activities = [], active = true, liveMode = false, onOpenRecord }) {
+function NutritionTab({ days, meals = [], finance = [], activities = [], active = true, liveMode = false, onOpenRecord }) {
   const knownDates = useMemo(() => {
     const set = new Set();
     for (const d of days) set.add(d.date);
@@ -2811,7 +2821,9 @@ function NutritionTab({ days, meals = [], activities = [], active = true, liveMo
               <${NutriBar} label="fat" value=${fat} target=${NUTRITION_TARGET.fat} unit="g" kind="fat" />
               <div class="nutri-meals-wrap">
                 ${dayMeals.length === 0 && html`<span class="nutri-meal-empty">нет приёмов пищи</span>`}
-                ${dayMeals.map((m) => html`
+                ${dayMeals.map((m) => {
+                  const exp = expenseForSession(m.session_id, finance);
+                  return html`
                   <${RecordOpenRow}
                     key=${m.id}
                     className="nutri-meal-row"
@@ -2825,9 +2837,11 @@ function NutritionTab({ days, meals = [], activities = [], active = true, liveMo
                       ${m.carbs_g != null ? `C${Math.round(Number(m.carbs_g))}` : ""}
                       ${m.protein_g != null ? ` P${Math.round(Number(m.protein_g))}` : ""}
                       ${m.fat_g != null ? ` F${Math.round(Number(m.fat_g))}` : ""}
+                      ${exp ? html` · ${fmtExpenseShort(exp)}` : ""}
                     </span>
                   </${RecordOpenRow}>
-                `)}
+                `;
+                })}
               </div>
               ${dayActs.length > 0 && html`
                 <div class="nutri-acts-wrap">

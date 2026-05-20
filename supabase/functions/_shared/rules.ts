@@ -133,7 +133,8 @@ For every meal (create_meal or synced from food session) include:
 - name: human-readable string
 - kcal, protein_g, fat_g, carbs_g — required for tracking. If user provides numbers, use exactly. If only food name → estimate, confidence="low".
 - confidence: "high" if user gave exact numbers, "medium" if just portion size, "low" if pure estimate.
-- If meal had a cost ("кофе за 50к"), also emit a create_finance_transaction with currency=VND or RUB depending on phrasing.
+- If meal had a cost ("кофе за 50к", "обед 150к") → create_session (food) first, then create_finance_transaction with session_id set to that food session, txn_type=expense, account inferred, category=food.
+- Manual UI also supports expense on any session via linked finance_transactions (one expense per session_id).
 
 Common Vel dishes (canonical estimates if no numbers given):
 - "кимчи бургер" → kimchi_burger ≈ 550 kcal / 50c / 25p / 30f

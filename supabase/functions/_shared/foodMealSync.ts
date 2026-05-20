@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
 import { padTime, diffMinutes } from "./actions.ts";
 import { trimTime } from "./sessionSchedule.ts";
+import { deleteSessionExpenses } from "./sessionExpenseSync.ts";
 
 export type SessionRow = {
   id: string;
@@ -200,6 +201,7 @@ export async function afterMealWrite(
 }
 
 export async function afterFoodSessionDelete(db: SupabaseClient, sessionId: string): Promise<void> {
+  await deleteSessionExpenses(db, sessionId);
   await db.from("meals").delete().eq("session_id", sessionId);
 }
 

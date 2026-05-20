@@ -1,5 +1,5 @@
 import { h, Fragment } from "preact";
-import { useState, useEffect, useCallback } from "preact/hooks";
+import { useState, useEffect, useCallback, useMemo } from "preact/hooks";
 import htm from "htm";
 import { ApiError } from "../api/client.ts";
 import { manualPatch } from "./manualSave.js";
@@ -8,7 +8,14 @@ import {
   recordToForm,
   formToDbPatch,
   formToSessionUi,
+  withAccountOptions,
+  isExpenseField,
 } from "./recordEditor.js";
+import {
+  expenseForSession,
+  expenseFromForm,
+  resolveExpenseSessionId,
+} from "./sessionFinance.js";
 
 const html = htm.bind(h);
 
@@ -85,6 +92,8 @@ export default function RecordEditDrawer({
   onClose,
   liveMode = false,
   setSessions,
+  finance = [],
+  accounts = [],
 }) {
   const [form, setForm] = useState({});
   const [saving, setSaving] = useState(false);
@@ -92,10 +101,26 @@ export default function RecordEditDrawer({
 
   const meta = target ? getRecordEditorMeta(target.kind) : null;
 
+  const accountIds = useMemo(
+    () => accounts.filter((a) => !a.archived).map((a) => a.id),
+    [accounts],
+  );
+
+  const fields = useMemo(() => {
+    if (!meta) return [];
+    return withAccountOptions(meta.fields, accountIds);
+  }, [meta, accountIds]);
+
+  const linkedExpense = useMemo(() => {
+    if (!target) return null;
+    const sid = resolveExpenseSessionId(target.kind, target.record);
+    return expenseForSession(sid, finance);
+  }, [target, finance]);
+
   useEffect(() => {
-    if (target) setForm(recordToForm(target.kind, target.record));
+    if (target) setForm(recordToForm(target.kind, target.record, linkedExpense));
     else setForm({});
-  }, [target?.kind, target?.record?.id]);
+  }, [target?.kind, target?.record?.id, linkedExpense?.id]);
 
   useEffect(() => {
     if (!target) return;
@@ -121,16 +146,43 @@ export default function RecordEditDrawer({
 
   const onSave = async () => {
     if (!target || !meta || !liveMode) return;
+    if (target.record._synthetic) {
+      alert("Сначала сохраните сессию еды — откройте её из списка сессий.");
+      return;
+    }
     setSaving(true);
     try {
       const patch = formToDbPatch(target.kind, form);
+      const supportsExpense = target.kind === "session" || target.kind === "meal";
+      let expensePayload = undefined;
+      if (supportsExpense) {
+        const parsed = expenseFromForm(form);
+        if (parsed) {
+          expensePayload = { ...parsed };
+          if (target.kind === "meal" && form.name) {
+            expensePayload.merchant = expensePayload.merchant || form.name;
+          }
+          if (target.kind === "session" && form.project) {
+            expensePayload.merchant = expensePayload.merchant || form.project;
+          }
+        } else if (linkedExpense) {
+          expensePayload = null;
+        }
+      }
+      const expenseSessionId = resolveExpenseSessionId(target.kind, target.record);
+      const extra = {
+        expense: expensePayload,
+        expense_session_id: expenseSessionId || undefined,
+      };
+
       if (target.kind === "session" && setSessions) {
         const ui = formToSessionUi(form);
         setSessions((prev) =>
           prev.map((s) => (s.id === target.record.id ? { ...s, ...ui } : s)),
         );
       }
-      await manualPatch(meta.resource, target.record.id, patch);
+
+      await manualPatch(meta.resource, target.record.id, patch, extra);
       onClose();
     } catch (e) {
       const msg = e?.message || String(e);
@@ -179,6 +231,9 @@ export default function RecordEditDrawer({
   const subtitle = meta.subtitle(target.record);
   const busy = saving || deleting;
   const stopInside = (e) => e.stopPropagation();
+  const mainFields = fields.filter((f) => !isExpenseField(f));
+  const expenseFields = fields.filter((f) => isExpenseField(f));
+  const showExpense = expenseFields.length > 0;
 
   return html`
     <${Fragment}>
@@ -206,7 +261,7 @@ export default function RecordEditDrawer({
 
         <div class="record-drawer-body-wrap">
           <div class="record-drawer-fields-wrap">
-            ${meta.fields.map(
+            ${mainFields.map(
               (field) => html`
                 <${FieldInput}
                   key=${field.key}
@@ -217,6 +272,22 @@ export default function RecordEditDrawer({
                 />
               `,
             )}
+            ${showExpense && html`
+              <div class="record-drawer-section-wrap">
+                <span class="record-drawer-section-title">расход · списание со счёта</span>
+              </div>
+              ${expenseFields.map(
+                (field) => html`
+                  <${FieldInput}
+                    key=${field.key}
+                    field=${field}
+                    value=${form[field.key]}
+                    onChange=${setField}
+                    disabled=${!liveMode || busy}
+                  />
+                `,
+              )}
+            `}
             ${!liveMode &&
             html`
               <div class="record-drawer-demo-hint-wrap">
