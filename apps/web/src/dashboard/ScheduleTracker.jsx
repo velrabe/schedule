@@ -31,7 +31,8 @@ import {
   financeTxnLabel,
   financeTxnShortMeta,
 } from "./financeDisplay.js";
-import FinanceChartTab from "./FinanceChartTab.jsx";
+import FinanceTab from "./FinanceTab.jsx";
+import { useSheetState, applySheet, SheetHeader, Toolbar } from "./sheetUi.js";
 
 const html = htm.bind(h);
 const STORE_KEY = "schedule-tracker:v1";
@@ -249,7 +250,18 @@ function App(props = {}) {
   const [days, setDays] = useState(initial.days);
   const [sessions, setSessions] = useState(initial.sessions);
   const [events, setEvents] = useState(initial.events);
-  const [tab, setTab] = useState(localStorage.getItem("schedule-tracker:tab") || "days");
+  const [tab, setTab] = useState(() => {
+    try {
+      const t = localStorage.getItem("schedule-tracker:tab") || "days";
+      if (t === "chart") {
+        localStorage.setItem("schedule-tracker:finance-subtab", "chart");
+        return "finance";
+      }
+      return t;
+    } catch {
+      return "days";
+    }
+  });
   const [recordEditor, setRecordEditor] = useState(null);
 
   const mergedMeals = useMemo(
@@ -376,7 +388,6 @@ function App(props = {}) {
         <${TabBtn} id="kanban" active=${tab} onClick=${setTab} label="Kanban" count=${null} />
         <${TabBtn} id="nutrition" active=${tab} onClick=${setTab} label="Nutrition" count=${liveData ? mealCountForNutrition(sessions, liveData.meals) : null} />
         <${TabBtn} id="finance" active=${tab} onClick=${setTab} label="Finance" count=${liveData?.finance?.length ?? null} />
-        <${TabBtn} id="chart" active=${tab} onClick=${setTab} label="Chart" count=${null} />
         <${TabBtn} id="sessions" active=${tab} onClick=${setTab} label="Sessions" count=${sessions.length} />
         <${TabBtn} id="events" active=${tab} onClick=${setTab} label="Events" count=${events.length} />
         <${TabBtn} id="insights" active=${tab} onClick=${setTab} label="Insights" count=${null} />
@@ -417,16 +428,9 @@ function App(props = {}) {
         days=${days}
         accounts=${liveData?.accounts || []}
         finance=${liveData?.finance || []}
-        active=${true}
-        liveMode=${Boolean(liveData)}
-        onOpenRecord=${openRecordEditor}
-      />`}
-      ${tab === "chart" &&
-      html`<${FinanceChartTab}
-        accounts=${liveData?.accounts || []}
-        finance=${liveData?.finance || []}
         balance_snapshots=${liveData?.balance_snapshots || []}
         finance_planned_items=${liveData?.finance_planned_items || []}
+        active=${true}
         liveMode=${Boolean(liveData)}
         onOpenRecord=${openRecordEditor}
       />`}
@@ -486,207 +490,6 @@ function StatCell({ label, value, unit, tone }) {
         ${unit && html`<span class="stat-cell__unit">${unit}</span>`}
       </div>
       <div class="stat-cell__label">${label}</div>
-    </div>
-  `;
-}
-
-// ---------------- sortable+filterable sheet ----------------
-
-function useSheetState(key, initialSort) {
-  const [sort, setSort] = useState(() => {
-    try {
-      return JSON.parse(localStorage.getItem(`schedule-tracker:sort:${key}`)) || initialSort;
-    } catch {
-      return initialSort;
-    }
-  });
-  const [filters, setFilters] = useState(() => {
-    try {
-      return JSON.parse(localStorage.getItem(`schedule-tracker:filter:${key}`)) || {};
-    } catch {
-      return {};
-    }
-  });
-  const [search, setSearch] = useState("");
-
-  useEffect(() => {
-    localStorage.setItem(`schedule-tracker:sort:${key}`, JSON.stringify(sort));
-  }, [sort, key]);
-  useEffect(() => {
-    localStorage.setItem(`schedule-tracker:filter:${key}`, JSON.stringify(filters));
-  }, [filters, key]);
-
-  const toggleSort = useCallback((id) => {
-    setSort((prev) => {
-      if (prev?.id !== id) return { id, dir: "asc" };
-      if (prev.dir === "asc") return { id, dir: "desc" };
-      return null;
-    });
-  }, []);
-
-  const setFilter = useCallback((id, value) => {
-    setFilters((prev) => {
-      const next = { ...prev };
-      if (!value) delete next[id];
-      else next[id] = value;
-      return next;
-    });
-  }, []);
-
-  return { sort, toggleSort, filters, setFilter, search, setSearch };
-}
-
-function applySheet(rows, sort, filters, search, columns) {
-  const q = search.trim().toLowerCase();
-  let out = rows;
-
-  if (q) {
-    out = out.filter((row) =>
-      columns.some((c) => {
-        const v = c.accessor ? c.accessor(row) : row[c.id];
-        if (v === null || v === undefined) return false;
-        return String(v).toLowerCase().includes(q);
-      }),
-    );
-  }
-
-  for (const [id, val] of Object.entries(filters)) {
-    if (!val) continue;
-    const col = columns.find((c) => c.id === id);
-    if (!col) continue;
-    if (col.filterMode === "exact") {
-      out = out.filter((row) => {
-        const v = col.accessor ? col.accessor(row) : row[col.id];
-        return String(v ?? "") === val;
-      });
-    } else {
-      const lc = val.toLowerCase();
-      out = out.filter((row) => {
-        const v = col.accessor ? col.accessor(row) : row[col.id];
-        if (v === null || v === undefined) return false;
-        return String(v).toLowerCase().includes(lc);
-      });
-    }
-  }
-
-  if (sort) {
-    const col = columns.find((c) => c.id === sort.id);
-    if (col) {
-      const dir = sort.dir === "asc" ? 1 : -1;
-      out = [...out].sort((a, b) => {
-        const av = col.sortAccessor
-          ? col.sortAccessor(a)
-          : col.accessor
-            ? col.accessor(a)
-            : a[col.id];
-        const bv = col.sortAccessor
-          ? col.sortAccessor(b)
-          : col.accessor
-            ? col.accessor(b)
-            : b[col.id];
-        if (av === bv) return 0;
-        if (av === null || av === undefined) return 1;
-        if (bv === null || bv === undefined) return -1;
-        if (typeof av === "number" && typeof bv === "number") return (av - bv) * dir;
-        return String(av).localeCompare(String(bv)) * dir;
-      });
-    }
-  }
-
-  return out;
-}
-
-function SheetHeader({ columns, sort, toggleSort, filters, setFilter }) {
-  return html`
-    <thead>
-      <tr>
-        ${columns.map((col) => {
-          const active = sort?.id === col.id;
-          const dirIcon = !active ? I.sort() : sort.dir === "asc" ? I.sortAsc() : I.sortDesc();
-          return html`
-            <th key=${col.id} class=${col.thClass || ""}>
-              <div class="sheet__th">
-                <div
-                  class="sheet__th-top"
-                  onClick=${() => col.sortable !== false && toggleSort(col.id)}
-                  title=${col.title || col.label}
-                >
-                  <div class="sheet__th-label-wrap">
-                    <span class="sheet__th-label">${col.label}</span>
-                  </div>
-                  ${col.sortable !== false &&
-                  html`
-                    <div
-                      class=${`sheet__th-sort-wrap ${active ? "sheet__th-sort-wrap--active" : ""}`}
-                    >
-                      ${dirIcon}
-                    </div>
-                  `}
-                </div>
-                ${col.filterable !== false &&
-                html`
-                  <div class="sheet__th-filter-wrap">
-                    ${col.filterOptions
-                      ? html`
-                          <select
-                            class="sheet__th-filter-input"
-                            value=${filters[col.id] || ""}
-                            onChange=${(e) => setFilter(col.id, e.currentTarget.value)}
-                          >
-                            <option value="">все</option>
-                            ${col.filterOptions.map(
-                              (opt) =>
-                                html`<option value=${opt.value || opt}>${opt.label || opt}</option>`,
-                            )}
-                          </select>
-                        `
-                      : html`
-                          <input
-                            type="text"
-                            class="sheet__th-filter-input"
-                            placeholder="filter…"
-                            value=${filters[col.id] || ""}
-                            onInput=${(e) => setFilter(col.id, e.currentTarget.value)}
-                          />
-                        `}
-                  </div>
-                `}
-              </div>
-            </th>
-          `;
-        })}
-      </tr>
-    </thead>
-  `;
-}
-
-function Toolbar({ search, setSearch, onExport, extraLeft, extraRight, hint }) {
-  return html`
-    <div class="toolbar">
-      <div class="toolbar__left">
-        <div class="search-wrap">
-          <span class="search-wrap__icon">${I.search()}</span>
-          <input
-            type="search"
-            class="search-wrap__input"
-            placeholder="search across columns…"
-            value=${search}
-            onInput=${(e) => setSearch(e.currentTarget.value)}
-          />
-        </div>
-        ${extraLeft}
-      </div>
-      <div class="toolbar__right">
-        ${hint && html`<span class="kbd"><span>${hint}</span></span>`}
-        ${extraRight}
-        ${onExport &&
-        html`
-          <button class="btn" onClick=${onExport}>
-            <span class="btn__icon-wrap">${I.download()}</span>
-            <span class="btn__text-wrap">CSV</span>
-          </button>
-        `}
-      </div>
     </div>
   `;
 }
@@ -2877,97 +2680,6 @@ function NutritionTab({ days, meals = [], finance = [], activities = [], active 
                   `)}
                 </div>
               `}
-            </div>
-          `;
-        })}
-        <div class="date-strip-sentinel date-strip-sentinel--future" ref=${futureSentinelRef}></div>
-      </div>
-    </div>
-  `;
-}
-
-// ---------------- finance view ----------------
-
-function FinanceTab({ days, accounts = [], finance = [], active = true, liveMode = false, onOpenRecord }) {
-  const knownDates = useMemo(() => {
-    const set = new Set();
-    for (const d of days) set.add(d.date);
-    for (const t of finance) set.add(t.date);
-    return [...set];
-  }, [days, finance]);
-
-  const {
-    today,
-    visibleDates,
-    scrollRef,
-    todayColRef,
-    pastSentinelRef,
-    futureSentinelRef,
-    onScroll,
-    canLoadPast,
-    canLoadFuture,
-    scrollToToday,
-  } = useDateStrip(knownDates, { active });
-
-  const txByDate = useMemo(() => {
-    const map = new Map();
-    for (const t of finance) {
-      if (!map.has(t.date)) map.set(t.date, []);
-      map.get(t.date).push(t);
-    }
-    for (const [, list] of map) {
-      list.sort((a, b) => String(a.time || "").localeCompare(String(b.time || "")));
-    }
-    return map;
-  }, [finance]);
-
-  const activeAccounts = accounts.filter((a) => !a.archived);
-
-  return html`
-    <div class="finance-wrap">
-      <div class="finance-accounts-wrap">
-        ${activeAccounts.length === 0 && html`<span class="finance-empty">счета не загружены</span>`}
-        ${activeAccounts.map((a) => html`
-          <div class="finance-account-card-wrap" key=${a.id}>
-            <span class="finance-account-name">${a.name || ACCOUNT_LABELS[a.id] || a.id}</span>
-            <span class="finance-account-balance">${fmtMoney(a.balance, a.currency)}</span>
-          </div>
-        `)}
-      </div>
-      <${DateStripControls} canLoadPast=${canLoadPast} canLoadFuture=${canLoadFuture} onToday=${scrollToToday} />
-      <div class="finance-scroll-wrap date-strip-scroll" ref=${scrollRef} onScroll=${onScroll}>
-        <div class="date-strip-sentinel date-strip-sentinel--past" ref=${pastSentinelRef}></div>
-        ${visibleDates.map((date) => {
-          const dayTx = txByDate.get(date) || [];
-          const isToday = date === today;
-          const expenses = dayTx.filter((t) => (t.txn_type || "expense") === "expense");
-          const expense = expenses.reduce((a, t) => a + Math.abs(Number(t.amount) || 0), 0);
-          const transferCount = dayTx.filter((t) => (t.txn_type || "") === "transfer").length;
-          return html`
-            <div class=${`finance-day-col ${isToday ? "finance-day-col--today" : ""}`} key=${date} ref=${isToday ? todayColRef : null}>
-              <div class="finance-day-head-wrap">
-                <span class="finance-day-date">${date}${isToday ? " · today" : ""}</span>
-                ${expense > 0 && html`<span class="finance-day-total">расход ${fmtMoney(expense, expenses[0]?.currency || "VND")}</span>`}
-                ${transferCount > 0 && html`<span class="finance-day-total finance-day-total--transfer">переводов ${transferCount}</span>`}
-              </div>
-              <div class="finance-tx-wrap">
-                ${dayTx.length === 0 && html`<span class="finance-empty">нет операций</span>`}
-                ${dayTx.map((t) => {
-                  const isTransfer = (t.txn_type || "") === "transfer";
-                  return html`
-                  <${RecordOpenRow}
-                    key=${t.id}
-                    className=${`finance-tx-row ${isTransfer ? "finance-tx-row--transfer" : ""}`}
-                    onOpen=${onOpenRecord ? () => onOpenRecord({ kind: "finance", record: t }) : null}
-                    disabled=${!liveMode}
-                  >
-                    <span class="finance-tx-amount">${financeTxnLabel(t)}</span>
-                    <span class="finance-tx-meta">${financeTxnShortMeta(t)}</span>
-                    ${t.notes && html`<span class="finance-tx-note">${t.notes}</span>`}
-                  </${RecordOpenRow}>
-                `;
-                })}
-              </div>
             </div>
           `;
         })}

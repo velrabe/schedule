@@ -59,6 +59,8 @@ export default function FinanceChartTab({
 
   const activePlanned = (finance_planned_items || []).filter((p) => p.active);
 
+  const hasSeries = series.dates.length > 0;
+
   return html`
     <div class="finance-chart-tab-wrap">
       <div class="finance-insights-summary-wrap">
@@ -66,6 +68,15 @@ export default function FinanceChartTab({
         <span class="finance-insights-summary-val">${fmtRub(series.totalRubNow)}</span>
       </div>
 
+      ${!hasSeries &&
+      html`
+        <div class="balance-chart-empty-wrap">
+          <span class="balance-chart-empty">нет дат для графика — проверь загрузку LIVE</span>
+        </div>
+      `}
+
+      ${hasSeries &&
+      html`
       <${FinanceBalanceChart}
         dates=${series.dates}
         fact=${series.fact}
@@ -79,6 +90,7 @@ export default function FinanceChartTab({
         onHoverDate=${setHoverDate}
         onDayClick=${setSelectedDate}
       />
+      `}
 
       <div class="finance-insights-planned-wrap">
         <span class="finance-insights-planned-title">плановые статьи</span>

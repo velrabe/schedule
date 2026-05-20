@@ -52,7 +52,8 @@ export default function FinanceBalanceChart({
   const all = [...planVals, ...factVals];
 
   const geometry = useMemo(() => {
-    if (!dates.length || !all.length) return null;
+    if (!dates.length) return null;
+    if (!all.length) return null;
     const maxV = Math.max(...all, 0);
     const minV = Math.min(...all, 0);
     const padY = (maxV - minV) * 0.08 || 10000;

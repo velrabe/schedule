@@ -1920,12 +1920,81 @@ button.kanban-card:hover {
   color: var(--text-3);
 }
 
+.finance-tab-shell {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  min-height: calc(100vh - 200px);
+}
+
+.finance-subtabbar {
+  display: flex;
+  flex-direction: row;
+  width: 100%;
+  padding: 0 12px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg);
+  flex-shrink: 0;
+}
+
+.finance-subtab {
+  display: flex;
+  margin: 0;
+  padding: 10px 14px;
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--text-2);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.finance-subtab--active {
+  color: var(--text);
+  border-bottom-color: var(--info);
+}
+
+.finance-subtab__text {
+  margin: 0;
+  padding: 0;
+}
+
+.finance-panel {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+
 .finance-chart-tab-wrap {
   display: flex;
   flex-direction: column;
   width: 100%;
   padding: 16px;
   gap: 16px;
+  min-height: 360px;
+  color: var(--text);
+}
+
+.finance-tx-table-wrap {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+}
+
+.sheet--clickable tbody tr.sheet-row--clickable {
+  cursor: pointer;
+}
+
+.sheet--clickable tbody tr.sheet-row--clickable:hover td {
+  background: var(--surface-2);
+}
+
+.sheet__td--muted span {
+  color: var(--text-3);
+  font-size: 10px;
 }
 
 .finance-day-drawer {
