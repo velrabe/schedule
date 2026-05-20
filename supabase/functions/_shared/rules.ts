@@ -207,6 +207,12 @@ When user moves money between own accounts ("перевёл", "перекину�
 Server updates both account balances automatically. Not an expense — do not use category=food.
 
 type=income for external inflows; type=transfer only for internal moves between accounts slugs above.
+
+# balance planning (Insights chart)
+Planned budget lines live in finance_planned_items (recurrence: once | daily | monthly).
+User logs daily total wealth in balance_snapshots.total_rub (all accounts in RUB).
+Examples already seeded: rent 7.5M VND on 3rd monthly, ChatGPT $23 on 7th, visa 15k RUB on 2026-05-28, food 1500 RUB/day.
+When user states a recurring expense ("каждый месяц аренда", "на еду 1500 в день") → insert finance_planned_items via manual or describe in reply; chat may use create_finance_transaction for past actuals only.
 `;
 
 const BODY = `

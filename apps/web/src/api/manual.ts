@@ -12,7 +12,9 @@ export type ManualResource =
   | "planner_events"
   | "mood_logs"
   | "nutrition_goals"
-  | "accounts";
+  | "accounts"
+  | "balance_snapshots"
+  | "finance_planned_items";
 
 export type ManualOp = "insert" | "update" | "delete" | "upsert";
 

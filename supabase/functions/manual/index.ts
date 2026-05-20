@@ -44,6 +44,8 @@ const ALLOWED = new Set([
   "mood_logs",
   "nutrition_goals",
   "accounts",
+  "balance_snapshots",
+  "finance_planned_items",
 ]);
 
 const ALLOWED_OPS = new Set(["insert", "update", "delete", "upsert"]);

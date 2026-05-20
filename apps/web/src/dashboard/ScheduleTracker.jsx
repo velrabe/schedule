@@ -31,6 +31,7 @@ import {
   financeTxnLabel,
   financeTxnShortMeta,
 } from "./financeDisplay.js";
+import FinanceInsightsPanel from "./FinanceInsightsPanel.jsx";
 
 const html = htm.bind(h);
 const STORE_KEY = "schedule-tracker:v1";
@@ -421,7 +422,16 @@ function App(props = {}) {
       />`}
       ${tab === "sessions" && html`<${SessionsTab} sessions=${sessions} setSessions=${setSessions} />`}
       ${tab === "events" && html`<${EventsTab} events=${events} setEvents=${setEvents} />`}
-      ${tab === "insights" && html`<${InsightsTab} days=${days} sessions=${sessions} />`}
+      ${tab === "insights" &&
+      html`<${InsightsTab}
+        days=${days}
+        sessions=${sessions}
+        accounts=${liveData?.accounts || []}
+        finance=${liveData?.finance || []}
+        balance_snapshots=${liveData?.balance_snapshots || []}
+        finance_planned_items=${liveData?.finance_planned_items || []}
+        liveMode=${Boolean(liveData)}
+      />`}
 
       <${RecordEditDrawer}
         target=${recordEditor}
@@ -1593,7 +1603,15 @@ function EventsTab({ events, setEvents }) {
 
 // ---------------- Insights tab ----------------
 
-function InsightsTab({ days, sessions }) {
+function InsightsTab({
+  days,
+  sessions,
+  accounts = [],
+  finance = [],
+  balance_snapshots = [],
+  finance_planned_items = [],
+  liveMode = false,
+}) {
   const sorted = useMemo(() => [...days].sort((a, b) => a.date.localeCompare(b.date)), [days]);
   const enriched = useMemo(
     () =>
@@ -1684,6 +1702,19 @@ function InsightsTab({ days, sessions }) {
 
   return html`
     <div class="insights-grid">
+      <${InsightCard}
+        title="Движение средств · план / факт"
+        subtitle="все счета в ₽ · план ~5 мес вперёд"
+      >
+        <${FinanceInsightsPanel}
+          accounts=${accounts}
+          finance=${finance}
+          balance_snapshots=${balance_snapshots}
+          finance_planned_items=${finance_planned_items}
+          liveMode=${liveMode}
+        />
+      </${InsightCard}>
+
       <${InsightCard}
         title="Сон и работа во времени"
         subtitle="${enriched.length} дней · sleep_h vs business_h"

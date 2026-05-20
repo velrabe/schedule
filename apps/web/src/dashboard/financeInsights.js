@@ -1,0 +1,175 @@
+/** Plan/fact balance series in RUB for Insights chart. */
+
+export const FX_RUB_PER_UNIT = {
+  RUB: 1,
+  VND: 10000 / 3692220,
+  USD: 92,
+};
+
+export function toRub(amount, currency, fx = FX_RUB_PER_UNIT) {
+  const n = Number(amount) || 0;
+  const rate = fx[currency] ?? 1;
+  return n * rate;
+}
+
+export function accountsTotalRub(accounts, fx = FX_RUB_PER_UNIT) {
+  return (accounts || []).reduce((sum, a) => {
+    if (a.archived) return sum;
+    return sum + toRub(a.balance, a.currency, fx);
+  }, 0);
+}
+
+export function financeTxnDeltaRub(t, fx = FX_RUB_PER_UNIT) {
+  const type = (t.txn_type || "expense").toLowerCase();
+  if (type === "transfer") return 0;
+  const sign = type === "income" ? 1 : -1;
+  return sign * toRub(t.amount, t.currency, fx);
+}
+
+export function addDaysISO(iso, n) {
+  const d = new Date(`${iso}T12:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + n);
+  return d.toISOString().slice(0, 10);
+}
+
+export function eachDayISO(from, to) {
+  const out = [];
+  let cur = from;
+  while (cur <= to) {
+    out.push(cur);
+    cur = addDaysISO(cur, 1);
+  }
+  return out;
+}
+
+export function expandPlannedItems(items, fromDate, toDate, fx = FX_RUB_PER_UNIT) {
+  const out = [];
+  for (const item of items || []) {
+    if (!item.active) continue;
+    const start = item.start_date;
+    const end = item.end_date || toDate;
+    if (end < fromDate || start > toDate) continue;
+
+    const sign = (item.txn_type || "expense") === "income" ? 1 : -1;
+    const delta = sign * toRub(item.amount, item.currency, fx);
+    const rec = item.recurrence || "once";
+
+    if (rec === "daily") {
+      let d = start < fromDate ? fromDate : start;
+      const stop = end > toDate ? toDate : end;
+      while (d <= stop) {
+        out.push({ date: d, deltaRub: delta, title: item.title });
+        d = addDaysISO(d, 1);
+      }
+      continue;
+    }
+
+    if (rec === "monthly") {
+      const dom = Number(item.day_of_month) || 1;
+      let y = parseInt(start.slice(0, 4), 10);
+      let m = parseInt(start.slice(5, 7), 10) - 1;
+      const endY = parseInt(toDate.slice(0, 4), 10);
+      const endM = parseInt(toDate.slice(5, 7), 10) - 1;
+      while (y < endY || (y === endY && m <= endM)) {
+        const lastDom = new Date(Date.UTC(y, m + 1, 0)).getUTCDate();
+        const day = Math.min(dom, lastDom);
+        const iso = `${y}-${String(m + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+        if (iso >= start && iso >= fromDate && iso <= toDate && iso <= end) {
+          out.push({ date: iso, deltaRub: delta, title: item.title });
+        }
+        m += 1;
+        if (m > 11) {
+          m = 0;
+          y += 1;
+        }
+      }
+      continue;
+    }
+
+    if (rec === "once" && start >= fromDate && start <= toDate) {
+      out.push({ date: start, deltaRub: delta, title: item.title });
+    }
+  }
+  return out;
+}
+
+function groupDeltasByDate(entries) {
+  const map = new Map();
+  for (const e of entries) {
+    map.set(e.date, (map.get(e.date) || 0) + e.deltaRub);
+  }
+  return map;
+}
+
+export function buildBalanceSeries({
+  today,
+  accounts = [],
+  finance = [],
+  snapshots = [],
+  plannedItems = [],
+  historyDays = 90,
+  planDays = 180,
+  fx = FX_RUB_PER_UNIT,
+}) {
+  const fromDate = addDaysISO(today, -historyDays);
+  const toDate = addDaysISO(today, planDays);
+  const dates = eachDayISO(fromDate, toDate);
+
+  const snapMap = new Map((snapshots || []).map((s) => [s.date, Number(s.total_rub)]));
+  const txnByDate = new Map();
+  for (const t of finance || []) {
+    if (t.date < fromDate || t.date > today) continue;
+    txnByDate.set(t.date, (txnByDate.get(t.date) || 0) + financeTxnDeltaRub(t, fx));
+  }
+
+  const plannedExpanded = expandPlannedItems(plannedItems, fromDate, toDate, fx);
+  const plannedByDate = groupDeltasByDate(plannedExpanded);
+  const markers = plannedExpanded.filter((p) => p.date > today);
+
+  const todayBal = snapMap.get(today) ?? accountsTotalRub(accounts, fx);
+  let run = todayBal;
+  for (let d = today; d > fromDate; d = addDaysISO(d, -1)) {
+    run -= txnByDate.get(d) || 0;
+  }
+
+  const fact = [];
+  const plan = [];
+
+  for (const date of dates) {
+    if (date <= today) {
+      if (snapMap.has(date)) run = snapMap.get(date);
+      else if (date > fromDate) run += txnByDate.get(date) || 0;
+      fact.push(run);
+      plan.push(run);
+    } else {
+      run += plannedByDate.get(date) || 0;
+      fact.push(null);
+      plan.push(run);
+    }
+  }
+
+  return {
+    dates,
+    fact,
+    plan,
+    markers,
+    today,
+    totalRubNow: todayBal,
+  };
+}
+
+export function fmtRub(n) {
+  return `${Math.round(Number(n) || 0).toLocaleString("ru-RU")} ₽`;
+}
+
+export function plannedItemLabel(p) {
+  const rub = toRub(p.amount, p.currency);
+  const rec =
+    p.recurrence === "daily"
+      ? "ежедн."
+      : p.recurrence === "monthly"
+        ? `${p.day_of_month}-е число`
+        : p.start_date;
+  const sign = (p.txn_type || "expense") === "income" ? "+" : "−";
+  return `${p.title}: ${sign}${fmtRub(rub)} · ${rec}`;
+}

@@ -9,6 +9,8 @@ export type Resource =
   | "body_metrics"
   | "finance_transactions"
   | "accounts"
+  | "balance_snapshots"
+  | "finance_planned_items"
   | "events"
   | "raw_logs";
 
@@ -109,6 +111,27 @@ export type AccountRow = {
   archived: boolean;
 };
 
+export type BalanceSnapshotRow = {
+  date: string;
+  total_rub: number;
+  notes: string | null;
+};
+
+export type PlannedItemRow = {
+  id: string;
+  title: string;
+  amount: number;
+  currency: string;
+  txn_type: string;
+  recurrence: string;
+  day_of_month: number | null;
+  start_date: string;
+  end_date: string | null;
+  category: string | null;
+  notes: string | null;
+  active: boolean;
+};
+
 export type ActivityRow = {
   id: string;
   date: string;
@@ -150,7 +173,7 @@ export async function fetchRows<T = unknown>(
 
 // Bulk fetcher for the dashboard's initial load.
 export async function fetchDashboardSnapshot(opts: { from?: string; to?: string } = {}) {
-  const [days, sessions, meals, substances, body_metrics, finance, accounts, activities, events] =
+  const [days, sessions, meals, substances, body_metrics, finance, accounts, balance_snapshots, finance_planned_items, activities, events] =
     await Promise.all([
       fetchRows<DayRow>("days", { ...opts, limit: 1000, order: "asc" }),
       fetchRows<SessionRow>("sessions", { ...opts, limit: 5000, order: "asc" }),
@@ -159,8 +182,22 @@ export async function fetchDashboardSnapshot(opts: { from?: string; to?: string 
       fetchRows<BodyMetricRow>("body_metrics", { ...opts, limit: 2000, order: "asc" }),
       fetchRows<FinanceRow>("finance_transactions", { ...opts, limit: 2000, order: "asc" }),
       fetchRows<AccountRow>("accounts", { limit: 50, order: "asc" }),
+      fetchRows<BalanceSnapshotRow>("balance_snapshots", { ...opts, limit: 2000, order: "asc" }),
+      fetchRows<PlannedItemRow>("finance_planned_items", { limit: 500, order: "asc" }),
       fetchRows<ActivityRow>("activities", { ...opts, limit: 2000, order: "asc" }),
       fetchRows<EventRow>("events", { ...opts, limit: 1000, order: "asc" }),
     ]);
-  return { days, sessions, meals, substances, body_metrics, finance, accounts, activities, events };
+  return {
+    days,
+    sessions,
+    meals,
+    substances,
+    body_metrics,
+    finance,
+    accounts,
+    balance_snapshots,
+    finance_planned_items,
+    activities,
+    events,
+  };
 }

@@ -68,6 +68,16 @@ const RESOURCES: Record<string, ResourceConfig> = {
     isTimestamp: true,
     defaultOrder: [{ col: "id", asc: true }],
   },
+  balance_snapshots: {
+    table: "balance_snapshots",
+    dateCol: "date",
+    defaultOrder: [{ col: "date", asc: true }],
+  },
+  finance_planned_items: {
+    table: "finance_planned_items",
+    dateCol: "start_date",
+    defaultOrder: [{ col: "start_date", asc: true }],
+  },
   events: {
     table: "events",
     dateCol: "date",

@@ -1753,6 +1753,121 @@ button.kanban-card:hover {
   color: var(--text-3);
 }
 
+/* finance insights chart */
+.finance-insights-panel-wrap {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  gap: 12px;
+}
+
+.finance-insights-summary-wrap {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  width: 100%;
+  align-items: center;
+  gap: 12px;
+}
+
+.finance-insights-summary-label {
+  font-size: 11px;
+  color: var(--text-2);
+}
+
+.finance-insights-summary-val {
+  font-size: 16px;
+  font-weight: 600;
+  font-family: var(--mono);
+}
+
+.finance-insights-log-wrap {
+  display: flex;
+  flex-direction: row;
+  flex: 1 1 auto;
+  gap: 8px;
+  min-width: 200px;
+}
+
+.finance-insights-log-input {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  font-family: var(--mono);
+  font-size: 12px;
+}
+
+.finance-insights-planned-wrap {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  gap: 6px;
+}
+
+.finance-insights-planned-title {
+  font-size: 11px;
+  color: var(--text-2);
+  text-transform: uppercase;
+}
+
+.finance-insights-planned-list-wrap {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  gap: 4px;
+}
+
+.finance-insights-planned-row-wrap {
+  display: flex;
+  width: 100%;
+  padding: 4px 0;
+}
+
+.finance-insights-planned-row-text {
+  font-size: 11px;
+  font-family: var(--mono);
+  color: var(--text-2);
+}
+
+.balance-chart-wrap {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  gap: 8px;
+}
+
+.balance-chart-svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.balance-chart-empty-wrap {
+  display: flex;
+  width: 100%;
+  padding: 24px;
+  justify-content: center;
+}
+
+.balance-chart-empty {
+  font-size: 11px;
+  color: var(--text-3);
+}
+
+.balance-chart-legend-wrap {
+  display: flex;
+  flex-direction: row;
+  width: 100%;
+  gap: 16px;
+}
+
+.legend-swatch--dashed {
+  background: transparent;
+  border: 2px dashed var(--success);
+}
+
 .nutri-act-kcal {
   color: #2db38a;
 }

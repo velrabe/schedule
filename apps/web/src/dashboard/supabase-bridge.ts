@@ -12,6 +12,8 @@ import {
   type BodyMetricRow,
   type FinanceRow,
   type AccountRow,
+  type BalanceSnapshotRow,
+  type PlannedItemRow,
   type EventRow,
 } from "../api/data";
 
@@ -99,6 +101,8 @@ export type SubstanceShape = SubstanceRow;
 export type BodyMetricShape = BodyMetricRow;
 export type FinanceShape = FinanceRow;
 export type AccountShape = AccountRow;
+export type BalanceSnapshotShape = BalanceSnapshotRow;
+export type PlannedItemShape = PlannedItemRow;
 export type EventShape = EventRow;
 
 export type Snapshot = {
@@ -110,6 +114,8 @@ export type Snapshot = {
   body_metrics: BodyMetricShape[];
   finance: FinanceShape[];
   accounts: AccountShape[];
+  balance_snapshots: BalanceSnapshotShape[];
+  finance_planned_items: PlannedItemShape[];
   events: EventShape[];
   raw: Awaited<ReturnType<typeof fetchDashboardSnapshot>>;
 };
@@ -145,6 +151,8 @@ export function useSupabaseSnapshot() {
           body_metrics: raw.body_metrics,
           finance: raw.finance,
           accounts: raw.accounts,
+          balance_snapshots: raw.balance_snapshots,
+          finance_planned_items: raw.finance_planned_items,
           events: raw.events,
           raw,
         },
