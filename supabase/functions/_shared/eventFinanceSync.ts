@@ -50,7 +50,19 @@ export async function syncEventFinance(
   };
 
   if (plannedId) {
-    const { error } = await db.from("finance_planned_items").update(payload).eq("id", plannedId);
+    const { data: existing } = await db
+      .from("finance_planned_items")
+      .select("recurrence, day_of_month, start_date, end_date")
+      .eq("id", plannedId)
+      .maybeSingle();
+    const merged = { ...payload };
+    if (existing?.recurrence === "monthly") {
+      merged.recurrence = "monthly";
+      merged.day_of_month = existing.day_of_month;
+      merged.start_date = existing.start_date || event.date;
+      merged.end_date = existing.end_date;
+    }
+    const { error } = await db.from("finance_planned_items").update(merged).eq("id", plannedId);
     if (error) throw error;
     return;
   }
