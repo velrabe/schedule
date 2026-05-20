@@ -379,41 +379,41 @@ export default function ChatSidebar({ open, onClose }: { open: boolean; onClose:
             type="file"
             accept="image/*"
             class="chat-file-input"
-            onChange=${onFileChange}
+            onChange={onFileChange}
           />
-          ${pendingImage && html`
+          {pendingImage && (
             <div class="chat-attach-preview-wrap">
-              <img class="chat-attach-preview-img" src=${pendingImage.previewUrl} alt="" />
+              <img class="chat-attach-preview-img" src={pendingImage.previewUrl} alt="" />
               <div class="chat-attach-preview-meta-wrap">
-                <span class="chat-attach-preview-name">${pendingImage.name}</span>
+                <span class="chat-attach-preview-name">{pendingImage.name}</span>
                 <button
                   type="button"
                   class="btn btn--ghost"
-                  onClick=${() => setPendingImage(null)}
-                  disabled=${busy}
+                  onClick={() => setPendingImage(null)}
+                  disabled={busy}
                 >
                   <span class="btn__text-wrap">убрать</span>
                 </button>
               </div>
             </div>
-          `}
+          )}
           <textarea
             ref={textareaRef}
             class="chat-textarea"
             placeholder="напиши или прикрепи скрин… enter — отправить"
-            value=${input}
+            value={input}
             onInput={(e) => setInput((e.currentTarget as HTMLTextAreaElement).value)}
-            onKeyDown=${onKey}
-            onPaste=${onPaste}
-            rows=${2}
-            disabled=${busy || imageBusy}
+            onKeyDown={onKey}
+            onPaste={onPaste}
+            rows={2}
+            disabled={busy || imageBusy}
           ></textarea>
           <div class="chat-input-actions-wrap">
             <button
               type="button"
               class="btn btn--ghost btn--icon"
-              onClick=${onPickImage}
-              disabled=${busy || imageBusy}
+              onClick={onPickImage}
+              disabled={busy || imageBusy}
               title="прикрепить изображение"
             >
               <span class="btn__icon-wrap">
@@ -424,14 +424,16 @@ export default function ChatSidebar({ open, onClose }: { open: boolean; onClose:
                 </svg>
               </span>
             </button>
-            <span class="chat-input-hint">${busy ? "обрабатываю…" : imageBusy ? "сжимаю…" : "⌘/ — toggle"}</span>
+            <span class="chat-input-hint">
+              {busy ? "обрабатываю…" : imageBusy ? "сжимаю…" : "⌘/ — toggle"}
+            </span>
             <button
               class="btn btn--primary"
-              onClick=${send}
-              disabled=${busy || imageBusy || (!input.trim() && !pendingImage)}
+              onClick={() => void send()}
+              disabled={busy || imageBusy || (!input.trim() && !pendingImage)}
               type="button"
             >
-              <span class="btn__text-wrap">${busy ? "…" : "send"}</span>
+              <span class="btn__text-wrap">{busy ? "…" : "send"}</span>
             </button>
           </div>
         </div>
@@ -453,12 +455,16 @@ function ChatBubble({
     return (
       <div class="chat-row chat-row--user">
         <div class="chat-bubble chat-bubble--user">
-          ${msg.imagePreview && html`
+          {msg.imagePreview && (
             <div class="chat-bubble-image-wrap">
-              <img class="chat-bubble-image" src=${msg.imagePreview} alt=${msg.imageName || "image"} />
+              <img
+                class="chat-bubble-image"
+                src={msg.imagePreview}
+                alt={msg.imageName || "image"}
+              />
             </div>
-          `}
-          ${msg.text && html`<span class="chat-bubble__text">${msg.text}</span>`}
+          )}
+          {msg.text && <span class="chat-bubble__text">{msg.text}</span>}
         </div>
       </div>
     );
