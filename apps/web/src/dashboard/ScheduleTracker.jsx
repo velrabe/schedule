@@ -1,5 +1,5 @@
 import { h } from "preact";
-import { useState, useEffect, useMemo, useCallback } from "preact/hooks";
+import { useState, useEffect, useMemo, useCallback, useRef } from "preact/hooks";
 import htm from "htm";
 import {
   DAYS as SEED_DAYS,
@@ -51,8 +51,14 @@ function fmtHours(min) {
   return (min / 60).toFixed(min % 60 === 0 ? 0 : 1);
 }
 
-// Categories the user considers "business work" (work_h aggregate per day).
-const BUSINESS_CATS = new Set(["work_paid", "portfolio", "planning"]);
+// Categories that count as productive output for the "business work" aggregate.
+// work_paid: оплачиваемая работа на заказчиков.
+// personal:  личные проекты (раньше называлось portfolio).
+// byt:       бытовые задачи (банк, документы, отчёты, планирование).
+const BUSINESS_CATS = new Set(["work_paid", "personal", "byt"]);
+const PAID_CATS = new Set(["work_paid"]);
+const PERSONAL_CATS = new Set(["personal"]);
+const BYT_CATS = new Set(["byt"]);
 const SPORT_CATS = new Set([
   "sport_surf",
   "sport_pickleball",
@@ -65,8 +71,8 @@ const SPORT_CATS = new Set([
 
 function categoryTone(cat) {
   if (cat === "work_paid") return "success";
-  if (cat === "portfolio") return "info";
-  if (cat === "planning") return "info";
+  if (cat === "personal" || cat === "portfolio") return "info";
+  if (cat === "byt" || cat === "planning") return "info";
   if (SPORT_CATS.has(cat)) return "warning";
   if (cat === "walk") return "warning";
   if (cat === "chill" || cat === "sleep") return "danger";
@@ -114,17 +120,20 @@ function aggregateDay(date, sessions) {
   const ds = sessions.filter((s) => s.date === date);
   const sum = (pred) => ds.filter(pred).reduce((a, s) => a + (s.min || 0), 0);
   const work_paid_h = sum((s) => s.category === "work_paid") / 60;
-  const portfolio_h = sum((s) => s.category === "portfolio") / 60;
-  const planning_h = sum((s) => s.category === "planning") / 60;
-  const business_h = work_paid_h + portfolio_h + planning_h;
+  const personal_h = sum((s) => s.category === "personal" || s.category === "portfolio") / 60;
+  const byt_h = sum((s) => s.category === "byt" || s.category === "planning") / 60;
+  const business_h = work_paid_h + personal_h + byt_h;
   const sport_h = sum((s) => SPORT_CATS.has(s.category)) / 60;
   const walk_h = sum((s) => s.category === "walk") / 60;
   const social_h = sum((s) => s.category === "social") / 60;
   const chill_h = sum((s) => s.category === "chill") / 60;
   return {
     work_paid_h,
-    portfolio_h,
-    planning_h,
+    personal_h,
+    byt_h,
+    // legacy aliases for older consumers (Insights tab, etc.)
+    portfolio_h: personal_h,
+    planning_h: byt_h,
     business_h,
     sport_h,
     walk_h,
@@ -253,13 +262,13 @@ function App(props = {}) {
       .filter((s) => BUSINESS_CATS.has(s.category))
       .reduce((a, s) => a + (s.min || 0), 0);
     const paidMin = sessions
-      .filter((s) => s.category === "work_paid")
+      .filter((s) => PAID_CATS.has(s.category))
       .reduce((a, s) => a + (s.min || 0), 0);
-    const portMin = sessions
-      .filter((s) => s.category === "portfolio")
+    const personalMin = sessions
+      .filter((s) => s.category === "personal" || s.category === "portfolio")
       .reduce((a, s) => a + (s.min || 0), 0);
-    const planMin = sessions
-      .filter((s) => s.category === "planning")
+    const bytMin = sessions
+      .filter((s) => s.category === "byt" || s.category === "planning")
       .reduce((a, s) => a + (s.min || 0), 0);
     const sleepValues = days.map((d) => d.sleep_h).filter((v) => v !== null && v !== undefined);
     const avgSleep = sleepValues.length ? sleepValues.reduce((a, b) => a + b, 0) / sleepValues.length : 0;
@@ -267,8 +276,11 @@ function App(props = {}) {
     return {
       businessH: businessMin / 60,
       paidH: paidMin / 60,
-      portH: portMin / 60,
-      planH: planMin / 60,
+      personalH: personalMin / 60,
+      bytH: bytMin / 60,
+      // legacy aliases
+      portH: personalMin / 60,
+      planH: bytMin / 60,
       avgSleep,
       modDays,
       avgBusinessPerDay: days.length ? businessMin / 60 / days.length : 0,
@@ -323,8 +335,8 @@ function App(props = {}) {
         setDays=${setDays}
         setSessions=${setSessions}
       />`}
-      ${tab === "calendar" && html`<${CalendarTab} days=${days} sessions=${sessions} />`}
-      ${tab === "kanban" && html`<${KanbanTab} days=${days} sessions=${sessions} />`}
+      ${tab === "calendar" && html`<${CalendarTab} days=${days} sessions=${sessions} meals=${liveData?.meals || []} activities=${liveData?.activities || []} />`}
+      ${tab === "kanban" && html`<${KanbanTab} days=${days} sessions=${sessions} meals=${liveData?.meals || []} activities=${liveData?.activities || []} setSessions=${setSessions} liveMode=${Boolean(liveData)} />`}
       ${tab === "sessions" && html`<${SessionsTab} sessions=${sessions} setSessions=${setSessions} />`}
       ${tab === "events" && html`<${EventsTab} events=${events} setEvents=${setEvents} />`}
       ${tab === "insights" && html`<${InsightsTab} days=${days} sessions=${sessions} />`}
@@ -353,8 +365,8 @@ function StatBar({ totals, days }) {
       <${StatCell} label="avg business/day" value=${fmt(totals.avgBusinessPerDay)} unit="ч" tone="info" />
       <${StatCell} label="total business" value=${fmt(totals.businessH, 0)} unit="ч" />
       <${StatCell} label="paid" value=${fmt(totals.paidH, 0)} unit="ч" tone="success" />
-      <${StatCell} label="portfolio" value=${fmt(totals.portH, 0)} unit="ч" tone="info" />
-      <${StatCell} label="planning" value=${fmt(totals.planH, 0)} unit="ч" />
+      <${StatCell} label="personal" value=${fmt(totals.personalH, 0)} unit="ч" tone="info" />
+      <${StatCell} label="byt" value=${fmt(totals.bytH, 0)} unit="ч" />
       <${StatCell} label="avg sleep" value=${fmt(totals.avgSleep)} unit="ч" />
       <${StatCell} label="mod days" value=${`${totals.modDays}/${days.length}`} unit="" tone="warning" />
       <${StatCell} label="burnouts" value=${burnouts} unit="" tone=${burnouts > 0 ? "danger" : null} />
@@ -615,8 +627,8 @@ function DaysTab({ days, sessions, setDays, setSessions }) {
       },
       { id: "business_h", label: "business_h", thClass: "col-w--sm", sortAccessor: (r) => r.business_h },
       { id: "work_paid_h", label: "paid_h", thClass: "col-w--sm" },
-      { id: "portfolio_h", label: "port_h", thClass: "col-w--sm" },
-      { id: "planning_h", label: "plan_h", thClass: "col-w--sm" },
+      { id: "personal_h", label: "personal_h", thClass: "col-w--sm", sortAccessor: (r) => r.personal_h },
+      { id: "byt_h", label: "byt_h", thClass: "col-w--sm", sortAccessor: (r) => r.byt_h },
       { id: "sport_h", label: "sport_h", thClass: "col-w--sm" },
       { id: "walk_h", label: "walk_h", thClass: "col-w--sm" },
       {
@@ -675,8 +687,8 @@ function DaysTab({ days, sessions, setDays, setSessions }) {
       "modafinil_mg",
       "business_h",
       "paid_h",
-      "portfolio_h",
-      "planning_h",
+      "personal_h",
+      "byt_h",
       "sport_h",
       "walk_h",
       "day_type",
@@ -692,8 +704,8 @@ function DaysTab({ days, sessions, setDays, setSessions }) {
       r.modafinil_mg,
       r.business_h.toFixed(2),
       r.work_paid_h.toFixed(2),
-      r.portfolio_h.toFixed(2),
-      r.planning_h.toFixed(2),
+      r.personal_h.toFixed(2),
+      r.byt_h.toFixed(2),
       r.sport_h.toFixed(2),
       r.walk_h.toFixed(2),
       r.day_type,
@@ -805,8 +817,8 @@ function DayRow({ row, expanded, onToggle, sessions, setSessions, updateDay }) {
       </td>
       <td><div class="sheet__td sheet__td--right sheet__td--num">${fmt(row.business_h)}</div></td>
       <td><div class="sheet__td sheet__td--right sheet__td--num">${fmt(row.work_paid_h)}</div></td>
-      <td><div class="sheet__td sheet__td--right sheet__td--num">${fmt(row.portfolio_h)}</div></td>
-      <td><div class="sheet__td sheet__td--right sheet__td--num">${fmt(row.planning_h)}</div></td>
+      <td><div class="sheet__td sheet__td--right sheet__td--num">${fmt(row.personal_h)}</div></td>
+      <td><div class="sheet__td sheet__td--right sheet__td--num">${fmt(row.byt_h)}</div></td>
       <td><div class="sheet__td sheet__td--right sheet__td--num">${fmt(row.sport_h)}</div></td>
       <td><div class="sheet__td sheet__td--right sheet__td--num">${fmt(row.walk_h)}</div></td>
       <td>
@@ -1828,9 +1840,26 @@ function LineChart({ categories, series }) {
   `;
 }
 
+// ---------------- shared helpers for new views ----------------
+
+function localTodayISO(tz = "Asia/Ho_Chi_Minh") {
+  try {
+    return new Intl.DateTimeFormat("en-CA", { timeZone: tz }).format(new Date());
+  } catch {
+    const d = new Date();
+    return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-${String(d.getUTCDate()).padStart(2, "0")}`;
+  }
+}
+
+function diffMinutes(start, end) {
+  const s = timeToMin(start);
+  const e = timeToMin(end);
+  return ((e - s + 24 * 60) % (24 * 60)) || 0;
+}
+
 // ---------------- calendar view ----------------
 
-function CalendarTab({ days, sessions }) {
+function CalendarTab({ days, sessions, meals = [], activities = [] }) {
   const byDate = useMemo(() => {
     const map = new Map();
     for (const d of days) map.set(d.date, d);
@@ -1846,16 +1875,28 @@ function CalendarTab({ days, sessions }) {
     return map;
   }, [sessions]);
 
-  // Default cursor: the most recent month in data (or current month).
-  const todayMonth = useMemo(() => {
-    if (days.length) {
-      const sorted = [...days].sort((a, b) => a.date.localeCompare(b.date));
-      const last = sorted[sorted.length - 1].date;
-      return last.slice(0, 7); // YYYY-MM
+  const mealsByDate = useMemo(() => {
+    const map = new Map();
+    for (const m of meals) {
+      if (!map.has(m.date)) map.set(m.date, []);
+      map.get(m.date).push(m);
     }
-    const now = new Date();
-    return `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, "0")}`;
-  }, [days]);
+    return map;
+  }, [meals]);
+
+  const activitiesByDate = useMemo(() => {
+    const map = new Map();
+    for (const a of activities) {
+      if (!map.has(a.date)) map.set(a.date, []);
+      map.get(a.date).push(a);
+    }
+    return map;
+  }, [activities]);
+
+  const today = localTodayISO();
+
+  // Default cursor: today's month (so empty months still render correctly).
+  const todayMonth = useMemo(() => today.slice(0, 7), [today]);
 
   const [cursor, setCursor] = useState(todayMonth);
   const [selected, setSelected] = useState(null);
@@ -1867,7 +1908,6 @@ function CalendarTab({ days, sessions }) {
   const [year, monthIdx] = cursor.split("-").map(Number);
   const firstOfMonth = new Date(Date.UTC(year, monthIdx - 1, 1));
   const lastOfMonth = new Date(Date.UTC(year, monthIdx, 0));
-  // Monday=0, Sunday=6 (we render mon-first weeks)
   const startDow = (firstOfMonth.getUTCDay() + 6) % 7;
   const daysInMonth = lastOfMonth.getUTCDate();
 
@@ -1886,6 +1926,11 @@ function CalendarTab({ days, sessions }) {
     setCursor(`${nextMonth.getUTCFullYear()}-${String(nextMonth.getUTCMonth() + 1).padStart(2, "0")}`);
   };
 
+  const kcalInOf = (date) =>
+    (mealsByDate.get(date) || []).reduce((a, m) => a + (m.kcal || 0), 0);
+  const kcalOutOf = (date) =>
+    (activitiesByDate.get(date) || []).reduce((a, a2) => a + (a2.calories_burned || 0), 0);
+
   return html`
     <div class="cal-wrap">
       <div class="cal-toolbar-wrap">
@@ -1897,6 +1942,9 @@ function CalendarTab({ days, sessions }) {
         </div>
         <button class="btn btn--ghost btn--icon" onClick=${() => shift(1)} title="next month">
           <span class="btn__icon-wrap">${I.chevronRight()}</span>
+        </button>
+        <button class="btn btn--ghost" onClick=${() => setCursor(todayMonth)} title="jump to today">
+          <span class="btn__text-wrap">today</span>
         </button>
       </div>
 
@@ -1914,24 +1962,26 @@ function CalendarTab({ days, sessions }) {
             const businessMin = list
               .filter((s) => BUSINESS_CATS.has(s.category))
               .reduce((a, s) => a + (s.min || 0), 0);
+            const kcalIn = kcalInOf(c.date);
+            const kcalOut = kcalOutOf(c.date);
             const isSelected = selected === c.date;
+            const isToday = c.date === today;
             return html`
               <button
                 key=${i}
-                class=${`cal-cell ${row ? "cal-cell--has" : ""} ${isSelected ? "cal-cell--selected" : ""}`}
+                class=${`cal-cell ${row ? "cal-cell--has" : ""} ${isSelected ? "cal-cell--selected" : ""} ${isToday ? "cal-cell--today" : ""}`}
                 onClick=${() => setSelected(isSelected ? null : c.date)}
               >
                 <div class="cal-cell__head-wrap">
                   <span class="cal-cell__day">${c.day}</span>
                   ${row && row.modafinil_mg > 0 && html`<span class="cal-cell__mod">${row.modafinil_mg}</span>`}
                 </div>
-                ${row && html`
-                  <div class="cal-cell__body-wrap">
-                    ${row.sleep_h !== null && html`<div class="cal-cell__line"><span>😴 ${fmt(row.sleep_h, 1)}h</span></div>`}
-                    ${businessMin > 0 && html`<div class="cal-cell__line"><span>💼 ${fmtHours(businessMin)}h</span></div>`}
-                    ${list.length > 0 && html`<div class="cal-cell__line cal-cell__line--muted"><span>${list.length} sessions</span></div>`}
-                  </div>
-                `}
+                <div class="cal-cell__body-wrap">
+                  ${row && row.sleep_h !== null && html`<div class="cal-cell__line"><span>😴 ${fmt(row.sleep_h, 1)}h</span></div>`}
+                  ${businessMin > 0 && html`<div class="cal-cell__line"><span>💼 ${fmtHours(businessMin)}h</span></div>`}
+                  ${kcalIn > 0 && html`<div class="cal-cell__line cal-cell__line--food"><span>🍴 ${Math.round(kcalIn)}</span></div>`}
+                  ${kcalOut > 0 && html`<div class="cal-cell__line cal-cell__line--burn"><span>🔥 ${Math.round(kcalOut)}</span></div>`}
+                </div>
               </button>
             `;
           })}
@@ -1941,19 +1991,25 @@ function CalendarTab({ days, sessions }) {
       ${selected && html`
         <div class="cal-detail-wrap">
           <div class="cal-detail-head-wrap">
-            <span class="cal-detail-title">${selected}</span>
+            <span class="cal-detail-title">${selected}${selected === today ? " · today" : ""}</span>
             <button class="btn btn--ghost btn--icon" onClick=${() => setSelected(null)} title="close">
               <span class="btn__icon-wrap">${I.x()}</span>
             </button>
           </div>
-          <${CalendarDayDetail} date=${selected} day=${byDate.get(selected)} sessions=${sessionsByDate.get(selected) || []} />
+          <${CalendarDayDetail}
+            date=${selected}
+            day=${byDate.get(selected)}
+            sessions=${sessionsByDate.get(selected) || []}
+            meals=${mealsByDate.get(selected) || []}
+            activitiesList=${activitiesByDate.get(selected) || []}
+          />
         </div>
       `}
     </div>
   `;
 }
 
-function CalendarDayDetail({ date, day, sessions }) {
+function CalendarDayDetail({ date, day, sessions, meals = [], activitiesList = [] }) {
   const sorted = useMemo(() => {
     if (!day) return [...sessions];
     return [...sessions].sort(
@@ -1961,21 +2017,47 @@ function CalendarDayDetail({ date, day, sessions }) {
     );
   }, [sessions, day]);
 
-  if (!day) {
-    return html`<div class="cal-detail-empty-wrap"><span>нет записи на этот день</span></div>`;
-  }
+  const kcalIn = meals.reduce((a, m) => a + (m.kcal || 0), 0);
+  const kcalOut = activitiesList.reduce((a, a2) => a + (a2.calories_burned || 0), 0);
+  const macros = meals.reduce(
+    (acc, m) => ({
+      p: acc.p + (m.protein_g || 0),
+      f: acc.f + (m.fat_g || 0),
+      c: acc.c + (m.carbs_g || 0),
+    }),
+    { p: 0, f: 0, c: 0 },
+  );
 
   return html`
     <div class="cal-detail-body-wrap">
       <div class="cal-detail-meta-wrap">
-        ${day.wake && html`<span class="cal-detail-meta">wake ${day.wake}</span>`}
-        ${day.sleep_start && html`<span class="cal-detail-meta">sleep ${day.sleep_start}</span>`}
-        ${day.sleep_h !== null && html`<span class="cal-detail-meta">${fmt(day.sleep_h, 1)}h</span>`}
-        ${day.modafinil_mg > 0 && html`<span class="cal-detail-meta">mod ${day.modafinil_mg}mg</span>`}
-        ${day.day_type && html`<span class="cal-detail-meta">${day.day_type}</span>`}
-        ${day.weight_kg && html`<span class="cal-detail-meta">${fmt(day.weight_kg, 1)}kg</span>`}
+        ${day && day.wake && html`<span class="cal-detail-meta">wake ${day.wake}</span>`}
+        ${day && day.sleep_start && html`<span class="cal-detail-meta">sleep ${day.sleep_start}</span>`}
+        ${day && day.sleep_h !== null && html`<span class="cal-detail-meta">${fmt(day.sleep_h, 1)}h</span>`}
+        ${day && day.modafinil_mg > 0 && html`<span class="cal-detail-meta">mod ${day.modafinil_mg}mg</span>`}
+        ${day && day.day_type && html`<span class="cal-detail-meta">${day.day_type}</span>`}
+        ${day && day.weight_kg && html`<span class="cal-detail-meta">${fmt(day.weight_kg, 1)}kg</span>`}
       </div>
-      ${day.notes && html`<div class="cal-detail-notes-wrap"><span>${day.notes}</span></div>`}
+      ${(kcalIn > 0 || kcalOut > 0) && html`
+        <div class="cal-detail-nutri-wrap">
+          <span class="cal-detail-nutri">🍴 ${Math.round(kcalIn)} kcal in</span>
+          <span class="cal-detail-nutri">🔥 ${Math.round(kcalOut)} kcal out</span>
+          <span class="cal-detail-nutri cal-detail-nutri--macro">C ${Math.round(macros.c)}g · P ${Math.round(macros.p)}g · F ${Math.round(macros.f)}g</span>
+        </div>
+      `}
+      ${meals.length > 0 && html`
+        <div class="cal-detail-meals-wrap">
+          ${meals.map((m) => html`
+            <div class="cal-detail-meal" key=${m.id}>
+              <span class="cal-detail-meal__slot">${m.slot || "—"}</span>
+              <span class="cal-detail-meal__name">${m.name}</span>
+              <span class="cal-detail-meal__kcal">${m.kcal != null ? `${Math.round(m.kcal)} kcal` : ""}</span>
+              <span class="cal-detail-meal__macro">${m.carbs_g != null ? `C${Math.round(m.carbs_g)}` : ""} ${m.protein_g != null ? `P${Math.round(m.protein_g)}` : ""} ${m.fat_g != null ? `F${Math.round(m.fat_g)}` : ""}</span>
+            </div>
+          `)}
+        </div>
+      `}
+      ${day && day.notes && html`<div class="cal-detail-notes-wrap"><span>${day.notes}</span></div>`}
       <div class="cal-detail-sessions-wrap">
         ${sorted.length === 0 && html`<div class="cal-detail-empty-wrap"><span>сессии не записаны</span></div>`}
         ${sorted.map((s) => html`
@@ -1993,18 +2075,56 @@ function CalendarDayDetail({ date, day, sessions }) {
 
 // ---------------- kanban view ----------------
 
-function KanbanTab({ days, sessions }) {
+const KANBAN_CATEGORIES = [
+  "work_paid",
+  "personal",
+  "byt",
+  "sport_surf",
+  "sport_pickleball",
+  "sport_muay_thai",
+  "sport_bouldering",
+  "sport_gym",
+  "sport_run",
+  "sport_hike",
+  "walk",
+  "chill",
+  "food",
+  "chores",
+  "shower",
+  "transport",
+  "social",
+  "sleep",
+];
+
+function KanbanTab({ days, sessions, meals = [], activities = [], setSessions, liveMode = false }) {
   const byDate = useMemo(() => {
     const map = new Map();
     for (const d of days) map.set(d.date, d);
     return map;
   }, [days]);
 
+  const today = localTodayISO();
+
+  // Build a continuous date range: from earliest known date to today (or last known if later).
   const sortedDates = useMemo(() => {
     const set = new Set(days.map((d) => d.date));
     for (const s of sessions) set.add(s.date);
-    return [...set].sort();
-  }, [days, sessions]);
+    set.add(today);
+    const arr = [...set].sort();
+    if (arr.length === 0) return [today];
+    // Fill gaps so days move chronologically without holes.
+    const first = arr[0];
+    const last = arr[arr.length - 1] > today ? arr[arr.length - 1] : today;
+    const out = [];
+    let cur = new Date(`${first}T00:00:00Z`);
+    const end = new Date(`${last}T00:00:00Z`);
+    while (cur <= end) {
+      const iso = cur.toISOString().slice(0, 10);
+      out.push(iso);
+      cur.setUTCDate(cur.getUTCDate() + 1);
+    }
+    return out;
+  }, [days, sessions, today]);
 
   const sessionsByDate = useMemo(() => {
     const map = new Map();
@@ -2015,17 +2135,132 @@ function KanbanTab({ days, sessions }) {
     return map;
   }, [sessions]);
 
-  if (sortedDates.length === 0) {
-    return html`
-      <div class="kanban-empty-wrap">
-        <span class="kanban-empty">Нет дней. Логи через чат — и появятся колонки.</span>
-      </div>
-    `;
-  }
+  const mealsByDate = useMemo(() => {
+    const map = new Map();
+    for (const m of meals) {
+      if (!map.has(m.date)) map.set(m.date, []);
+      map.get(m.date).push(m);
+    }
+    return map;
+  }, [meals]);
+
+  const activitiesByDate = useMemo(() => {
+    const map = new Map();
+    for (const a of activities) {
+      if (!map.has(a.date)) map.set(a.date, []);
+      map.get(a.date).push(a);
+    }
+    return map;
+  }, [activities]);
+
+  const [editing, setEditing] = useState(null);   // session id currently being edited
+  const [adding, setAdding] = useState(null);     // date for which a new session is being added
+  const [saving, setSaving] = useState(false);
+  const scrollRef = useRef(null);
+  const todayColRef = useRef(null);
+
+  // Auto-scroll to today's column on mount (and whenever date list changes).
+  useEffect(() => {
+    if (!scrollRef.current || !todayColRef.current) return;
+    const sc = scrollRef.current;
+    const col = todayColRef.current;
+    sc.scrollLeft = col.offsetLeft - 16;
+  }, [sortedDates.length]);
+
+  const onSaveEdit = useCallback(
+    async (id, patch) => {
+      const orig = sessions.find((x) => x.id === id);
+      if (!orig) return;
+      const next = { ...orig, ...patch };
+      next.min = diffMinutes(next.start, next.end);
+      // optimistic local update
+      setSessions((prev) => prev.map((x) => (x.id === id ? next : x)));
+      setEditing(null);
+      if (!liveMode) return;
+      setSaving(true);
+      try {
+        const { updateRow, notifyDataChanged } = await import("../api/manual");
+        await updateRow("sessions", id, {
+          date: next.date,
+          start_time: next.start,
+          end_time: next.end,
+          duration_min: next.min,
+          category: next.category || null,
+          project: next.project || null,
+          notes: next.note || null,
+        });
+        notifyDataChanged();
+      } catch (e) {
+        alert(`Не удалось сохранить: ${e?.message || e}`);
+      } finally {
+        setSaving(false);
+      }
+    },
+    [sessions, setSessions, liveMode],
+  );
+
+  const onAddSession = useCallback(
+    async (date, row) => {
+      const min = diffMinutes(row.start, row.end);
+      const localId = `tmp-${Date.now()}`;
+      const optimistic = {
+        id: localId,
+        date,
+        start: row.start,
+        end: row.end,
+        min,
+        category: row.category,
+        project: row.project || "",
+        quality: null,
+        note: row.note || "",
+      };
+      setSessions((prev) => [...prev, optimistic]);
+      setAdding(null);
+      if (!liveMode) return;
+      setSaving(true);
+      try {
+        const { insertRow, notifyDataChanged } = await import("../api/manual");
+        await insertRow("sessions", {
+          date,
+          start_time: row.start,
+          end_time: row.end,
+          duration_min: min,
+          type: inferSessionType(row.category),
+          category: row.category || null,
+          project: row.project || null,
+          notes: row.note || null,
+        });
+        notifyDataChanged();
+      } catch (e) {
+        alert(`Не удалось создать: ${e?.message || e}`);
+      } finally {
+        setSaving(false);
+      }
+    },
+    [setSessions, liveMode],
+  );
+
+  const onDelete = useCallback(
+    async (id) => {
+      if (!confirm("Удалить сессию?")) return;
+      setSessions((prev) => prev.filter((x) => x.id !== id));
+      setEditing(null);
+      if (!liveMode) return;
+      try {
+        const { deleteRow, notifyDataChanged } = await import("../api/manual");
+        await deleteRow("sessions", id);
+        notifyDataChanged();
+      } catch (e) {
+        alert(`Не удалось удалить: ${e?.message || e}`);
+      }
+    },
+    [setSessions, liveMode],
+  );
 
   return html`
     <div class="kanban-wrap">
-      <div class="kanban-scroll-wrap">
+      ${saving && html`<div class="kanban-saving"><span>сохраняю…</span></div>`}
+      <div class="kanban-scroll-wrap" ref=${scrollRef}>
         ${sortedDates.map((date) => {
           const day = byDate.get(date);
           const list = sessionsByDate.get(date) || [];
@@ -2034,10 +2269,19 @@ function KanbanTab({ days, sessions }) {
                 (a, b) => wakeRelativeMin(a.start, day.wake || "00:00") - wakeRelativeMin(b.start, day.wake || "00:00"),
               )
             : [...list].sort((a, b) => a.start.localeCompare(b.start));
+          const isToday = date === today;
+          const colMeals = mealsByDate.get(date) || [];
+          const colActs = activitiesByDate.get(date) || [];
+          const kcalIn = colMeals.reduce((a, m) => a + (m.kcal || 0), 0);
+          const kcalOut = colActs.reduce((a, x) => a + (x.calories_burned || 0), 0);
           return html`
-            <div class="kanban-col-wrap" key=${date}>
+            <div
+              class=${`kanban-col-wrap ${isToday ? "kanban-col-wrap--today" : ""}`}
+              key=${date}
+              ref=${isToday ? todayColRef : null}
+            >
               <div class="kanban-col-head-wrap">
-                <span class="kanban-col-head__date">${date}</span>
+                <span class="kanban-col-head__date">${date}${isToday ? " · today" : ""}</span>
                 ${day && html`<span class="kanban-col-head__dow">${day.dow}</span>`}
                 ${day && day.modafinil_mg > 0 && html`<span class="kanban-col-head__mod">${day.modafinil_mg}mg</span>`}
               </div>
@@ -2048,23 +2292,177 @@ function KanbanTab({ days, sessions }) {
                   ${day.sleep_h !== null && html`<span class="kanban-col-meta">${fmt(day.sleep_h, 1)}h</span>`}
                 </div>
               `}
+              ${(kcalIn > 0 || kcalOut > 0) && html`
+                <div class="kanban-col-nutri-wrap">
+                  ${kcalIn > 0 && html`<span class="kanban-col-nutri">🍴${Math.round(kcalIn)}</span>`}
+                  ${kcalOut > 0 && html`<span class="kanban-col-nutri">🔥${Math.round(kcalOut)}</span>`}
+                </div>
+              `}
               <div class="kanban-col-body-wrap">
-                ${sorted.length === 0 && html`<div class="kanban-empty-col"><span>—</span></div>`}
-                ${sorted.map((s) => html`
-                  <div class=${`kanban-card kanban-card--${(s.category || "x").replace(/[^a-z0-9_]/gi, "_")}`} key=${s.id}>
-                    <div class="kanban-card__time-wrap">
-                      <span class="kanban-card__time">${s.start}–${s.end}</span>
-                      <span class="kanban-card__dur">${s.min}m</span>
-                    </div>
-                    <span class="kanban-card__cat">${s.category}</span>
-                    ${s.project && html`<span class="kanban-card__proj">${s.project}</span>`}
-                    ${s.note && html`<span class="kanban-card__note">${s.note}</span>`}
-                  </div>
-                `)}
+                ${sorted.length === 0 && adding !== date && html`<div class="kanban-empty-col"><span>—</span></div>`}
+                ${sorted.map((s) =>
+                  editing === s.id
+                    ? html`<${KanbanSessionEditor}
+                        key=${`edit-${s.id}`}
+                        value=${s}
+                        onSave=${(patch) => onSaveEdit(s.id, patch)}
+                        onCancel=${() => setEditing(null)}
+                        onDelete=${() => onDelete(s.id)}
+                      />`
+                    : html`
+                        <button
+                          class=${`kanban-card kanban-card--${(s.category || "x").replace(/[^a-z0-9_]/gi, "_")}`}
+                          key=${s.id}
+                          onClick=${() => setEditing(s.id)}
+                          title="нажми, чтобы изменить"
+                        >
+                          <div class="kanban-card__time-wrap">
+                            <span class="kanban-card__time">${s.start}–${s.end}</span>
+                            <span class="kanban-card__dur">${s.min}m</span>
+                          </div>
+                          <span class="kanban-card__cat">${s.category}</span>
+                          ${s.project && html`<span class="kanban-card__proj">${s.project}</span>`}
+                          ${s.note && html`<span class="kanban-card__note">${s.note}</span>`}
+                        </button>
+                      `,
+                )}
+                ${adding === date && html`
+                  <${KanbanSessionEditor}
+                    isNew
+                    value=${{
+                      start: sorted.length ? sorted[sorted.length - 1].end : day?.wake || "08:00",
+                      end: "",
+                      category: "work_paid",
+                      project: "",
+                      note: "",
+                    }}
+                    onSave=${(row) => onAddSession(date, row)}
+                    onCancel=${() => setAdding(null)}
+                  />
+                `}
+                ${adding !== date && html`
+                  <button
+                    class="kanban-add-btn"
+                    onClick=${() => setAdding(date)}
+                    title="добавить сессию"
+                  >
+                    <span class="btn__icon-wrap">${I.plus()}</span>
+                    <span class="btn__text-wrap">сессия</span>
+                  </button>
+                `}
               </div>
             </div>
           `;
         })}
+      </div>
+    </div>
+  `;
+}
+
+function inferSessionType(category) {
+  if (!category) return "chill";
+  if (["work_paid", "personal", "byt"].includes(category)) return "work";
+  if (category.startsWith("sport_")) return "sport";
+  if (category === "walk") return "walk";
+  if (category === "chill") return "chill";
+  if (category === "food") return "food";
+  if (category === "shower" || category === "chores") return "chores";
+  if (category === "transport") return "transport";
+  if (category === "sleep") return "sleep";
+  if (category === "social") return "chill";
+  return category;
+}
+
+function KanbanSessionEditor({ value, isNew = false, onSave, onCancel, onDelete }) {
+  const [form, setForm] = useState({
+    start: value.start || "",
+    end: value.end || "",
+    category: value.category || "work_paid",
+    project: value.project || "",
+    note: value.note || "",
+  });
+
+  const dur = diffMinutes(form.start, form.end);
+  const valid = form.start && form.end && dur > 0;
+
+  return html`
+    <div class="kanban-editor-wrap">
+      <div class="kanban-editor-row-wrap">
+        <label class="kanban-editor-label-wrap">
+          <span class="kanban-editor-label">start</span>
+          <input
+            type="time"
+            class="kanban-editor-input"
+            value=${form.start}
+            onInput=${(e) => setForm((f) => ({ ...f, start: e.target.value }))}
+          />
+        </label>
+        <label class="kanban-editor-label-wrap">
+          <span class="kanban-editor-label">end</span>
+          <input
+            type="time"
+            class="kanban-editor-input"
+            value=${form.end}
+            onInput=${(e) => setForm((f) => ({ ...f, end: e.target.value }))}
+          />
+        </label>
+        <div class="kanban-editor-dur-wrap">
+          <span class="kanban-editor-dur">${valid ? `${dur}m` : "—"}</span>
+        </div>
+      </div>
+      <div class="kanban-editor-row-wrap">
+        <label class="kanban-editor-label-wrap kanban-editor-label-wrap--grow">
+          <span class="kanban-editor-label">category</span>
+          <select
+            class="kanban-editor-input"
+            value=${form.category}
+            onChange=${(e) => setForm((f) => ({ ...f, category: e.target.value }))}
+          >
+            ${KANBAN_CATEGORIES.map(
+              (cat) => html`<option value=${cat} key=${cat}>${cat}</option>`,
+            )}
+          </select>
+        </label>
+      </div>
+      <div class="kanban-editor-row-wrap">
+        <label class="kanban-editor-label-wrap kanban-editor-label-wrap--grow">
+          <span class="kanban-editor-label">project</span>
+          <input
+            type="text"
+            class="kanban-editor-input"
+            value=${form.project}
+            placeholder="app / ai_concierge / pyjama / portfolio …"
+            onInput=${(e) => setForm((f) => ({ ...f, project: e.target.value }))}
+          />
+        </label>
+      </div>
+      <div class="kanban-editor-row-wrap">
+        <label class="kanban-editor-label-wrap kanban-editor-label-wrap--grow">
+          <span class="kanban-editor-label">note</span>
+          <input
+            type="text"
+            class="kanban-editor-input"
+            value=${form.note}
+            onInput=${(e) => setForm((f) => ({ ...f, note: e.target.value }))}
+          />
+        </label>
+      </div>
+      <div class="kanban-editor-actions-wrap">
+        <button
+          class="btn btn--primary"
+          disabled=${!valid}
+          onClick=${() => onSave(form)}
+        >
+          <span class="btn__text-wrap">${isNew ? "create" : "save"}</span>
+        </button>
+        <button class="btn btn--ghost" onClick=${onCancel}>
+          <span class="btn__text-wrap">cancel</span>
+        </button>
+        ${!isNew && onDelete && html`
+          <button class="btn btn--ghost kanban-editor-delete" onClick=${onDelete}>
+            <span class="btn__text-wrap">delete</span>
+          </button>
+        `}
       </div>
     </div>
   `;

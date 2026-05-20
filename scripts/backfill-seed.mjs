@@ -8,7 +8,7 @@
 // The script wipes the target tables first (days, sessions, events) and then
 // re-inserts everything. raw_logs is left untouched.
 
-import { DAYS, SESSIONS, EVENTS } from "../apps/web/src/dashboard/seed.js";
+import { DAYS, SESSIONS, EVENTS, MEALS, ACTIVITIES } from "../apps/web/src/dashboard/seed.js";
 
 const URL = process.env.SUPABASE_URL;
 const KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -43,7 +43,7 @@ function pad(t) {
 
 function inferType(category) {
   if (!category) return "chill";
-  if (["work_paid", "portfolio", "planning", "admin"].includes(category)) return "work";
+  if (["work_paid", "personal", "byt", "portfolio", "planning", "admin"].includes(category)) return "work";
   if (category.startsWith("sport_")) return "sport";
   if (category === "walk") return "walk";
   if (category === "chill") return "chill";
@@ -90,6 +90,30 @@ const eventRows = EVENTS.map((e) => ({
   severity: "info",
 }));
 
+const mealRows = (MEALS || []).map((m) => ({
+  date: m.date,
+  time: pad(m.time),
+  slot: m.slot || null,
+  name: m.name,
+  kcal: m.kcal ?? null,
+  protein_g: m.protein_g ?? null,
+  fat_g: m.fat_g ?? null,
+  carbs_g: m.carbs_g ?? null,
+  confidence: m.confidence || null,
+  notes: m.notes || null,
+}));
+
+const activityRows = (ACTIVITIES || []).map((a) => ({
+  date: a.date,
+  time: pad(a.time),
+  type: a.type,
+  duration_min: a.duration_min ?? null,
+  calories_burned: a.calories_burned ?? null,
+  intensity: a.intensity ?? null,
+  source: a.source || null,
+  notes: a.notes || null,
+}));
+
 async function deleteAll(table, filterCol) {
   const r = await req(`${table}?${filterCol}=not.is.null`, { method: "DELETE" });
   console.log(`cleared ${table}: ${r.status}`);
@@ -112,6 +136,8 @@ console.log("=== backfill ===");
 console.log(`days:     ${dayRows.length}`);
 console.log(`sessions: ${sessionRows.length}`);
 console.log(`events:   ${eventRows.length}`);
+console.log(`meals:    ${mealRows.length}`);
+console.log(`activities:${activityRows.length}`);
 console.log();
 
 // Order matters: clear children first (sessions, events ref days), then parents.
@@ -129,6 +155,8 @@ console.log("inserting:");
 await insertBatch("days", dayRows);
 await insertBatch("sessions", sessionRows);
 if (eventRows.length > 0) await insertBatch("events", eventRows);
+if (mealRows.length > 0) await insertBatch("meals", mealRows);
+if (activityRows.length > 0) await insertBatch("activities", activityRows);
 
 console.log();
 console.log("done.");

@@ -186,6 +186,24 @@ async function execute(db: SupabaseClient, action: Action, sourceLogId: string):
       if (error) throw error;
       return data;
     }
+    case "create_planner_event": {
+      const { data, error } = await db
+        .from("planner_events")
+        .insert({ ...d })
+        .select()
+        .single();
+      if (error) throw error;
+      return data;
+    }
+    case "create_mood_log": {
+      const { data, error } = await db
+        .from("mood_logs")
+        .insert({ ...d, source_log_id: sourceLogId })
+        .select()
+        .single();
+      if (error) throw error;
+      return data;
+    }
     case "ask_clarification":
       return { skipped: true };
     default:

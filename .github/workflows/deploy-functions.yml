@@ -19,12 +19,14 @@ jobs:
       - uses: supabase/setup-cli@v1
         with:
           version: latest
+      - name: Link Supabase project
+        run: supabase link --project-ref "$SUPABASE_PROJECT_REF" --password "${{ secrets.SUPABASE_DB_PASSWORD }}"
       - name: Push DB migrations
-        run: supabase db push --linked --project-ref "$SUPABASE_PROJECT_REF" --password "${{ secrets.SUPABASE_DB_PASSWORD }}"
-        continue-on-error: true # first run before linking may fail; safe to ignore
+        run: supabase db push --linked --password "${{ secrets.SUPABASE_DB_PASSWORD }}"
       - name: Deploy edge functions
         run: |
-          supabase link --project-ref "$SUPABASE_PROJECT_REF" --password "${{ secrets.SUPABASE_DB_PASSWORD }}"
           supabase functions deploy auth --no-verify-jwt
           supabase functions deploy chat --no-verify-jwt
           supabase functions deploy confirm --no-verify-jwt
+          supabase functions deploy data --no-verify-jwt
+          supabase functions deploy manual --no-verify-jwt

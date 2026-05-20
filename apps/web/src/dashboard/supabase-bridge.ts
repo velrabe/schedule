@@ -2,7 +2,17 @@
 // Also exposes a hook that loads + auto-refreshes after chat confirmations.
 
 import { useEffect, useState, useCallback } from "preact/hooks";
-import { fetchDashboardSnapshot, type DayRow, type SessionRow } from "../api/data";
+import {
+  fetchDashboardSnapshot,
+  type DayRow,
+  type SessionRow,
+  type MealRow,
+  type ActivityRow,
+  type SubstanceRow,
+  type BodyMetricRow,
+  type FinanceRow,
+  type EventRow,
+} from "../api/data";
 
 // Day shape the legacy dashboard works with.
 export type DayShape = {
@@ -82,9 +92,22 @@ export function mapSession(r: SessionRow): SessionShape {
   };
 }
 
+export type MealShape = MealRow;
+export type ActivityShape = ActivityRow;
+export type SubstanceShape = SubstanceRow;
+export type BodyMetricShape = BodyMetricRow;
+export type FinanceShape = FinanceRow;
+export type EventShape = EventRow;
+
 export type Snapshot = {
   days: DayShape[];
   sessions: SessionShape[];
+  meals: MealShape[];
+  activities: ActivityShape[];
+  substances: SubstanceShape[];
+  body_metrics: BodyMetricShape[];
+  finance: FinanceShape[];
+  events: EventShape[];
   raw: Awaited<ReturnType<typeof fetchDashboardSnapshot>>;
 };
 
@@ -108,7 +131,20 @@ export function useSupabaseSnapshot() {
       }
       const days = raw.days.map(mapDay);
       const sessions = raw.sessions.map(mapSession);
-      setState({ status: "ready", data: { days, sessions, raw } });
+      setState({
+        status: "ready",
+        data: {
+          days,
+          sessions,
+          meals: raw.meals,
+          activities: raw.activities,
+          substances: raw.substances,
+          body_metrics: raw.body_metrics,
+          finance: raw.finance,
+          events: raw.events,
+          raw,
+        },
+      });
     } catch (err) {
       setState({
         status: "error",

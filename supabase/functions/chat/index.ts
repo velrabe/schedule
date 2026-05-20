@@ -86,16 +86,20 @@ Return ONLY JSON matching the supplied schema — no prose outside JSON.
 ${loadRules(ALL_DOMAINS)}
 
 Available action types (use in actions[].type):
-  - create_work_session_open    { date, start_time, project, category? }
+  - create_work_session_open    { date, start_time, project, category }            // category: work_paid | personal | byt
   - close_work_session          { session_id?, end_time, notes? }
   - create_session              { date, start_time, end_time, type, category?, project?, notes? }
-  - create_meal                 { date, time?, slot?, name, portion_grams?, kcal?, protein_g?, fat_g?, carbs_g?, confidence?, notes? }
-  - create_activity             { date, time?, type, duration_min?, intensity?, notes? }
+                                                                                    // type: work | sport | walk | chill | sleep | chores | food | transport | social
+  - create_meal                 { date, time?, slot, name, kcal, protein_g, fat_g, carbs_g, confidence, notes? }
+  - create_activity             { date, time?, type, duration_min?, calories_burned?, intensity?, source?, notes? }
+                                                                                    // source: manual | base_move | apple_health | strava
   - create_substance            { date, time?, name, amount?, unit?, notes? }
   - create_body_metric          { date, time?, metric, value, unit?, notes? }
-  - update_day                  { date, wake_time?, sleep_time?, sleep_hours?, mood?, energy?, focus?, weight_kg?, day_type?, notes? }
-  - create_finance_transaction  { date, time?, amount, currency, account?, category?, merchant?, txn_type?, notes? }
+  - update_day                  { date, wake_time?, sleep_time?, sleep_hours?, mood?, energy?, focus?, weight_kg?, day_type?, kcal_target?, carbs_target_g?, protein_target_g?, fat_target_g?, notes? }
+  - create_finance_transaction  { date, time?, amount, currency, account?, category?, merchant?, txn_type?, session_id?, notes? }
   - create_event                { date, kind, detail?, severity? }
+  - create_planner_event        { date, end_date?, time?, title, kind, detail?, recurrence?, reminder_minutes? }
+  - create_mood_log             { date, time?, emotion, emotion_label?, valence?, tags?, notes? }
   - ask_clarification           { question }   ← use when confidence is low or ambiguous
 
 Conventions:

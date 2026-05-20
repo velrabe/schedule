@@ -3,12 +3,13 @@
 // then keeps your edits in localStorage. Use the "Reset to seed" button in
 // the UI to discard local edits and reload this file.
 //
-// Conventions:
-//   work_paid    — commercial projects (app, landing, pyjama, bank-proofs)
-//   portfolio    — own portfolio, unpaid business work
-//   planning     — planning tasks, finances, budget, trips, household
-//   sport_*      — fixed canonical lengths: surf 90, pickleball 60, muay_thai 60,
-//                  bouldering 60, gym 90, run 90. Hike is variable.
+// Conventions (updated 2026-05-20):
+//   work_paid    — оплачиваемая работа на заказчиков (app/Basic, ai_concierge, pyjama, candles).
+//   personal     — личные проекты (portfolio, твои собственные сервисы и наработки).
+//   byt          — бытовые задачи (банк-пруфы, тинькоф/капитал, weekly_planning,
+//                  отчёты по личной жизни, финансы, оформление документов).
+//   sport_*      — canonical: surf 90, pickleball 90, muay_thai 60, bouldering 60,
+//                  gym 90, run 40 (variable), hike variable, swim 30, walk variable.
 //   walk, chill, food, chores, shower, transport, sleep, social — life buckets.
 
 export const SESSIONS = [
@@ -18,13 +19,13 @@ export const SESSIONS = [
   { date: "2026-04-20", start: "11:30", end: "12:00", min: 30, category: "food", project: "breakfast", quality: null, note: "" },
   { date: "2026-04-20", start: "12:00", end: "13:30", min: 90, category: "work_paid", project: "app", quality: null, note: "" },
   { date: "2026-04-20", start: "13:30", end: "14:00", min: 30, category: "chill", project: "break", quality: null, note: "перерыв" },
-  { date: "2026-04-20", start: "14:00", end: "15:30", min: 90, category: "portfolio", project: "portfolio", quality: null, note: "блок 1" },
+  { date: "2026-04-20", start: "14:00", end: "15:30", min: 90, category: "personal", project: "portfolio", quality: null, note: "блок 1" },
   { date: "2026-04-20", start: "15:30", end: "16:00", min: 30, category: "chores", project: "laundry+trash", quality: null, note: "" },
   { date: "2026-04-20", start: "16:00", end: "17:00", min: 60, category: "food", project: "lunch", quality: null, note: "" },
   { date: "2026-04-20", start: "17:00", end: "18:30", min: 90, category: "chill", project: "break", quality: null, note: "длинный перерыв" },
-  { date: "2026-04-20", start: "18:30", end: "19:30", min: 60, category: "portfolio", project: "portfolio", quality: null, note: "блок 2" },
+  { date: "2026-04-20", start: "18:30", end: "19:30", min: 60, category: "personal", project: "portfolio", quality: null, note: "блок 2" },
   { date: "2026-04-20", start: "19:30", end: "20:00", min: 30, category: "chill", project: "break", quality: null, note: "" },
-  { date: "2026-04-20", start: "20:00", end: "21:00", min: 60, category: "portfolio", project: "portfolio", quality: null, note: "блок 3" },
+  { date: "2026-04-20", start: "20:00", end: "21:00", min: 60, category: "personal", project: "portfolio", quality: null, note: "блок 3" },
   { date: "2026-04-20", start: "21:00", end: "21:30", min: 30, category: "chill", project: "break", quality: null, note: "" },
   { date: "2026-04-20", start: "21:30", end: "23:00", min: 90, category: "walk", project: "", quality: null, note: "" },
   { date: "2026-04-20", start: "23:00", end: "00:00", min: 60, category: "sport_gym", project: "", quality: null, note: "сплит из 'прогулка+спорт'" },
@@ -34,15 +35,15 @@ export const SESSIONS = [
   // 2026-04-21 Tue, 0 mg — wake 10:00, sleep 02:00
   { date: "2026-04-21", start: "10:00", end: "11:00", min: 60, category: "food", project: "coffee+water", quality: null, note: "утро" },
   { date: "2026-04-21", start: "11:00", end: "12:00", min: 60, category: "chill", project: "morning routine", quality: null, note: "медленный старт" },
-  { date: "2026-04-21", start: "12:00", end: "13:30", min: 90, category: "portfolio", project: "portfolio", quality: null, note: "блок 1" },
+  { date: "2026-04-21", start: "12:00", end: "13:30", min: 90, category: "personal", project: "portfolio", quality: null, note: "блок 1" },
   { date: "2026-04-21", start: "13:30", end: "14:00", min: 30, category: "chill", project: "break", quality: null, note: "" },
   { date: "2026-04-21", start: "14:00", end: "15:30", min: 90, category: "work_paid", project: "app", quality: null, note: "" },
   { date: "2026-04-21", start: "15:30", end: "16:00", min: 30, category: "chill", project: "break", quality: null, note: "" },
-  { date: "2026-04-21", start: "16:00", end: "17:30", min: 90, category: "portfolio", project: "portfolio", quality: null, note: "блок 2" },
+  { date: "2026-04-21", start: "16:00", end: "17:30", min: 90, category: "personal", project: "portfolio", quality: null, note: "блок 2" },
   { date: "2026-04-21", start: "17:30", end: "18:30", min: 60, category: "food", project: "lunch", quality: null, note: "" },
   { date: "2026-04-21", start: "18:30", end: "19:30", min: 60, category: "work_paid", project: "app", quality: null, note: "правки" },
-  { date: "2026-04-21", start: "19:30", end: "21:00", min: 90, category: "portfolio", project: "portfolio", quality: null, note: "блок 3" },
-  { date: "2026-04-21", start: "21:00", end: "21:20", min: 20, category: "portfolio", project: "portfolio", quality: null, note: "микро-блок" },
+  { date: "2026-04-21", start: "19:30", end: "21:00", min: 90, category: "personal", project: "portfolio", quality: null, note: "блок 3" },
+  { date: "2026-04-21", start: "21:00", end: "21:20", min: 20, category: "personal", project: "portfolio", quality: null, note: "микро-блок" },
   { date: "2026-04-21", start: "21:20", end: "22:00", min: 40, category: "work_paid", project: "pyjama", quality: null, note: "" },
   { date: "2026-04-21", start: "22:00", end: "23:30", min: 90, category: "walk", project: "", quality: null, note: "+ лёгкий спорт по самочувствию" },
   { date: "2026-04-21", start: "23:30", end: "00:30", min: 60, category: "food", project: "dinner", quality: null, note: "" },
@@ -55,11 +56,11 @@ export const SESSIONS = [
   { date: "2026-04-22", start: "10:00", end: "12:00", min: 120, category: "transport", project: "back+coffee", quality: null, note: "дорога обратно" },
   { date: "2026-04-22", start: "12:00", end: "13:30", min: 90, category: "food", project: "breakfast+recovery", quality: null, note: "" },
   { date: "2026-04-22", start: "13:30", end: "15:00", min: 90, category: "shower", project: "shower+break", quality: null, note: "прийти в себя" },
-  { date: "2026-04-22", start: "15:00", end: "16:30", min: 90, category: "portfolio", project: "portfolio", quality: null, note: "блок 1 — интерфейсы" },
+  { date: "2026-04-22", start: "15:00", end: "16:30", min: 90, category: "personal", project: "portfolio", quality: null, note: "блок 1 — интерфейсы" },
   { date: "2026-04-22", start: "16:30", end: "17:00", min: 30, category: "chill", project: "break", quality: null, note: "" },
   { date: "2026-04-22", start: "17:00", end: "18:00", min: 60, category: "work_paid", project: "app", quality: null, note: "детская часть" },
   { date: "2026-04-22", start: "18:00", end: "19:00", min: 60, category: "work_paid", project: "pyjama", quality: null, note: "стиль + темплейт" },
-  { date: "2026-04-22", start: "19:00", end: "20:30", min: 90, category: "portfolio", project: "portfolio", quality: null, note: "блок 2 — каркас кейса" },
+  { date: "2026-04-22", start: "19:00", end: "20:30", min: 90, category: "personal", project: "portfolio", quality: null, note: "блок 2 — каркас кейса" },
   { date: "2026-04-22", start: "20:30", end: "21:00", min: 30, category: "chill", project: "break", quality: null, note: "" },
   { date: "2026-04-22", start: "21:00", end: "22:00", min: 60, category: "work_paid", project: "app", quality: null, note: "" },
   { date: "2026-04-22", start: "22:00", end: "23:30", min: 90, category: "walk", project: "", quality: null, note: "" },
@@ -69,38 +70,38 @@ export const SESSIONS = [
 
   // 2026-04-26 Sun, 0 mg — wake 15:00, sleep 02:00
   { date: "2026-04-26", start: "15:00", end: "16:00", min: 60, category: "shower", project: "сборы+душ+workspace", quality: null, note: "поздний подъём" },
-  { date: "2026-04-26", start: "16:00", end: "16:10", min: 10, category: "planning", project: "warm-up", quality: null, note: "разогрев лендинг" },
-  { date: "2026-04-26", start: "16:10", end: "17:00", min: 50, category: "work_paid", project: "landing", quality: null, note: "" },
+  { date: "2026-04-26", start: "16:00", end: "16:10", min: 10, category: "byt", project: "warm-up", quality: null, note: "разогрев лендинг" },
+  { date: "2026-04-26", start: "16:10", end: "17:00", min: 50, category: "work_paid", project: "ai_concierge", quality: null, note: "" },
   { date: "2026-04-26", start: "17:00", end: "17:10", min: 10, category: "chill", project: "break", quality: null, note: "" },
-  { date: "2026-04-26", start: "17:10", end: "17:20", min: 10, category: "planning", project: "warm-up", quality: null, note: "" },
-  { date: "2026-04-26", start: "17:20", end: "18:10", min: 50, category: "work_paid", project: "landing", quality: null, note: "" },
+  { date: "2026-04-26", start: "17:10", end: "17:20", min: 10, category: "byt", project: "warm-up", quality: null, note: "" },
+  { date: "2026-04-26", start: "17:20", end: "18:10", min: 50, category: "work_paid", project: "ai_concierge", quality: null, note: "" },
   { date: "2026-04-26", start: "18:10", end: "18:20", min: 10, category: "chill", project: "break", quality: null, note: "" },
-  { date: "2026-04-26", start: "18:20", end: "18:30", min: 10, category: "planning", project: "warm-up", quality: null, note: "" },
+  { date: "2026-04-26", start: "18:20", end: "18:30", min: 10, category: "byt", project: "warm-up", quality: null, note: "" },
   { date: "2026-04-26", start: "18:30", end: "19:20", min: 50, category: "work_paid", project: "pyjama", quality: null, note: "" },
   { date: "2026-04-26", start: "19:20", end: "19:50", min: 30, category: "chill", project: "big break", quality: null, note: "" },
-  { date: "2026-04-26", start: "19:50", end: "20:00", min: 10, category: "planning", project: "warm-up", quality: null, note: "" },
+  { date: "2026-04-26", start: "19:50", end: "20:00", min: 10, category: "byt", project: "warm-up", quality: null, note: "" },
   { date: "2026-04-26", start: "20:00", end: "20:50", min: 50, category: "work_paid", project: "pyjama", quality: null, note: "" },
   { date: "2026-04-26", start: "20:50", end: "22:30", min: 100, category: "walk", project: "", quality: null, note: "" },
-  { date: "2026-04-26", start: "22:30", end: "23:30", min: 60, category: "planning", project: "portfolio_planning", quality: null, note: "планирование портфолио" },
+  { date: "2026-04-26", start: "22:30", end: "23:30", min: 60, category: "byt", project: "portfolio_planning", quality: null, note: "планирование портфолио" },
   { date: "2026-04-26", start: "23:30", end: "02:00", min: 150, category: "chill", project: "", quality: null, note: "" },
 
   // 2026-04-27 Mon, 75 mg — wake 10:00, sleep 02:00
   { date: "2026-04-27", start: "10:00", end: "10:40", min: 40, category: "food", project: "wake+water+breakfast+prep", quality: null, note: "" },
-  { date: "2026-04-27", start: "10:40", end: "11:40", min: 60, category: "work_paid", project: "landing", quality: null, note: "" },
+  { date: "2026-04-27", start: "10:40", end: "11:40", min: 60, category: "work_paid", project: "ai_concierge", quality: null, note: "" },
   { date: "2026-04-27", start: "11:40", end: "11:50", min: 10, category: "chill", project: "break", quality: null, note: "" },
-  { date: "2026-04-27", start: "11:50", end: "12:50", min: 60, category: "work_paid", project: "landing", quality: null, note: "" },
+  { date: "2026-04-27", start: "11:50", end: "12:50", min: 60, category: "work_paid", project: "ai_concierge", quality: null, note: "" },
   { date: "2026-04-27", start: "12:50", end: "13:00", min: 10, category: "chill", project: "break", quality: null, note: "" },
   { date: "2026-04-27", start: "13:00", end: "13:40", min: 40, category: "chill", project: "big break", quality: null, note: "" },
-  { date: "2026-04-27", start: "13:40", end: "14:00", min: 20, category: "portfolio", project: "portfolio", quality: null, note: "блок 1" },
+  { date: "2026-04-27", start: "13:40", end: "14:00", min: 20, category: "personal", project: "portfolio", quality: null, note: "блок 1" },
   { date: "2026-04-27", start: "14:00", end: "14:30", min: 30, category: "chill", project: "break", quality: null, note: "" },
-  { date: "2026-04-27", start: "14:30", end: "15:50", min: 80, category: "portfolio", project: "portfolio", quality: null, note: "блок 2" },
+  { date: "2026-04-27", start: "14:30", end: "15:50", min: 80, category: "personal", project: "portfolio", quality: null, note: "блок 2" },
   { date: "2026-04-27", start: "15:50", end: "16:45", min: 55, category: "chill", project: "big break", quality: null, note: "" },
-  { date: "2026-04-27", start: "16:45", end: "17:50", min: 65, category: "work_paid", project: "landing", quality: null, note: "" },
+  { date: "2026-04-27", start: "16:45", end: "17:50", min: 65, category: "work_paid", project: "ai_concierge", quality: null, note: "" },
   { date: "2026-04-27", start: "17:50", end: "18:00", min: 10, category: "chill", project: "break", quality: null, note: "" },
-  { date: "2026-04-27", start: "18:00", end: "18:30", min: 30, category: "portfolio", project: "portfolio", quality: null, note: "" },
+  { date: "2026-04-27", start: "18:00", end: "18:30", min: 30, category: "personal", project: "portfolio", quality: null, note: "" },
   { date: "2026-04-27", start: "18:30", end: "18:50", min: 20, category: "food", project: "dinner", quality: null, note: "" },
-  { date: "2026-04-27", start: "18:50", end: "19:00", min: 10, category: "planning", project: "warm-up", quality: null, note: "" },
-  { date: "2026-04-27", start: "19:00", end: "19:50", min: 50, category: "portfolio", project: "portfolio", quality: null, note: "блок" },
+  { date: "2026-04-27", start: "18:50", end: "19:00", min: 10, category: "byt", project: "warm-up", quality: null, note: "" },
+  { date: "2026-04-27", start: "19:00", end: "19:50", min: 50, category: "personal", project: "portfolio", quality: null, note: "блок" },
   { date: "2026-04-27", start: "19:50", end: "20:10", min: 20, category: "chill", project: "break", quality: null, note: "" },
   { date: "2026-04-27", start: "20:10", end: "21:10", min: 60, category: "work_paid", project: "pyjama", quality: null, note: "" },
   { date: "2026-04-27", start: "21:10", end: "21:30", min: 20, category: "chill", project: "break", quality: null, note: "" },
@@ -109,14 +110,14 @@ export const SESSIONS = [
 
   // 2026-04-28 Tue, 75 mg — wake 08:20, sleep 02:00
   { date: "2026-04-28", start: "08:20", end: "11:20", min: 180, category: "chill", project: "long morning", quality: null, note: "медленный старт" },
-  { date: "2026-04-28", start: "11:20", end: "11:30", min: 10, category: "planning", project: "warm-up", quality: null, note: "" },
-  { date: "2026-04-28", start: "11:30", end: "12:40", min: 70, category: "work_paid", project: "landing", quality: null, note: "" },
+  { date: "2026-04-28", start: "11:20", end: "11:30", min: 10, category: "byt", project: "warm-up", quality: null, note: "" },
+  { date: "2026-04-28", start: "11:30", end: "12:40", min: 70, category: "work_paid", project: "ai_concierge", quality: null, note: "" },
   { date: "2026-04-28", start: "12:40", end: "12:50", min: 10, category: "chill", project: "break", quality: null, note: "" },
-  { date: "2026-04-28", start: "12:50", end: "13:00", min: 10, category: "planning", project: "warm-up", quality: null, note: "" },
-  { date: "2026-04-28", start: "13:00", end: "14:40", min: 100, category: "portfolio", project: "portfolio", quality: null, note: "блок 1" },
+  { date: "2026-04-28", start: "12:50", end: "13:00", min: 10, category: "byt", project: "warm-up", quality: null, note: "" },
+  { date: "2026-04-28", start: "13:00", end: "14:40", min: 100, category: "personal", project: "portfolio", quality: null, note: "блок 1" },
   { date: "2026-04-28", start: "14:40", end: "16:10", min: 90, category: "food", project: "lunch", quality: null, note: "" },
-  { date: "2026-04-28", start: "16:10", end: "17:10", min: 60, category: "work_paid", project: "landing", quality: null, note: "" },
-  { date: "2026-04-28", start: "17:10", end: "17:30", min: 20, category: "portfolio", project: "portfolio", quality: null, note: "блок 3" },
+  { date: "2026-04-28", start: "16:10", end: "17:10", min: 60, category: "work_paid", project: "ai_concierge", quality: null, note: "" },
+  { date: "2026-04-28", start: "17:10", end: "17:30", min: 20, category: "personal", project: "portfolio", quality: null, note: "блок 3" },
   { date: "2026-04-28", start: "17:30", end: "19:00", min: 90, category: "chill", project: "break", quality: null, note: "длинная пауза" },
   { date: "2026-04-28", start: "19:00", end: "19:30", min: 30, category: "chill", project: "сборы", quality: null, note: "" },
   { date: "2026-04-28", start: "19:30", end: "20:30", min: 60, category: "sport_gym", project: "", quality: null, note: "из блока 19:00–22:30" },
@@ -129,13 +130,13 @@ export const SESSIONS = [
 
   // 2026-04-29 Wed, 100 mg — peak day — wake 10:15, sleep 02:00
   { date: "2026-04-29", start: "10:15", end: "11:30", min: 75, category: "food", project: "wake+breakfast+prep", quality: null, note: "" },
-  { date: "2026-04-29", start: "11:30", end: "15:00", min: 210, category: "work_paid", project: "landing", quality: 9, note: "длинный блок" },
+  { date: "2026-04-29", start: "11:30", end: "15:00", min: 210, category: "work_paid", project: "ai_concierge", quality: 9, note: "длинный блок" },
   { date: "2026-04-29", start: "15:00", end: "15:30", min: 30, category: "chill", project: "break", quality: null, note: "" },
-  { date: "2026-04-29", start: "15:30", end: "18:00", min: 150, category: "work_paid", project: "landing", quality: 9, note: "" },
+  { date: "2026-04-29", start: "15:30", end: "18:00", min: 150, category: "work_paid", project: "ai_concierge", quality: 9, note: "" },
   { date: "2026-04-29", start: "18:00", end: "18:40", min: 40, category: "food", project: "break+dinner", quality: null, note: "" },
-  { date: "2026-04-29", start: "18:40", end: "21:00", min: 140, category: "work_paid", project: "landing", quality: 8, note: "" },
+  { date: "2026-04-29", start: "18:40", end: "21:00", min: 140, category: "work_paid", project: "ai_concierge", quality: 8, note: "" },
   { date: "2026-04-29", start: "21:00", end: "22:00", min: 60, category: "chill", project: "break", quality: null, note: "" },
-  { date: "2026-04-29", start: "22:00", end: "22:30", min: 30, category: "work_paid", project: "landing", quality: 7, note: "финиш" },
+  { date: "2026-04-29", start: "22:00", end: "22:30", min: 30, category: "work_paid", project: "ai_concierge", quality: 7, note: "финиш" },
   { date: "2026-04-29", start: "22:30", end: "00:00", min: 90, category: "sport_run", project: "", quality: null, note: "пробежка 1.5h" },
   { date: "2026-04-29", start: "00:00", end: "02:00", min: 120, category: "food", project: "dinner+chill", quality: null, note: "" },
 
@@ -148,7 +149,7 @@ export const SESSIONS = [
   { date: "2026-04-30", start: "16:40", end: "17:40", min: 60, category: "work_paid", project: "app", quality: null, note: "" },
   { date: "2026-04-30", start: "17:40", end: "18:40", min: 60, category: "chill", project: "break (уход)", quality: null, note: "" },
   { date: "2026-04-30", start: "18:40", end: "19:50", min: 70, category: "work_paid", project: "pyjama", quality: null, note: "" },
-  { date: "2026-04-30", start: "19:50", end: "21:00", min: 70, category: "portfolio", project: "portfolio", quality: null, note: "" },
+  { date: "2026-04-30", start: "19:50", end: "21:00", min: 70, category: "personal", project: "portfolio", quality: null, note: "" },
   { date: "2026-04-30", start: "21:00", end: "23:00", min: 120, category: "walk", project: "", quality: null, note: "" },
   { date: "2026-04-30", start: "23:00", end: "23:40", min: 40, category: "food", project: "dinner", quality: null, note: "" },
   { date: "2026-04-30", start: "23:40", end: "00:00", min: 20, category: "chill", project: "sleep prep", quality: null, note: "" },
@@ -279,7 +280,7 @@ export const SESSIONS = [
   // 2026-05-12 Tue, 75 mg — wake 13:00, sleep 00:00
   { date: "2026-05-12", start: "13:00", end: "14:00", min: 60, category: "chill", project: "wake+тупняк", quality: null, note: "" },
   { date: "2026-05-12", start: "14:00", end: "16:00", min: 120, category: "food", project: "breakfast+пробуждение", quality: null, note: "" },
-  { date: "2026-05-12", start: "16:00", end: "19:00", min: 180, category: "work_paid", project: "bank-proofs", quality: null, note: "тинькоф+капитал" },
+  { date: "2026-05-12", start: "16:00", end: "19:00", min: 180, category: "byt", project: "bank_proofs", quality: null, note: "тинькоф+капитал — разблокировка карты" },
   { date: "2026-05-12", start: "19:00", end: "19:30", min: 30, category: "food", project: "lunch", quality: null, note: "" },
   { date: "2026-05-12", start: "19:30", end: "21:00", min: 90, category: "work_paid", project: "pyjama", quality: null, note: "" },
   { date: "2026-05-12", start: "21:00", end: "22:30", min: 90, category: "walk", project: "", quality: null, note: "" },
@@ -310,7 +311,7 @@ export const SESSIONS = [
   { date: "2026-05-14", start: "15:20", end: "16:00", min: 40, category: "chill", project: "break", quality: null, note: "" },
   { date: "2026-05-14", start: "16:00", end: "18:00", min: 120, category: "food", project: "lunch", quality: null, note: "" },
   { date: "2026-05-14", start: "18:00", end: "20:00", min: 120, category: "work_paid", project: "app", quality: null, note: "" },
-  { date: "2026-05-14", start: "20:00", end: "21:00", min: 60, category: "planning", project: "weekly planning", quality: null, note: "" },
+  { date: "2026-05-14", start: "20:00", end: "21:00", min: 60, category: "byt", project: "weekly planning", quality: null, note: "" },
   { date: "2026-05-14", start: "21:00", end: "22:30", min: 90, category: "walk", project: "", quality: null, note: "" },
   { date: "2026-05-14", start: "22:30", end: "23:30", min: 60, category: "chill", project: "", quality: null, note: "" },
   { date: "2026-05-14", start: "23:30", end: "01:10", min: 100, category: "food", project: "dinner", quality: null, note: "" },
@@ -410,10 +411,22 @@ export const EVENTS = [
   { date: "2026-05-18", kind: "travel", detail: "Поездка в аэропорт, спокойный день", severity: "info" },
 ];
 
+// User-supplied example for 2026-05-18 (kBJU + base-move activity).
+// Goal: dashboard immediately shows real kcal totals after backfill.
+export const MEALS = [
+  { date: "2026-05-18", time: "10:00", slot: "breakfast", name: "kimchi burger + кофе", kcal: 550, carbs_g: 50, protein_g: 25, fat_g: 30, confidence: "high" },
+  { date: "2026-05-18", time: "14:30", slot: "lunch",     name: "суши и сашими",        kcal: 1100, carbs_g: 110, protein_g: 50, fat_g: 40, confidence: "high" },
+  { date: "2026-05-18", time: "20:00", slot: "dinner",    name: "chicken burger + банми", kcal: 1800, carbs_g: 160, protein_g: 60, fat_g: 90, confidence: "high" },
+];
+
+export const ACTIVITIES = [
+  { date: "2026-05-18", time: null, type: "walking", duration_min: 130, calories_burned: 537, source: "base_move", notes: "бытовая ходьба за весь день" },
+];
+
 export const CATEGORIES = [
   "work_paid",
-  "portfolio",
-  "planning",
+  "personal",
+  "byt",
   "sport_surf",
   "sport_pickleball",
   "sport_muay_thai",
