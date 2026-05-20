@@ -170,7 +170,11 @@ There is **no** reliable “unlimited free” vision API for production. All hos
 | **OpenRouter** | some free routes | ~50 req/day free | Good for experiments, not daily driver. |
 | **Local Ollama** (Qwen2-VL, LLaVA) | yes | unlimited on your GPU | Zero API quota; you host and wire yourself. |
 
-**Practical advice:** keep `GEMINI_API_KEY`, use `gemini-2.0-flash-lite` for text, let the app auto-pick `gemini-2.0-flash` for images, and **turn on billing** on the Google Cloud project if you hit 429 after ~10 minutes of active testing.
+**Dashboard `0/0` on 2.5 Pro / 2 Flash:** this means **no free-tier quota** for that model (not “unlimited”). Only models with a non-zero cap (e.g. 2.5 Flash `20/20`) work until billing is enabled.
+
+**Automatic fallback:** if the primary model returns 429, `/chat` tries `gemini-2.0-flash-lite` and `gemini-2.0-flash` (separate daily buckets). It does **not** switch to 2.5 Pro when that row is `0/0`.
+
+**Practical advice:** delete `GEMINI_MODEL` in Supabase secrets (use app defaults) or set `gemini-2.0-flash-lite`. Avoid `gemini-2.5-flash` on free tier (20 requests/day). Enable **billing** for serious use.
 
 ---
 

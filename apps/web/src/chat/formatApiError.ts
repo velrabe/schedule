@@ -61,7 +61,7 @@ function fromBody(status: number, body: ErrorBody): FormattedError | null {
     const sec = body.retry_after_sec ?? gemini.retrySec ?? 60;
     return {
       message: body.message || "Квота Google Gemini исчерпана",
-      hint: `Подожди ~${sec} сек и попробуй снова. На бесплатном тарифе лимит ~20 запросов в минуту. Billing: aistudio.google.com`,
+      hint: `Подожди ~${sec} сек. Free tier: у каждой модели свой дневной лимит (2.5 Flash ≈20/день). В Supabase убери GEMINI_MODEL=gemini-2.5-flash или включи billing: aistudio.google.com`,
       technical: detail || JSON.stringify(body, null, 2),
     };
   }
