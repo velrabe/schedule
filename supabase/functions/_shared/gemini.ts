@@ -1,4 +1,4 @@
-// Gemini client with JSON output + automatic model fallback on 429 quota.
+// Gemini client: free-tier model rotation (separate RPD per model name).
 
 export type GeminiPart =
   | { text: string }
@@ -19,14 +19,29 @@ export type GeminiRequest = {
   };
 };
 
-/** Text-only default (separate free-tier bucket from 2.5-flash). */
-const DEFAULT_MODEL = "gemini-2.0-flash-lite";
-/** Vision default when request includes images. */
-const DEFAULT_VISION_MODEL = "gemini-2.0-flash";
+/** Models that often show 0/0 or ~20 RPD on free tier — skip in rotation. */
+const BLOCKED_ON_FREE = new Set([
+  "gemini-2.5-flash",
+  "gemini-2.5-pro",
+  "gemini-2.5-flash-preview-05-20",
+  "gemini-2.5-pro-preview-03-25",
+]);
 
-/** Tried in order after primary fails with 429 (separate RPD per model on free tier). */
-const FALLBACK_TEXT = ["gemini-2.0-flash-lite", "gemini-2.0-flash"] as const;
-const FALLBACK_VISION = ["gemini-2.0-flash", "gemini-2.0-flash-lite"] as const;
+/** Separate daily buckets on free tier (generateContent API). Order = try first. */
+const TEXT_CHAIN = [
+  "gemini-2.0-flash-lite",
+  "gemini-2.5-flash-lite",
+  "gemini-2.0-flash",
+  "gemini-1.5-flash-8b",
+  "gemini-1.5-flash",
+] as const;
+
+const VISION_CHAIN = [
+  "gemini-2.0-flash",
+  "gemini-2.5-flash-lite",
+  "gemini-2.0-flash-lite",
+  "gemini-1.5-flash",
+] as const;
 
 function requestHasImage(req: GeminiRequest): boolean {
   for (const c of req.contents) {
@@ -37,24 +52,17 @@ function requestHasImage(req: GeminiRequest): boolean {
   return false;
 }
 
-function uniqueModels(primary: string, fallbacks: readonly string[]): string[] {
+function buildChain(hasImage: boolean): string[] {
+  const base = hasImage ? [...VISION_CHAIN] : [...TEXT_CHAIN];
+  const env = Deno.env.get("GEMINI_MODEL")?.trim();
   const out: string[] = [];
-  for (const m of [primary, ...fallbacks]) {
-    if (!out.includes(m)) out.push(m);
+  if (env && !BLOCKED_ON_FREE.has(env) && !out.includes(env)) {
+    out.push(env);
+  }
+  for (const m of base) {
+    if (!BLOCKED_ON_FREE.has(m) && !out.includes(m)) out.push(m);
   }
   return out;
-}
-
-function resolvePrimaryModel(hasImage: boolean): string {
-  const env = Deno.env.get("GEMINI_MODEL")?.trim();
-  if (env) return env;
-  return hasImage ? DEFAULT_VISION_MODEL : DEFAULT_MODEL;
-}
-
-function modelsToTry(hasImage: boolean): string[] {
-  const primary = resolvePrimaryModel(hasImage);
-  const pool = hasImage ? FALLBACK_VISION : FALLBACK_TEXT;
-  return uniqueModels(primary, pool);
 }
 
 function endpointFor(model: string): string {
@@ -65,13 +73,17 @@ function isQuotaError(status: number, body: string): boolean {
   return status === 429 || /RESOURCE_EXHAUSTED|quota exceeded/i.test(body);
 }
 
+function isModelUnavailable(status: number, body: string): boolean {
+  return status === 404 || /not found|not supported|invalid model/i.test(body);
+}
+
 async function callOnce(
   model: string,
   key: string,
   req: GeminiRequest,
 ): Promise<{ res: Response; body: string }> {
   const endpoint = endpointFor(model);
-  const delays = [400, 1200, 3000];
+  const delays = [300, 900];
   let res: Response | null = null;
   let lastBody = "";
   for (let attempt = 0; attempt <= delays.length; attempt++) {
@@ -88,7 +100,7 @@ async function callOnce(
     if (!retryable || attempt === delays.length) {
       return { res, body: lastBody };
     }
-    await new Promise((r) => setTimeout(r, delays[attempt] ?? 1000));
+    await new Promise((r) => setTimeout(r, delays[attempt] ?? 800));
   }
   return { res: res!, body: lastBody };
 }
@@ -103,8 +115,7 @@ export async function generate(req: GeminiRequest): Promise<{
   const key = Deno.env.get("GEMINI_API_KEY");
   if (!key) throw new Error("GEMINI_API_KEY is not set");
 
-  const hasImage = requestHasImage(req);
-  const chain = modelsToTry(hasImage);
+  const chain = buildChain(requestHasImage(req));
   const tried: string[] = [];
   let lastErr = "";
 
@@ -135,15 +146,14 @@ export async function generate(req: GeminiRequest): Promise<{
       };
     }
     lastErr = `Gemini ${model} ${res.status}: ${body}`;
-    if (!isQuotaError(res.status, body)) {
-      throw new Error(lastErr);
+    if (isQuotaError(res.status, body) || isModelUnavailable(res.status, body)) {
+      continue;
     }
-    // 429 → try next model in chain (different free-tier RPD bucket)
+    throw new Error(lastErr);
   }
 
   throw new Error(
     `${lastErr}\n(models_tried: ${tried.join(" → ")}). ` +
-      `На free tier у 2.5 Pro / 2 Flash часто лимит 0/0 — они недоступны без billing. ` +
-      `Убери GEMINI_MODEL=gemini-2.5-flash или включи billing.`,
+      `Free tier: 2.5-flash исчерпан (20/день). Live API «Unlimited» — другой продукт, чат его не использует.`,
   );
 }
