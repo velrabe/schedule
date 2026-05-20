@@ -31,7 +31,7 @@ import {
   financeTxnLabel,
   financeTxnShortMeta,
 } from "./financeDisplay.js";
-import FinanceInsightsPanel from "./FinanceInsightsPanel.jsx";
+import FinanceChartTab from "./FinanceChartTab.jsx";
 
 const html = htm.bind(h);
 const STORE_KEY = "schedule-tracker:v1";
@@ -271,7 +271,7 @@ function App(props = {}) {
           return;
         }
       }
-      if (!rec.id) return;
+      if (!rec.id && !rec._new) return;
       setRecordEditor(target);
     },
     [sessions],
@@ -376,6 +376,7 @@ function App(props = {}) {
         <${TabBtn} id="kanban" active=${tab} onClick=${setTab} label="Kanban" count=${null} />
         <${TabBtn} id="nutrition" active=${tab} onClick=${setTab} label="Nutrition" count=${liveData ? mealCountForNutrition(sessions, liveData.meals) : null} />
         <${TabBtn} id="finance" active=${tab} onClick=${setTab} label="Finance" count=${liveData?.finance?.length ?? null} />
+        <${TabBtn} id="chart" active=${tab} onClick=${setTab} label="Chart" count=${null} />
         <${TabBtn} id="sessions" active=${tab} onClick=${setTab} label="Sessions" count=${sessions.length} />
         <${TabBtn} id="events" active=${tab} onClick=${setTab} label="Events" count=${events.length} />
         <${TabBtn} id="insights" active=${tab} onClick=${setTab} label="Insights" count=${null} />
@@ -420,18 +421,19 @@ function App(props = {}) {
         liveMode=${Boolean(liveData)}
         onOpenRecord=${openRecordEditor}
       />`}
-      ${tab === "sessions" && html`<${SessionsTab} sessions=${sessions} setSessions=${setSessions} />`}
-      ${tab === "events" && html`<${EventsTab} events=${events} setEvents=${setEvents} />`}
-      ${tab === "insights" &&
-      html`<${InsightsTab}
-        days=${days}
-        sessions=${sessions}
+      ${tab === "chart" &&
+      html`<${FinanceChartTab}
         accounts=${liveData?.accounts || []}
         finance=${liveData?.finance || []}
         balance_snapshots=${liveData?.balance_snapshots || []}
         finance_planned_items=${liveData?.finance_planned_items || []}
         liveMode=${Boolean(liveData)}
+        onOpenRecord=${openRecordEditor}
       />`}
+      ${tab === "sessions" && html`<${SessionsTab} sessions=${sessions} setSessions=${setSessions} />`}
+      ${tab === "events" && html`<${EventsTab} events=${events} setEvents=${setEvents} />`}
+      ${tab === "insights" &&
+      html`<${InsightsTab} days=${days} sessions=${sessions} />`}
 
       <${RecordEditDrawer}
         target=${recordEditor}
@@ -1603,15 +1605,7 @@ function EventsTab({ events, setEvents }) {
 
 // ---------------- Insights tab ----------------
 
-function InsightsTab({
-  days,
-  sessions,
-  accounts = [],
-  finance = [],
-  balance_snapshots = [],
-  finance_planned_items = [],
-  liveMode = false,
-}) {
+function InsightsTab({ days, sessions }) {
   const sorted = useMemo(() => [...days].sort((a, b) => a.date.localeCompare(b.date)), [days]);
   const enriched = useMemo(
     () =>
@@ -1702,19 +1696,6 @@ function InsightsTab({
 
   return html`
     <div class="insights-grid">
-      <${InsightCard}
-        title="Движение средств · план / факт"
-        subtitle="все счета в ₽ · план ~5 мес вперёд"
-      >
-        <${FinanceInsightsPanel}
-          accounts=${accounts}
-          finance=${finance}
-          balance_snapshots=${balance_snapshots}
-          finance_planned_items=${finance_planned_items}
-          liveMode=${liveMode}
-        />
-      </${InsightCard}>
-
       <${InsightCard}
         title="Сон и работа во времени"
         subtitle="${enriched.length} дней · sleep_h vs business_h"

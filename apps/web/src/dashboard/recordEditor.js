@@ -113,6 +113,7 @@ const KIND_META = {
     resource: "finance_transactions",
     title: "Операция",
     subtitle: (r) => {
+      if (r._new) return "новая операция";
       if ((r.txn_type || "") === "transfer" && r.counter_account) {
         return `${r.account || "?"} → ${r.counter_account}`;
       }

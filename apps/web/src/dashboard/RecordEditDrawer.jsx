@@ -144,6 +144,8 @@ export default function RecordEditDrawer({
     setForm((prev) => ({ ...prev, [key]: value }));
   }, []);
 
+  const isNew = Boolean(target?.record?._new);
+
   const onSave = async () => {
     if (!target || !meta || !liveMode) return;
     if (target.record._synthetic) {
@@ -228,7 +230,7 @@ export default function RecordEditDrawer({
 
   if (!target || !meta) return null;
 
-  const subtitle = meta.subtitle(target.record);
+  const subtitle = isNew ? "новая запись" : meta.subtitle(target.record);
   const busy = saving || deleting;
   const stopInside = (e) => e.stopPropagation();
   const mainFields = fields.filter((f) => !isExpenseField(f));
@@ -303,9 +305,12 @@ export default function RecordEditDrawer({
             <button type="button" class="btn btn--primary" disabled=${busy} onClick=${onSave}>
               <span class="btn__text-wrap">${saving ? "сохранение…" : "сохранить"}</span>
             </button>
-            <button type="button" class="btn btn--ghost record-drawer-delete-btn" disabled=${busy} onClick=${onDelete}>
-              <span class="btn__text-wrap">${deleting ? "удаление…" : "удалить"}</span>
-            </button>
+            ${!isNew &&
+            html`
+              <button type="button" class="btn btn--ghost record-drawer-delete-btn" disabled=${busy} onClick=${onDelete}>
+                <span class="btn__text-wrap">${deleting ? "удаление…" : "удалить"}</span>
+              </button>
+            `}
           `}
           <button type="button" class="btn btn--ghost" onClick=${onClose} disabled=${busy}>
             <span class="btn__text-wrap">закрыть</span>

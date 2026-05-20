@@ -173,3 +173,62 @@ export function plannedItemLabel(p) {
   const sign = (p.txn_type || "expense") === "income" ? "+" : "−";
   return `${p.title}: ${sign}${fmtRub(rub)} · ${rec}`;
 }
+
+/** Per-day rows for chart tooltip and day drawer. */
+export function getDayBreakdown(date, { finance = [], snapshots = [], plannedItems = [], today, fx = FX_RUB_PER_UNIT }) {
+  const txns = (finance || []).filter((t) => t.date === date);
+  const planned = expandPlannedItems(plannedItems, date, date, fx);
+  const snapshot = (snapshots || []).find((s) => s.date === date);
+  return {
+    date,
+    snapshot: snapshot != null ? Number(snapshot.total_rub) : null,
+    txns,
+    planned,
+    txnDeltaRub: txns.reduce((s, t) => s + financeTxnDeltaRub(t, fx), 0),
+    plannedDeltaRub: planned.reduce((s, p) => s + p.deltaRub, 0),
+    isFuture: date > today,
+    isToday: date === today,
+  };
+}
+
+export function formatDayBreakdownTooltip(
+  breakdown,
+  { factBalance, planBalance },
+) {
+  const lines = [];
+  const d = breakdown.date;
+  const [y, m, day] = d.split("-");
+  lines.push(`${day}.${m}.${y}`);
+
+  if (factBalance != null && Number.isFinite(factBalance)) {
+    lines.push(`факт: ${fmtRub(factBalance)}`);
+  }
+  if (planBalance != null && Number.isFinite(planBalance)) {
+    lines.push(`план: ${fmtRub(planBalance)}`);
+  }
+  if (breakdown.snapshot != null) {
+    lines.push(`снимок: ${fmtRub(breakdown.snapshot)}`);
+  }
+
+  if (breakdown.txns.length) {
+    lines.push("— операции —");
+    for (const t of breakdown.txns) {
+      const type = (t.txn_type || "expense").toLowerCase();
+      const sign = type === "income" ? "+" : type === "transfer" ? "↔" : "−";
+      const rub = financeTxnDeltaRub(t);
+      const title = t.merchant || t.category || type;
+      lines.push(`${sign} ${title}: ${fmtRub(Math.abs(rub))}`);
+    }
+  }
+
+  if (breakdown.planned.length) {
+    lines.push("— план —");
+    for (const p of breakdown.planned) {
+      const sign = p.deltaRub >= 0 ? "+" : "−";
+      lines.push(`${sign} ${p.title}: ${fmtRub(Math.abs(p.deltaRub))}`);
+    }
+  }
+
+  if (lines.length === 1) lines.push("нет операций");
+  return lines;
+}
