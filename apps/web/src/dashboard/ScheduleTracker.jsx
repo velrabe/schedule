@@ -9,13 +9,14 @@ import {
   DAY_TYPES,
 } from "./seed.js";
 import { useDateStrip, localTodayISO } from "./useDateStrip.js";
+import { EditableField } from "./EditableField.jsx";
+import { manualPatch, manualUpsertDay } from "./manualSave.js";
 import {
   NutriBar,
-  NutriRingRow,
+  NutriMicroBars,
+  barsForMeal,
   activityTypeLabel,
   activityDetailLabel,
-  ringsForMeal,
-  mealMacroText,
 } from "./nutriViz.jsx";
 
 const html = htm.bind(h);
@@ -345,9 +346,25 @@ function App(props = {}) {
         setDays=${setDays}
         setSessions=${setSessions}
       />`}
-      ${tab === "calendar" && html`<${CalendarTab} days=${days} sessions=${sessions} meals=${liveData?.meals || []} activities=${liveData?.activities || []} />`}
+      ${tab === "calendar" &&
+      html`<${CalendarTab}
+        days=${days}
+        sessions=${sessions}
+        meals=${liveData?.meals || []}
+        activities=${liveData?.activities || []}
+        liveMode=${Boolean(liveData)}
+        setSessions=${setSessions}
+        setDays=${setDays}
+      />`}
       ${tab === "kanban" && html`<${KanbanTab} days=${days} sessions=${sessions} meals=${liveData?.meals || []} activities=${liveData?.activities || []} setSessions=${setSessions} liveMode=${Boolean(liveData)} active=${true} />`}
-      ${tab === "nutrition" && html`<${NutritionTab} days=${days} meals=${liveData?.meals || []} activities=${liveData?.activities || []} active=${true} />`}
+      ${tab === "nutrition" &&
+      html`<${NutritionTab}
+        days=${days}
+        meals=${liveData?.meals || []}
+        activities=${liveData?.activities || []}
+        active=${true}
+        liveMode=${Boolean(liveData)}
+      />`}
       ${tab === "sessions" && html`<${SessionsTab} sessions=${sessions} setSessions=${setSessions} />`}
       ${tab === "events" && html`<${EventsTab} events=${events} setEvents=${setEvents} />`}
       ${tab === "insights" && html`<${InsightsTab} days=${days} sessions=${sessions} />`}
@@ -1884,7 +1901,7 @@ const MEAL_SLOT_RU = {
 
 // ---------------- calendar view ----------------
 
-function CalendarTab({ days, sessions, meals = [], activities = [] }) {
+function CalendarTab({ days, sessions, meals = [], activities = [], liveMode = false, setSessions, setDays }) {
   const byDate = useMemo(() => {
     const map = new Map();
     for (const d of days) map.set(d.date, d);
@@ -2027,6 +2044,9 @@ function CalendarTab({ days, sessions, meals = [], activities = [] }) {
             sessions=${sessionsByDate.get(selected) || []}
             meals=${mealsByDate.get(selected) || []}
             activitiesList=${activitiesByDate.get(selected) || []}
+            liveMode=${liveMode}
+            setSessions=${setSessions}
+            setDays=${setDays}
           />
         </div>
       `}
@@ -2034,35 +2054,110 @@ function CalendarTab({ days, sessions, meals = [], activities = [] }) {
   `;
 }
 
-function CalDetailNutriColumn({ slotLabel, name, kcalText, macroText = "", rings = [], variant = "meal", durationMin }) {
-  const isAct = variant === "act";
+function CalDetailNutriColumn({ meal, activity, slotLabel, bars = [], liveMode = false }) {
+  const isAct = Boolean(activity);
+  const mk = meal ? Number(meal.kcal) || 0 : 0;
+  const burn = activity ? Number(activity.calories_burned) || 0 : 0;
+
   return html`
     <div class=${`cal-detail-col-wrap ${isAct ? "cal-detail-col-wrap--act" : ""}`}>
       <div class="cal-detail-col-slot-wrap">
         <span class=${`cal-detail-col-slot ${isAct ? "cal-detail-col-slot--act" : ""}`}>${slotLabel}</span>
       </div>
       <div class="cal-detail-col-name-wrap">
-        <span class="cal-detail-col-name">${name}</span>
+        ${meal &&
+        html`<${EditableField}
+          value=${meal.name}
+          disabled=${!liveMode}
+          className="editable-field-btn--col-name"
+          onSave=${(v) => manualPatch("meals", meal.id, { name: v })}
+        />`}
+        ${activity &&
+        html`<${EditableField}
+          value=${activity.notes ?? ""}
+          display=${activityDetailLabel(activity)}
+          disabled=${!liveMode}
+          className="editable-field-btn--col-name"
+          onSave=${(v) => manualPatch("activities", activity.id, { notes: v || null })}
+        />`}
       </div>
       <div class="cal-detail-col-kcal-wrap">
-        <span class=${`cal-detail-col-kcal ${isAct ? "cal-detail-col-kcal--burn" : ""}`}>${kcalText}</span>
+        ${meal &&
+        html`<${EditableField}
+          type="number"
+          value=${meal.kcal}
+          display=${mk > 0 ? `${Math.round(mk)} kcal` : "—"}
+          disabled=${!liveMode}
+          className="editable-field-btn--col-kcal"
+          onSave=${(v) => manualPatch("meals", meal.id, { kcal: v })}
+        />`}
+        ${activity &&
+        html`<${EditableField}
+          type="number"
+          value=${activity.calories_burned}
+          display=${burn > 0 ? `${Math.round(burn)} kcal` : "—"}
+          disabled=${!liveMode}
+          className="editable-field-btn--col-kcal editable-field-btn--burn"
+          onSave=${(v) => manualPatch("activities", activity.id, { calories_burned: v })}
+        />`}
       </div>
-      ${macroText && html`
-        <div class="cal-detail-col-macro-wrap">
-          <span class="cal-detail-col-macro">${macroText}</span>
+      ${meal && html`
+        <div class="cal-detail-col-macros-edit-wrap">
+          <${EditableField}
+            type="number"
+            value=${meal.carbs_g}
+            display=${meal.carbs_g != null ? `C${Math.round(Number(meal.carbs_g))}` : "C—"}
+            disabled=${!liveMode}
+            className="editable-field-btn--macro"
+            onSave=${(v) => manualPatch("meals", meal.id, { carbs_g: v })}
+          />
+          <${EditableField}
+            type="number"
+            value=${meal.protein_g}
+            display=${meal.protein_g != null ? `P${Math.round(Number(meal.protein_g))}` : "P—"}
+            disabled=${!liveMode}
+            className="editable-field-btn--macro"
+            onSave=${(v) => manualPatch("meals", meal.id, { protein_g: v })}
+          />
+          <${EditableField}
+            type="number"
+            value=${meal.fat_g}
+            display=${meal.fat_g != null ? `F${Math.round(Number(meal.fat_g))}` : "F—"}
+            disabled=${!liveMode}
+            className="editable-field-btn--macro"
+            onSave=${(v) => manualPatch("meals", meal.id, { fat_g: v })}
+          />
         </div>
       `}
-      ${durationMin != null && html`
+      ${activity &&
+      activity.duration_min != null &&
+      html`
         <div class="cal-detail-col-dur-wrap">
-          <span class="cal-detail-col-dur">${durationMin}m</span>
+          <${EditableField}
+            type="number"
+            value=${activity.duration_min}
+            display=${`${activity.duration_min}m`}
+            disabled=${!liveMode}
+            className="editable-field-btn--dur"
+            onSave=${(v) => manualPatch("activities", activity.id, { duration_min: v })}
+          />
         </div>
       `}
-      ${rings.length > 0 && html`<${NutriRingRow} items=${rings} layout="col" />`}
+      ${bars.length > 0 && html`<${NutriMicroBars} items=${bars} layout="col" />`}
     </div>
   `;
 }
 
-function CalendarDayDetail({ date, day, sessions, meals = [], activitiesList = [] }) {
+function CalendarDayDetail({
+  date,
+  day,
+  sessions,
+  meals = [],
+  activitiesList = [],
+  liveMode = false,
+  setSessions,
+  setDays,
+}) {
   const sortedMeals = useMemo(
     () =>
       [...meals].sort((a, b) => {
@@ -2101,18 +2196,97 @@ function CalendarDayDetail({ date, day, sessions, meals = [], activitiesList = [
 
   const hasNutrition = kcalIn > 0 || kcalOut > 0 || meals.length > 0 || activitiesList.length > 0;
 
+  const patchDay = useCallback(
+    async (patch) => {
+      if (!liveMode) return;
+      if (setDays) {
+        setDays((prev) => prev.map((d) => (d.date === date ? { ...d, ...patch } : d)));
+      }
+      const row = {};
+      if (patch.wake !== undefined) row.wake_time = patch.wake || null;
+      if (patch.sleep_start !== undefined) row.sleep_time = patch.sleep_start || null;
+      if (patch.sleep_h !== undefined) row.sleep_hours = patch.sleep_h;
+      if (patch.modafinil_mg !== undefined) row.modafinil_mg = patch.modafinil_mg;
+      if (patch.day_type !== undefined) row.day_type = patch.day_type || null;
+      if (patch.notes !== undefined) row.notes = patch.notes || null;
+      if (patch.weight_kg !== undefined) row.weight_kg = patch.weight_kg;
+      await manualUpsertDay(date, row);
+    },
+    [date, liveMode, setDays],
+  );
+
+  const saveSession = useCallback(
+    async (id, patch) => {
+      const orig = sessions.find((s) => s.id === id);
+      if (!orig) return;
+      const next = { ...orig, ...patch };
+      if (patch.start !== undefined || patch.end !== undefined) {
+        next.min = diffMinutes(next.start, next.end);
+      }
+      if (liveMode && setSessions) {
+        setSessions((prev) => prev.map((s) => (s.id === id ? next : s)));
+        await manualPatch("sessions", id, {
+          start_time: next.start,
+          end_time: next.end,
+          duration_min: next.min,
+          category: next.category || null,
+          project: next.project || null,
+          notes: next.note || null,
+        });
+      }
+    },
+    [sessions, liveMode, setSessions],
+  );
+
   return html`
     <div class="cal-detail-body-wrap">
       <div class="cal-detail-meta-wrap">
-        ${day && day.wake && html`<span class="cal-detail-meta">wake ${day.wake}</span>`}
-        ${day && day.sleep_start && html`<span class="cal-detail-meta">sleep ${day.sleep_start}</span>`}
-        ${day && day.sleep_h !== null && html`<span class="cal-detail-meta">${fmt(day.sleep_h, 1)}h</span>`}
-        ${day && day.modafinil_mg > 0 && html`<span class="cal-detail-meta">mod ${day.modafinil_mg}mg</span>`}
-        ${day && day.day_type && html`<span class="cal-detail-meta">${day.day_type}</span>`}
-        ${day && day.weight_kg && html`<span class="cal-detail-meta">${fmt(day.weight_kg, 1)}kg</span>`}
+        <${EditableField}
+          value=${day?.wake ?? ""}
+          display=${day?.wake ? `wake ${day.wake}` : "wake —"}
+          type="time"
+          disabled=${!liveMode}
+          className="cal-detail-meta editable-field-btn--meta"
+          onSave=${(v) => patchDay({ wake: v })}
+        />
+        <${EditableField}
+          value=${day?.sleep_start ?? ""}
+          display=${day?.sleep_start ? `sleep ${day.sleep_start}` : "sleep —"}
+          type="time"
+          disabled=${!liveMode}
+          className="cal-detail-meta editable-field-btn--meta"
+          onSave=${(v) => patchDay({ sleep_start: v })}
+        />
+        ${day?.sleep_h != null &&
+        html`<span class="cal-detail-meta cal-detail-meta--static">${fmt(day.sleep_h, 1)}h</span>`}
+        <${EditableField}
+          type="number"
+          value=${day?.modafinil_mg ?? 0}
+          display=${day?.modafinil_mg ? `mod ${day.modafinil_mg}mg` : "mod —"}
+          disabled=${!liveMode}
+          className="cal-detail-meta editable-field-btn--meta"
+          onSave=${(v) => patchDay({ modafinil_mg: v })}
+        />
+        <${EditableField}
+          value=${day?.day_type ?? ""}
+          display=${day?.day_type || "type —"}
+          disabled=${!liveMode}
+          className="cal-detail-meta editable-field-btn--meta"
+          onSave=${(v) => patchDay({ day_type: v })}
+        />
+        ${day?.weight_kg != null &&
+        html`<span class="cal-detail-meta cal-detail-meta--static">${fmt(day.weight_kg, 1)}kg</span>`}
       </div>
 
-      ${day && day.notes && html`<div class="cal-detail-notes-wrap"><span>${day.notes}</span></div>`}
+      <div class="cal-detail-notes-wrap">
+        <${EditableField}
+          value=${day?.notes ?? ""}
+          display=${day?.notes || "заметки…"}
+          disabled=${!liveMode}
+          className="editable-field-btn--notes"
+          onSave=${(v) => patchDay({ notes: v })}
+        />
+      </div>
 
       ${hasNutrition && html`
         <div class="cal-detail-nutri-summary-wrap">
@@ -2122,7 +2296,8 @@ function CalendarDayDetail({ date, day, sessions, meals = [], activitiesList = [
               баланс ${Math.round(balance)} / ${NUTRITION_TARGET.kcal}
             </span>
           </div>
-          <${NutriRingRow}
+          <${NutriMicroBars}
+            layout="row"
             items=${[
               { key: "kin", label: "in", value: kcalIn, target: NUTRITION_TARGET.kcal, kind: "kcal" },
               { key: "kout", label: "out", value: kcalOut, target: NUTRITION_TARGET.kcal, kind: "activity" },
@@ -2137,30 +2312,24 @@ function CalendarDayDetail({ date, day, sessions, meals = [], activitiesList = [
       ${(sortedMeals.length > 0 || sortedActs.length > 0) && html`
         <div class="cal-detail-section-wrap cal-detail-section-wrap--cols">
           <div class="cal-detail-columns-wrap">
-            ${sortedMeals.map((m) => {
-              const mk = Number(m.kcal) || 0;
-              return html`
+            ${sortedMeals.map((m) => html`
                 <${CalDetailNutriColumn}
                   key=${m.id}
+                  meal=${m}
+                  liveMode=${liveMode}
                   slotLabel=${MEAL_SLOT_RU[m.slot] || m.slot || "еда"}
-                  name=${m.name}
-                  kcalText=${mk > 0 ? `${Math.round(mk)} kcal` : "—"}
-                  macroText=${mealMacroText(m)}
-                  rings=${ringsForMeal(m, NUTRITION_TARGET)}
+                  bars=${barsForMeal(m, NUTRITION_TARGET)}
                 />
-              `;
-            })}
+              `)}
             ${sortedActs.map((a) => {
               const burn = Number(a.calories_burned) || 0;
               return html`
                 <${CalDetailNutriColumn}
                   key=${a.id}
-                  variant="act"
+                  activity=${a}
+                  liveMode=${liveMode}
                   slotLabel=${activityTypeLabel(a)}
-                  name=${activityDetailLabel(a)}
-                  kcalText=${burn > 0 ? `${Math.round(burn)} kcal` : "—"}
-                  durationMin=${a.duration_min}
-                  rings=${burn > 0
+                  bars=${burn > 0
                     ? [{ key: "b", label: "out", value: burn, target: NUTRITION_TARGET.kcal, kind: "activity" }]
                     : []}
                 />
@@ -2176,10 +2345,43 @@ function CalendarDayDetail({ date, day, sessions, meals = [], activitiesList = [
           ${sorted.length === 0 && html`<div class="cal-detail-empty-wrap"><span>сессии не записаны</span></div>`}
           ${sorted.map((s) => html`
             <div class="cal-detail-session" key=${s.id}>
-              <span class="cal-detail-session__time">${s.start}–${s.end}</span>
-              <span class="cal-detail-session__cat">${s.category}</span>
-              ${s.project && html`<span class="cal-detail-session__proj">${s.project}</span>`}
-              ${s.note && html`<span class="cal-detail-session__note">${s.note}</span>`}
+              <div class="cal-detail-session-time-wrap">
+                <${EditableField}
+                  type="time"
+                  value=${s.start}
+                  disabled=${!liveMode}
+                  className="cal-detail-session__time"
+                  onSave=${(v) => saveSession(s.id, { start: v })}
+                />
+                <span class="cal-detail-session__sep">–</span>
+                <${EditableField}
+                  type="time"
+                  value=${s.end}
+                  disabled=${!liveMode}
+                  className="cal-detail-session__time"
+                  onSave=${(v) => saveSession(s.id, { end: v })}
+                />
+              </div>
+              <${EditableField}
+                value=${s.category}
+                disabled=${!liveMode}
+                className="cal-detail-session__cat"
+                onSave=${(v) => saveSession(s.id, { category: v })}
+              />
+              <${EditableField}
+                value=${s.project || ""}
+                display=${s.project || "—"}
+                disabled=${!liveMode}
+                className="cal-detail-session__proj"
+                onSave=${(v) => saveSession(s.id, { project: v })}
+              />
+              <${EditableField}
+                value=${s.note || ""}
+                display=${s.note || ""}
+                disabled=${!liveMode}
+                className="cal-detail-session__note"
+                onSave=${(v) => saveSession(s.id, { note: v })}
+              />
             </div>
           `)}
         </div>
@@ -2564,7 +2766,7 @@ function KanbanSessionEditor({ value, isNew = false, onSave, onCancel, onDelete 
 
 // ---------------- nutrition view ----------------
 
-function NutritionTab({ days, meals = [], activities = [], active = true }) {
+function NutritionTab({ days, meals = [], activities = [], active = true, liveMode = false }) {
   const knownDates = useMemo(() => {
     const set = new Set();
     for (const d of days) set.add(d.date);
@@ -2631,8 +2833,20 @@ function NutritionTab({ days, meals = [], activities = [], active = true }) {
                 ${dayMeals.map((m) => html`
                   <div class="nutri-meal-row" key=${m.id}>
                     <span class="nutri-meal-slot">${m.slot || "—"}</span>
-                    <span class="nutri-meal-name">${m.name}</span>
-                    <span class="nutri-meal-kcal">${m.kcal != null ? `${Math.round(Number(m.kcal))}` : "—"}</span>
+                    <${EditableField}
+                      value=${m.name}
+                      disabled=${!liveMode}
+                      className="nutri-meal-name editable-field-btn--meal-name"
+                      onSave=${(v) => manualPatch("meals", m.id, { name: v })}
+                    />
+                    <${EditableField}
+                      type="number"
+                      value=${m.kcal}
+                      display=${m.kcal != null ? `${Math.round(Number(m.kcal))}` : "—"}
+                      disabled=${!liveMode}
+                      className="nutri-meal-kcal editable-field-btn--meal-kcal"
+                      onSave=${(v) => manualPatch("meals", m.id, { kcal: v })}
+                    />
                     <span class="nutri-meal-macro">
                       ${m.carbs_g != null ? `C${Math.round(Number(m.carbs_g))}` : ""}
                       ${m.protein_g != null ? ` P${Math.round(Number(m.protein_g))}` : ""}

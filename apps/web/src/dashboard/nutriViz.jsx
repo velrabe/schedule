@@ -114,18 +114,46 @@ export function activityDetailLabel(a) {
   return type;
 }
 
-/** Ring items for one meal column. */
-export function ringsForMeal(m, target) {
+/** Fixed-height micro bars (calendar columns — no layout jump). */
+export function NutriMicroBars({ items, layout = "col" }) {
+  return html`
+    <div class=${`nutri-micro-bars-wrap nutri-micro-bars-wrap--${layout}`}>
+      ${items.map((it) => {
+        const state = nutriFillState(it.value, it.target);
+        const pct = pctOf(it.value, it.target) * 100;
+        return html`
+          <div class="nutri-micro-bar-item" key=${it.key || it.label}>
+            <div class="nutri-micro-bar-track">
+              <div
+                class=${`nutri-bar-fill nutri-bar-fill--${it.kind} nutri-bar-fill--${state}`}
+                style=${{ width: `${pct}%` }}
+              ></div>
+            </div>
+            <span class="nutri-micro-bar-label">${it.label}</span>
+          </div>
+        `;
+      })}
+    </div>
+  `;
+}
+
+/** Bar items for one meal column. */
+export function barsForMeal(m, target) {
   const mk = Number(m.kcal) || 0;
-  const rings = [];
-  if (mk > 0) rings.push({ key: "k", label: "kcal", value: mk, target: target.kcal, kind: "kcal" });
+  const items = [];
+  if (mk > 0) items.push({ key: "k", label: "kcal", value: mk, target: target.kcal, kind: "kcal" });
   if (m.carbs_g != null)
-    rings.push({ key: "c", label: "C", value: Number(m.carbs_g), target: target.carbs, kind: "carbs" });
+    items.push({ key: "c", label: "C", value: Number(m.carbs_g), target: target.carbs, kind: "carbs" });
   if (m.protein_g != null)
-    rings.push({ key: "p", label: "P", value: Number(m.protein_g), target: target.protein, kind: "protein" });
+    items.push({ key: "p", label: "P", value: Number(m.protein_g), target: target.protein, kind: "protein" });
   if (m.fat_g != null)
-    rings.push({ key: "f", label: "F", value: Number(m.fat_g), target: target.fat, kind: "fat" });
-  return rings;
+    items.push({ key: "f", label: "F", value: Number(m.fat_g), target: target.fat, kind: "fat" });
+  return items;
+}
+
+/** @deprecated use barsForMeal */
+export function ringsForMeal(m, target) {
+  return barsForMeal(m, target);
 }
 
 export function mealMacroText(m) {

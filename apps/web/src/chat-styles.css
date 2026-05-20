@@ -270,6 +270,89 @@
   color: var(--text-2);
 }
 
+/* inline edit */
+.editable-field-btn {
+  display: inline-flex;
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+}
+
+.editable-field-btn:disabled,
+.editable-field-btn[disabled] {
+  cursor: default;
+}
+
+.editable-field-btn:hover:not(:disabled) .editable-field-btn__text {
+  text-decoration: underline;
+  text-decoration-color: var(--text-3);
+}
+
+.editable-field-input {
+  font: inherit;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text);
+  background: var(--bg);
+  border: 1px solid var(--accent);
+  border-radius: 2px;
+  padding: 2px 4px;
+  min-width: 48px;
+  max-width: 100%;
+}
+
+.editable-field-btn--col-name .editable-field-btn__text {
+  font-size: 11px;
+  font-family: var(--mono);
+  color: var(--text);
+  line-height: 1.35;
+  text-align: left;
+}
+
+.editable-field-btn--col-kcal .editable-field-btn__text {
+  font-size: 11px;
+  font-family: var(--mono);
+  color: #b6791a;
+}
+
+.editable-field-btn--burn .editable-field-btn__text {
+  color: #ff7a18;
+}
+
+.editable-field-btn--macro .editable-field-btn__text {
+  font-size: 10px;
+  font-family: var(--mono);
+  color: var(--text-3);
+}
+
+.editable-field-btn--meta .editable-field-btn__text {
+  font-size: 11px;
+  font-family: var(--mono);
+  color: var(--text-3);
+}
+
+.editable-field-btn--notes {
+  width: 100%;
+}
+
+.editable-field-btn--notes .editable-field-btn__text {
+  font-size: 12px;
+  color: var(--text-2);
+  text-align: left;
+}
+
+.cal-detail-meta--static {
+  font-size: 11px;
+  font-family: var(--mono);
+  color: var(--text-3);
+  margin-right: 8px;
+}
+
 .cal-detail-sessions-wrap {
   display: flex;
   flex-direction: column;
@@ -290,12 +373,27 @@
 }
 
 .cal-detail-session {
-  display: grid;
-  grid-template-columns: 92px 100px 1fr;
-  gap: 8px;
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
   align-items: baseline;
-  padding: 4px 0;
+  width: 100%;
+  padding: 6px 0;
   border-bottom: 1px solid var(--border);
+}
+
+.cal-detail-session-time-wrap {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  margin-right: 10px;
+}
+
+.cal-detail-session__sep {
+  margin: 0 4px;
+  font-size: 11px;
+  font-family: var(--mono);
+  color: var(--text-3);
 }
 
 .cal-detail-session:last-child {
@@ -810,7 +908,7 @@ button.kanban-card:hover {
 }
 
 .cal-detail-item__slot--act {
-  color: #e89a4d;
+  color: #ff7a18;
 }
 
 .cal-detail-item__name {
@@ -827,7 +925,7 @@ button.kanban-card:hover {
 }
 
 .cal-detail-item__kcal--burn {
-  color: #e89a4d;
+  color: #ff7a18;
 }
 
 .cal-detail-item__macro {
@@ -860,10 +958,10 @@ button.kanban-card:hover {
 .cal-detail-col-wrap {
   display: flex;
   flex-direction: column;
-  align-items: center;
+  align-items: flex-start;
   flex: 1 1 0;
   min-width: 0;
-  padding: 0 8px;
+  padding: 0 10px;
   border-right: 1px solid var(--border);
 }
 
@@ -874,7 +972,7 @@ button.kanban-card:hover {
 .cal-detail-col-slot-wrap {
   display: flex;
   width: 100%;
-  justify-content: center;
+  justify-content: flex-start;
   margin-bottom: 6px;
 }
 
@@ -888,7 +986,7 @@ button.kanban-card:hover {
 }
 
 .cal-detail-col-slot--act {
-  color: #e89a4d;
+  color: #ff7a18;
 }
 
 .cal-detail-col-name-wrap {
@@ -902,14 +1000,14 @@ button.kanban-card:hover {
   font-family: var(--mono);
   color: var(--text);
   line-height: 1.35;
-  text-align: center;
+  text-align: left;
   word-break: break-word;
 }
 
 .cal-detail-col-kcal-wrap {
   display: flex;
   width: 100%;
-  justify-content: center;
+  justify-content: flex-start;
   margin-bottom: 4px;
 }
 
@@ -921,14 +1019,22 @@ button.kanban-card:hover {
 }
 
 .cal-detail-col-kcal--burn {
-  color: #e89a4d;
+  color: #ff7a18;
 }
 
-.cal-detail-col-macro-wrap {
+.cal-detail-col-macro-wrap,
+.cal-detail-col-macros-edit-wrap {
   display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
   width: 100%;
-  justify-content: center;
+  justify-content: flex-start;
   margin-bottom: 6px;
+  gap: 0;
+}
+
+.cal-detail-col-macros-edit-wrap .editable-field-btn {
+  margin-right: 6px;
 }
 
 .cal-detail-col-macro {
@@ -940,7 +1046,7 @@ button.kanban-card:hover {
 .cal-detail-col-dur-wrap {
   display: flex;
   width: 100%;
-  justify-content: center;
+  justify-content: flex-start;
   margin-bottom: 4px;
 }
 
@@ -950,9 +1056,65 @@ button.kanban-card:hover {
   color: var(--text-3);
 }
 
-.cal-detail-col-wrap .nutri-ring-row-wrap {
+.cal-detail-col-wrap .nutri-micro-bars-wrap {
   width: 100%;
-  justify-content: center;
+  margin-top: 4px;
+}
+
+.nutri-micro-bars-wrap {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  gap: 0;
+}
+
+.nutri-micro-bars-wrap--row {
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: flex-end;
+}
+
+.nutri-micro-bars-wrap--row .nutri-micro-bar-item {
+  margin-right: 8px;
+}
+
+.nutri-micro-bar-item {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  margin-bottom: 5px;
+}
+
+.nutri-micro-bars-wrap--row .nutri-micro-bar-item {
+  width: auto;
+  min-width: 36px;
+  margin-bottom: 0;
+}
+
+.nutri-micro-bar-track {
+  display: flex;
+  width: 100%;
+  height: 4px;
+  min-height: 4px;
+  background: var(--bg);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.nutri-micro-bars-wrap--row .nutri-micro-bar-track {
+  width: 40px;
+}
+
+.nutri-micro-bar-label {
+  font-size: 8px;
+  font-family: var(--mono);
+  color: var(--text-3);
+  line-height: 1.2;
+  margin-top: 2px;
+}
+
+.cal-detail-nutri-summary-wrap .nutri-micro-bars-wrap--row {
+  margin-top: 6px;
 }
 
 .nutri-ring-row-wrap--col {
@@ -1132,16 +1294,16 @@ button.kanban-card:hover {
 
 .nutri-ring--activity.nutri-ring--ok .nutri-ring__fg,
 .nutri-bar-fill--activity.nutri-bar-fill--ok {
-  stroke: #e89a4d;
-  background: #e89a4d;
+  stroke: #ff7a18;
+  background: #ff7a18;
 }
 
 .nutri-ring--activity.nutri-ring--over .nutri-ring__fg,
 .nutri-bar-fill--activity.nutri-bar-fill--over,
 .nutri-ring--activity.nutri-ring--over2x .nutri-ring__fg,
 .nutri-bar-fill--activity.nutri-bar-fill--over2x {
-  stroke: #b86a20;
-  background: #b86a20;
+  stroke: #e85d00;
+  background: #e85d00;
 }
 
 .cal-detail-nutri {
