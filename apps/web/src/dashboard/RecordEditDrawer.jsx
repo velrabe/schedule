@@ -1,4 +1,4 @@
-import { h } from "preact";
+import { h, Fragment } from "preact";
 import { useState, useEffect, useCallback } from "preact/hooks";
 import htm from "htm";
 import { manualPatch } from "./manualSave.js";
@@ -11,9 +11,17 @@ import {
 
 const html = htm.bind(h);
 
+function selectOptions(field, value) {
+  const base = [...(field.options || [])];
+  const v = value == null ? "" : String(value);
+  if (v && !base.includes(v)) base.unshift(v);
+  return base;
+}
+
 function FieldInput({ field, value, onChange, disabled }) {
   const id = `record-field-${field.key}`;
   const onInput = (e) => onChange(field.key, e.target.value);
+  const displayValue = value == null || value === "" ? "" : String(value);
 
   if (field.type === "textarea") {
     return html`
@@ -26,7 +34,7 @@ function FieldInput({ field, value, onChange, disabled }) {
           class="record-drawer-input record-drawer-input--area"
           rows="3"
           disabled=${disabled}
-          value=${value ?? ""}
+          value=${displayValue}
           onInput=${onInput}
         ></textarea>
       </div>
@@ -34,6 +42,7 @@ function FieldInput({ field, value, onChange, disabled }) {
   }
 
   if (field.type === "select") {
+    const options = selectOptions(field, value);
     return html`
       <div class="record-drawer-field-wrap">
         <label class="record-drawer-label-wrap" for=${id}>
@@ -43,11 +52,11 @@ function FieldInput({ field, value, onChange, disabled }) {
           id=${id}
           class="record-drawer-input"
           disabled=${disabled}
-          value=${value ?? ""}
+          value=${displayValue}
           onChange=${(e) => onChange(field.key, e.target.value)}
         >
           ${field.optional && html`<option value="">—</option>`}
-          ${(field.options || []).map((opt) => html`<option value=${opt}>${opt}</option>`)}
+          ${options.map((opt) => html`<option value=${opt}>${opt}</option>`)}
         </select>
       </div>
     `;
@@ -63,7 +72,7 @@ function FieldInput({ field, value, onChange, disabled }) {
         id=${id}
         class="record-drawer-input"
         disabled=${disabled}
-        value=${value ?? ""}
+        value=${displayValue}
         onInput=${onInput}
       />
     </div>
@@ -84,7 +93,17 @@ export default function RecordEditDrawer({
 
   useEffect(() => {
     if (target) setForm(recordToForm(target.kind, target.record));
+    else setForm({});
   }, [target?.kind, target?.record?.id]);
+
+  useEffect(() => {
+    if (!target) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, [Boolean(target)]);
 
   useEffect(() => {
     if (!target) return;
@@ -142,15 +161,20 @@ export default function RecordEditDrawer({
 
   const subtitle = meta.subtitle(target.record);
   const busy = saving || deleting;
+  const stopInside = (e) => e.stopPropagation();
 
   return html`
-    <>
+    <${Fragment}>
       <div
         class="record-drawer-overlay record-drawer-overlay--open"
         onClick=${onClose}
         role="presentation"
       ></div>
-      <aside class="record-drawer record-drawer--open" aria-label=${meta.title}>
+      <aside
+        class="record-drawer record-drawer--open"
+        aria-label=${meta.title}
+        onClick=${stopInside}
+      >
         <header class="record-drawer-header-wrap">
           <div class="record-drawer-title-wrap">
             <span class="record-drawer-title">${meta.title}</span>
@@ -200,6 +224,6 @@ export default function RecordEditDrawer({
           </button>
         </footer>
       </aside>
-    </>
+    </${Fragment}>
   `;
 }

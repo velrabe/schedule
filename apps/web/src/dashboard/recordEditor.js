@@ -59,7 +59,7 @@ const KIND_META = {
     fields: [
       { key: "date", label: "дата", type: "date" },
       { key: "time", label: "время", type: "time", optional: true },
-      { key: "type", label: "тип", type: "select", options: ACTIVITY_TYPES },
+      { key: "type", label: "тип", type: "text" },
       { key: "duration_min", label: "длительность, мин", type: "number" },
       { key: "calories_burned", label: "ккал сожжено", type: "number" },
       { key: "intensity", label: "интенсивность", type: "number", optional: true },
