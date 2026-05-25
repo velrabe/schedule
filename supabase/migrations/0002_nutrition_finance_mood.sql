@@ -44,7 +44,7 @@ create table if not exists accounts (
 
 insert into accounts (id, name, currency, balance, notes) values
   ('savings_rub', 'Savings RUB', 'RUB', 155000, 'основной рублёвый сберегательный'),
-  ('ip_rub', 'Счёт ИП', 'RUB', 60000, 'предпринимательский счёт'),
+  ('ip_rub', 'Business RUB', 'RUB', 60000, 'счёт ИП = Business bank'),
   ('vcb_vnd', 'Bank VND', 'VND', 450000, 'основная карта в Вьетнаме'),
   ('cash_vnd', 'Наличные VND', 'VND', 200000, 'наличные на руках')
 on conflict (id) do nothing;

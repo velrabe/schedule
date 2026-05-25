@@ -1,6 +1,6 @@
 export const ACCOUNT_LABELS = {
   savings_rub: "Savings RUB",
-  ip_rub: "Счёт ИП",
+  ip_rub: "Business RUB",
   vcb_vnd: "Bank VND",
   cash_vnd: "Наличные",
 };

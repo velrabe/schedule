@@ -156,7 +156,7 @@ const FINANCE = `
 # finance
 Accounts (use the slug as data.account):
 - savings_rub — Savings RUB, RUB
-- ip_rub — Счёт ИП, RUB
+- ip_rub — Business RUB, RUB (счёт ИП = Business bank)
 - vcb_vnd — Bank VND, VND
 - cash_vnd — Наличные, VND
 
@@ -169,7 +169,7 @@ Currency parsing:
 
 Default account inference:
 - If user says "сберовским", "со сбера", "сберегательного" → savings_rub
-- If user says "с ип", "с предпринимательского" → ip_rub
+- If user says "с ип", "с предпринимательского", "локо", "локо-банк" → ip_rub
 - If user says "вкб", "vcb", "вьеткомбанк" → vcb_vnd
 - If user says "наличными", "кэшем", "налом" → cash_vnd
 - If unspecified AND VND → cash_vnd (most likely small purchases)
