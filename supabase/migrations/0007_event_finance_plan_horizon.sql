@@ -1,4 +1,4 @@
--- Event ↔ planned finance sync; 6-month food horizon; vizaran on 30th.
+-- Event ↔ planned finance sync; 6-month food horizon (визаран — в 0009, 26–27.05).
 
 -- Events: budget + span (like sessions with cost)
 alter table events
@@ -19,51 +19,3 @@ create index if not exists finance_planned_event_idx on finance_planned_items (e
 update finance_planned_items
 set end_date = '2026-10-20'
 where id = 'f1000004-0000-4000-8000-000000000004';
-
--- Vizaran expense: monthly on the 30th
-update finance_planned_items
-set
-  recurrence = 'monthly',
-  day_of_month = 30,
-  start_date = '2026-05-01',
-  end_date = null
-where id = 'f1000003-0000-4000-8000-000000000003';
-
--- Vizaran as an event (trip window) linked to the same planned line
-insert into events (
-  id,
-  date,
-  end_date,
-  kind,
-  detail,
-  severity,
-  budget_amount,
-  budget_currency,
-  budget_account,
-  finance_planned_item_id
-) values (
-  'e1000001-0000-4000-8000-000000000001',
-  '2026-05-30',
-  '2026-06-02',
-  'visa',
-  'визаран',
-  'warning',
-  15000,
-  'RUB',
-  'savings_rub',
-  'f1000003-0000-4000-8000-000000000003'
-)
-on conflict (id) do update set
-  date = excluded.date,
-  end_date = excluded.end_date,
-  kind = excluded.kind,
-  detail = excluded.detail,
-  severity = excluded.severity,
-  budget_amount = excluded.budget_amount,
-  budget_currency = excluded.budget_currency,
-  budget_account = excluded.budget_account,
-  finance_planned_item_id = excluded.finance_planned_item_id;
-
-update finance_planned_items
-set event_id = 'e1000001-0000-4000-8000-000000000001'
-where id = 'f1000003-0000-4000-8000-000000000003';
