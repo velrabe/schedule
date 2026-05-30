@@ -3,6 +3,7 @@ import { useMemo } from "preact/hooks";
 import htm from "htm";
 import { buildInsightsModel } from "./insightsCompute.js";
 import { fmtRub } from "./financeInsights.js";
+import { InsightsLineChart, InsightsBarChart } from "./insightsCharts.jsx";
 
 const html = htm.bind(h);
 
@@ -11,10 +12,7 @@ function fmt(n, digits = 1) {
   return Number(n).toFixed(digits);
 }
 
-function fmtDateShort(iso) {
-  if (!iso) return "—";
-  return iso.slice(5);
-}
+const fmtNum = fmt;
 
 export default function InsightsTab({
   days,
@@ -110,51 +108,72 @@ export default function InsightsTab({
           <${StackedBudgetBar} rows=${timeBudget} total=${timeBudgetTotal} />
         </${InsightCard}>
 
-        <${InsightCard} title="Динамика" subtitle="sleep · business · sport · модафинил/25">
-          <${LineChart}
-            categories=${enriched.map((d) => fmtDateShort(d.date))}
+        <${InsightCard} title="Динамика" subtitle="сон · работа · спорт по дням">
+          <${InsightsLineChart}
+            dates=${enriched.map((d) => d.date)}
             series=${[
               {
-                name: "sleep_h",
+                key: "sleep",
+                label: "Сон",
                 color: "var(--info)",
-                data: enriched.map((d) => d.sleep_h ?? 0),
+                data: enriched.map((d) => d.sleep_h),
+                unit: " ч",
+                formatValue: (v) => fmtNum(v, 1),
               },
               {
-                name: "business_h",
+                key: "business",
+                label: "Работа",
                 color: "var(--success)",
                 data: enriched.map((d) => d.business_h),
+                unit: " ч",
               },
               {
-                name: "sport_h",
+                key: "sport",
+                label: "Спорт",
                 color: "var(--danger)",
                 data: enriched.map((d) => d.sport_h),
-              },
-              {
-                name: "modafinil/25",
-                color: "var(--warning)",
-                data: enriched.map((d) => d.modafinil_mg / 25),
+                unit: " ч",
               },
             ]}
+            extraLines=${(date, i) => {
+              const d = enriched[i];
+              if (!d) return [];
+              const lines = [`${d.dow || "—"} · ${d.day_type || "—"}`];
+              if (d.modafinil_mg > 0) lines.push(`Модафинил: ${d.modafinil_mg} мг`);
+              return lines;
+            }}
           />
         </${InsightCard}>
 
         ${hasNutrition &&
         html`
           <${InsightCard} title="Питание" subtitle="meals + activities / session_events">
-            <${LineChart}
-              categories=${enriched.map((d) => fmtDateShort(d.date))}
+            <${InsightsLineChart}
+              dates=${enriched.map((d) => d.date)}
               series=${[
                 {
-                  name: "kcal in",
+                  key: "kcal_in",
+                  label: "Ккал приход",
                   color: "var(--warning)",
-                  data: enriched.map((d) => d.kcalIn),
+                  data: enriched.map((d) => (d.kcalIn > 0 ? d.kcalIn : null)),
+                  unit: " ккал",
+                  formatValue: (v) => String(Math.round(v)),
                 },
                 {
-                  name: "kcal out",
+                  key: "kcal_out",
+                  label: "Ккал расход",
                   color: "var(--danger)",
-                  data: enriched.map((d) => d.kcalOut),
+                  data: enriched.map((d) => (d.kcalOut > 0 ? d.kcalOut : null)),
+                  unit: " ккал",
+                  formatValue: (v) => String(Math.round(v)),
                 },
               ]}
+              extraLines=${(date, i) => {
+                const d = enriched[i];
+                if (!d || (d.kcalIn <= 0 && d.kcalOut <= 0)) return [];
+                if (d.kcalBalance == null) return [];
+                return [`Баланс: ${d.kcalBalance >= 0 ? "+" : ""}${d.kcalBalance} ккал`];
+              }}
             />
             <div class="insights-mini-table-wrap">
               ${enriched
@@ -179,24 +198,25 @@ export default function InsightsTab({
 
         <div class="insights-duo-wrap">
           <${InsightCard} title="Спорт-микс" subtitle="минуты по виду">
-            <${BarChart}
+            <${InsightsBarChart}
               rows=${sportMix.map((r) => ({
                 label: r.label,
                 value: r.hours,
                 tone: "danger",
               }))}
-              unit="ч"
+              unit=" ч"
+              hint="сумма минут sport_* сессий"
             />
           </${InsightCard}>
 
           <${InsightCard} title="Проекты" subtitle="work_paid + personal + byt">
-            <${BarChart}
+            <${InsightsBarChart}
               rows=${topProjects.map((r) => ({
                 label: r.label,
                 value: r.hours,
                 tone: "success",
               }))}
-              unit="ч"
+              unit=" ч"
             />
           </${InsightCard}>
         </div>
@@ -204,13 +224,14 @@ export default function InsightsTab({
         ${hasFinance &&
         html`
           <${InsightCard} title="Расходы" subtitle="finance_transactions · факт">
-            <${BarChart}
+            <${InsightsBarChart}
               rows=${financeTop.map((r) => ({
-                label: r.label.length > 18 ? `${r.label.slice(0, 16)}…` : r.label,
+                label: r.label,
+                shortLabel: r.label.length > 20 ? `${r.label.slice(0, 18)}…` : r.label,
                 value: r.rub,
                 tone: "warning",
               }))}
-              unit="₽"
+              unit=""
               valueFmt=${(v) => fmtRub(v)}
             />
           </${InsightCard}>
@@ -233,58 +254,65 @@ export default function InsightsTab({
 
         <div class="insights-duo-wrap">
           <${InsightCard} title="Модафинил → работа" subtitle="n = ${enriched.length}">
-            <${BarChart}
+            <${InsightsBarChart}
               rows=${modBuckets
                 .filter((b) => b.count > 0)
                 .map((b) => ({
                   label: `${b.key} (n=${b.count})`,
+                  shortLabel: b.key,
                   value: b.avgWork,
                   tone: "info",
+                  detail: `средняя работа, n=${b.count}`,
                 }))}
-              unit="ч"
+              unit=" ч"
             />
           </${InsightCard}>
 
-          <${InsightCard} title="Сон → работа" subtitle="business_h по бакету">
-            <${BarChart}
+          <${InsightCard} title="Сон → работа" subtitle="средняя работа по бакету сна">
+            <${InsightsBarChart}
               rows=${sleepBuckets
                 .filter((b) => b.count > 0)
                 .map((b) => ({
                   label: `${b.key} (n=${b.count})`,
+                  shortLabel: b.key,
                   value: b.avgWork,
                   tone: "success",
+                  detail: `n=${b.count}`,
                 }))}
-              unit="ч"
+              unit=" ч"
             />
           </${InsightCard}>
         </div>
 
         <div class="insights-duo-wrap">
           <${InsightCard} title="День недели" subtitle="работа и спорт">
-            <${BarChart}
+            <${InsightsBarChart}
               rows=${byDow
                 .filter((b) => b.count > 0)
                 .map((b) => ({
-                  label: `${b.key} (n=${b.count})`,
+                  label: `${b.key} — работа (n=${b.count})`,
+                  shortLabel: b.key,
                   value: b.avgWork,
                   tone: "warning",
                 }))}
-              unit="ч работа"
+              unit=" ч"
+              hint="среднее business_h"
             />
-            <${BarChart}
+            <${InsightsBarChart}
               rows=${byDow
                 .filter((b) => b.count > 0)
                 .map((b) => ({
-                  label: b.key,
+                  label: `${b.key} — спорт (n=${b.count})`,
+                  shortLabel: b.key,
                   value: b.avgSport,
                   tone: "danger",
                 }))}
-              unit="ч спорт"
+              unit=" ч"
             />
           </${InsightCard}>
 
-          <${InsightCard} title="day_type" subtitle="${enriched.length} дней">
-            <${BarChart}
+          <${InsightCard} title="Тип дня" subtitle="${enriched.length} дней · day_type">
+            <${InsightsBarChart}
               rows=${dayTypeCounts.map(([t, c]) => ({
                 label: t,
                 value: c,
@@ -296,28 +324,32 @@ export default function InsightsTab({
                       : t === "mixed"
                         ? "info"
                         : "warning",
+                detail: "дней",
               }))}
-              unit=""
+              unit=" дн."
               valueFmt=${(v) => String(Math.round(v))}
             />
           </${InsightCard}>
         </div>
 
         <${InsightCard} title="Утренний спорт" subtitle="сессии до 12:00">
-          <${BarChart}
+          <${InsightsBarChart}
             rows=${[
               {
-                label: `с утром (n=${morningSport.morning.count})`,
+                label: `С утренним спортом (n=${morningSport.morning.count})`,
+                shortLabel: "с утром",
                 value: morningSport.morning.avg,
                 tone: "danger",
               },
               {
-                label: `без (n=${morningSport.noMorning.count})`,
+                label: `Без утреннего спорта (n=${morningSport.noMorning.count})`,
+                shortLabel: "без",
                 value: morningSport.noMorning.avg,
                 tone: "success",
               },
             ]}
-            unit="ч"
+            unit=" ч"
+            hint="спорт-сессии до 12:00"
           />
         </${InsightCard}>
 
@@ -458,126 +490,6 @@ function InsightCard({ title, subtitle, children }) {
         </div>
       </div>
       <div class="insight-card__body">${children}</div>
-    </div>
-  `;
-}
-
-function BarChart({ rows, unit, valueFmt }) {
-  const max = Math.max(...rows.map((r) => r.value), 1);
-  const showVal = valueFmt || ((v) => fmt(v, v >= 10 ? 0 : 1));
-  return html`
-    <div class="bar-chart-wrap">
-      ${rows.map(
-        (r) => html`
-          <div class="bar-row" key=${r.label}>
-            <div class="bar-row__label-wrap"><span>${r.label}</span></div>
-            <div class="bar-row__track">
-              <div
-                class=${`bar-row__fill bar-row__fill--${r.tone || "info"}`}
-                style=${`width: ${(r.value / max) * 100}%;`}
-              ></div>
-            </div>
-            <div class="bar-row__value-wrap">
-              <span>${showVal(r.value)}${unit}</span>
-            </div>
-          </div>
-        `,
-      )}
-    </div>
-  `;
-}
-
-function LineChart({ categories, series }) {
-  const W = 800;
-  const H = 200;
-  const padL = 32;
-  const padB = 24;
-  const padT = 8;
-  const padR = 12;
-  const innerW = W - padL - padR;
-  const innerH = H - padT - padB;
-  const allValues = series.flatMap((s) => s.data);
-  const maxV = Math.max(...allValues, 1);
-  const minV = Math.min(...allValues, 0);
-  const range = maxV - minV || 1;
-
-  const xStep = innerW / Math.max(categories.length - 1, 1);
-  const xAt = (i) => padL + i * xStep;
-  const yAt = (v) => padT + innerH - ((v - minV) / range) * innerH;
-
-  const linePath = (data) =>
-    data
-      .map((v, i) => `${i === 0 ? "M" : "L"} ${xAt(i).toFixed(1)} ${yAt(v).toFixed(1)}`)
-      .join(" ");
-
-  const yTicks = 4;
-  const ticks = Array.from({ length: yTicks + 1 }, (_, i) => minV + (range * i) / yTicks);
-
-  return html`
-    <div class="line-chart-wrap">
-      <svg viewBox=${`0 0 ${W} ${H}`} preserveAspectRatio="none">
-        ${ticks.map((t) => {
-          const y = yAt(t);
-          return html`
-            <g key=${t}>
-              <line
-                x1=${padL}
-                x2=${W - padR}
-                y1=${y}
-                y2=${y}
-                stroke="var(--border)"
-                stroke-width="1"
-              />
-              <text
-                x=${padL - 4}
-                y=${y + 3}
-                text-anchor="end"
-                font-size="9"
-                fill="var(--text-3)"
-                font-family="ui-monospace, monospace"
-              >${fmt(t, 0)}</text>
-            </g>
-          `;
-        })}
-        ${categories.map((c, i) => {
-          if (i % Math.ceil(categories.length / 10) !== 0 && i !== categories.length - 1)
-            return null;
-          return html`
-            <text
-              key=${c + i}
-              x=${xAt(i)}
-              y=${H - 6}
-              text-anchor="middle"
-              font-size="9"
-              fill="var(--text-3)"
-              font-family="ui-monospace, monospace"
-            >${c}</text>
-          `;
-        })}
-        ${series.map(
-          (s) => html`
-            <path
-              key=${s.name}
-              d=${linePath(s.data)}
-              fill="none"
-              stroke=${s.color}
-              stroke-width="1.5"
-              stroke-linejoin="round"
-              stroke-linecap="round"
-            />
-          `,
-        )}
-      </svg>
-      <div class="legend-wrap">
-        ${series.map(
-          (s) => html`
-            <div class="legend-item-wrap" key=${s.name}>
-              <span class="legend-swatch" style=${`background: ${s.color}`}></span>
-              <span class="legend-label">${s.name}</span>
-            </div>
-          `,
-        )}
-      </div>
     </div>
   `;
 }
