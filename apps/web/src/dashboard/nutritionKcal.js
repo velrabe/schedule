@@ -1,5 +1,6 @@
 /** kcal out: activities + sport session_events + sport sessions (deduped). */
 
+import { activityTypeLabel } from "./nutriViz.jsx";
 import { isSportSessionEvent, sportMetricsForEvent } from "./activityMetrics.js";
 
 function trimTime(t) {
@@ -38,6 +39,7 @@ export function sessionToSportEv(session) {
  *   linkedActivityIds: Set<string>,
  *   sportEvents: object[],
  *   sportSessions: { session: object, kcal: number }[],
+ *   outRows: { kind: string, record: object, kcal: number, label: string }[],
  *   fromEvents: number,
  *   fromOrphanActs: number,
  * }}
@@ -82,11 +84,48 @@ export function kcalOutBreakdown(date, activities = [], sessionEvents = [], sess
     fromOrphanActs += Number(a.calories_burned) || 0;
   }
 
+  const dayActs = activities.filter((a) => a.date === date);
+  const outRows = [];
+  const activityIdsShown = new Set();
+
+  for (const a of dayActs) {
+    const k = Number(a.calories_burned) || 0;
+    outRows.push({
+      kind: "activity",
+      record: a,
+      kcal: k,
+      label: activityTypeLabel(a),
+    });
+    activityIdsShown.add(a.id);
+  }
+
+  for (const { session: s, kcal, label } of sportSessions) {
+    outRows.push({
+      kind: "session",
+      record: s,
+      kcal,
+      label,
+    });
+  }
+
+  for (const ev of sportEvents) {
+    if (ev.activity_id && activityIdsShown.has(ev.activity_id)) continue;
+    const m = sportMetricsForEvent(ev, activities);
+    const k = Number(ev.calories_burned) || Number(m.calories_burned) || 0;
+    outRows.push({
+      kind: "session_event",
+      record: ev,
+      kcal: Number.isFinite(k) ? k : 0,
+      label: ev.sport_type || ev.category || "sport",
+    });
+  }
+
   return {
     total: fromEvents + fromOrphanActs,
     linkedActivityIds,
     sportEvents,
     sportSessions,
+    outRows,
     fromEvents,
     fromOrphanActs,
   };

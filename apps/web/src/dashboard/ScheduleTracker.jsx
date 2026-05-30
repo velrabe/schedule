@@ -21,7 +21,6 @@ import {
   activityDetailLabel,
 } from "./nutriViz.jsx";
 import { dayKcalOut, kcalOutBreakdown } from "./nutritionKcal.js";
-import { sportMetricsForEvent } from "./activityMetrics.js";
 import {
   mergeMealsWithFoodSessions,
   mealCountForNutrition,
@@ -2854,51 +2853,23 @@ function NutritionTab({
                 `;
                 })}
               </div>
-              ${(outBreak.sportEvents.length > 0 || outBreak.sportSessions.length > 0 || dayActs.length > 0) && html`
+              ${outBreak.outRows.length > 0 && html`
                 <div class="nutri-acts-wrap">
-                  ${outBreak.sportSessions.map(({ session: s, kcal, label }) => html`
+                  ${outBreak.outRows.map((row) => html`
                     <${RecordOpenRow}
-                      key=${"sess-" + s.id}
+                      key=${`${row.kind}-${row.record.id}`}
                       className="nutri-act-row"
-                      onOpen=${onOpenRecord ? () => onOpenRecord({ kind: "session", record: s }) : null}
+                      onOpen=${onOpenRecord ? () => onOpenRecord({ kind: row.kind, record: row.record }) : null}
                       disabled=${!liveMode}
                     >
-                      <span class="nutri-act-type">${label}</span>
-                      <span class="nutri-act-kcal">🔥 ${kcal > 0 ? Math.round(kcal) : "—"}</span>
-                      ${s.min != null && html`<span class="nutri-act-dur">${s.min}m</span>`}
-                    </${RecordOpenRow}>
-                  `)}
-                  ${outBreak.sportEvents.map((ev) => {
-                    const linkedActId = ev.activity_id || null;
-                    const actLinked = linkedActId && dayActs.some((a) => a.id === linkedActId);
-                    if (actLinked) return null;
-                    const k = Number(ev.calories_burned);
-                    const m = sportMetricsForEvent(ev, dayActs);
-                    const displayKcal = Number.isFinite(k) && k > 0 ? k : Number(m.calories_burned);
-                    return html`
-                      <${RecordOpenRow}
-                        key=${"ev-" + ev.id}
-                        className="nutri-act-row"
-                        onOpen=${onOpenRecord ? () => onOpenRecord({ kind: "session_event", record: ev }) : null}
-                        disabled=${!liveMode}
-                      >
-                        <span class="nutri-act-type">${ev.sport_type || ev.category || "sport"}</span>
-                        <span class="nutri-act-kcal">🔥 ${Number.isFinite(displayKcal) && displayKcal > 0 ? Math.round(displayKcal) : "—"}</span>
-                      </${RecordOpenRow}>
-                    `;
-                  })}
-                  ${dayActs
-                    .filter((a) => !outBreak.linkedActivityIds.has(a.id))
-                    .map((a) => html`
-                    <${RecordOpenRow}
-                      key=${a.id}
-                      className="nutri-act-row"
-                      onOpen=${onOpenRecord ? () => onOpenRecord({ kind: "activity", record: a }) : null}
-                      disabled=${!liveMode}
-                    >
-                      <span class="nutri-act-type">${activityTypeLabel(a)}</span>
-                      <span class="nutri-act-kcal">🔥 ${Math.round(Number(a.calories_burned) || 0)}</span>
-                      ${a.duration_min != null && html`<span class="nutri-act-dur">${a.duration_min}m</span>`}
+                      <span class="nutri-act-type">${row.label}</span>
+                      <span class="nutri-act-kcal">🔥 ${row.kcal > 0 ? Math.round(row.kcal) : "—"}</span>
+                      ${row.kind === "activity" && row.record.duration_min != null && html`
+                        <span class="nutri-act-dur">${row.record.duration_min}m</span>
+                      `}
+                      ${row.kind === "session" && row.record.min != null && html`
+                        <span class="nutri-act-dur">${row.record.min}m</span>
+                      `}
                     </${RecordOpenRow}>
                   `)}
                 </div>
