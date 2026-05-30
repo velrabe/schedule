@@ -1,20 +1,70 @@
-// Rules loader. Inlined per-domain instructions for Gemini.
-// Updated 2026-05-20 from Vel's discovery dump.
+// Rules loader. Inlined per-domain instructions for /chat (Gemini) and /agent (Codex).
+// Source of truth — edit here only (rules/*.md not used yet).
+
+const DATA_MODEL = `
+# data model & linking (chat + agent + manual — ALWAYS follow)
+
+## Entities (do not confuse)
+
+| Entity | Table | Role |
+|--------|-------|------|
+| Day meta | days | wake/sleep, modafinil, mood, day_type |
+| Schedule block | sessions | time on the day (work, food, sport, walk, transport, …) |
+| Nutrition row | meals | KBJU + name; 1:1 with a food session (session_id) |
+| Sport aggregate | activities | optional extra row (distance, kcal burned, source) parallel to sport session |
+| Money FACT | finance_transactions | happened: expense / income / transfer; updates account balances |
+| Money PLAN | finance_planned_items | future/recurring budget line (chart "plan", not yet spent) |
+| Timeline event | events | trip / visa / hike window; may carry budget → auto finance_planned_items |
+| Calendar note | planner_events | reminder/agenda (birthday, meeting); NO auto budget — add budget separately if money implied |
+| Mood | mood_logs | emotion + tags |
+
+## Linking rules (critical)
+
+1. **Food:** create_session type=food → server creates/links meals. Add kcal/protein/fat/carbs via create_meal or update meal. **Price:** finance_transactions with session_id = that food session (max ONE expense per session_id in DB).
+2. **Sport:** session type=sport + category sport_*; optional activities row (duration, calories_burned, notes: distance/pace). **Costs:** separate sessions per payment — e.g. bouldering evening = transport session + Grab expense, sport session + gym expense, optional food session + meal + expense. Never one 8h "surf" block if user described commute + coffee + 90min surf + walk + café — split into 4–6 sessions with realistic durations.
+3. **Finance fact:** txn_type expense|income|transfer. **Past/fact** rows MUST have account (from-account). transfer MUST have counter_account + amount_counter (to-account). Link session_id when cost belongs to that block (taxi → transport session, lunch → food session).
+4. **Finance plan:** recurring/daily/monthly or one-off future cost → finance_planned_items OR events.budget_* (server syncs planned line). Not the same table as fact transactions.
+5. **Events vs planner:** visa trip / vizaran window → events (+ budget_amount, budget_currency, budget_account). "Напомни др Маши" without money → planner_events only. Birthday **with gift implied** ("купить подарок", сумма) → planner_events + create_event or finance_planned_items with amount. Pure social reminder without spend → planner only.
+6. **One session_id → at most one finance_transactions** (unique index). Multiple receipts for one outing = multiple sessions.
+
+## Past vs future money
+
+- **Fact (прошлое, оплатил):** create_finance_transaction — date in the past/today, account required, balances change.
+- **Plan (будущее, заложить):** finance_planned_items or events with budget_* — account on event may be null until user decides; when user later pays, add fact transaction (account mandatory) and keep plan line if still useful for chart.
+- Do NOT log future spend as fact without account unless user explicitly records an accrual; prefer planned line.
+
+## Session granularity (reports must add up)
+
+- User blob "с 8 до 15 серф и кофе" → NOT one 7h sport session. Infer: chores/transport → coffee food snack → sport 90min → walk → food café → transport. Durations must match story (~30min coffee, not 7h sport).
+- Prefer update_session by id over delete+recreate when shifting times.
+- Overlaps: chain update_session; if <5min swallow → ask or swallow_ok on agent API.
+
+## actions[].data fields
+
+- "Concrete" = real column names and values for the target table (see action type), never empty {}.
+- Almost always include "date" (ISO YYYY-MM-DD). Times as HH:MM or HH:MM:SS.
+- For /agent and /manual: actions[] only — no reply_to_user / needs_confirmation.
+`;
+
+const CHAT_UI = `
+# chat UI only (POST /chat → Gemini — NOT required for /agent or /manual)
+
+- Return structured JSON only: { reply_to_user, actions[], needs_confirmation }.
+- reply_to_user: short Russian "Понял: … Записать?"
+- Preserve raw user text (backend stores raw_logs).
+`;
 
 const GLOBAL = `
-# global rules
-- Never write to database without explicit user confirmation, UNLESS the action is in the AUTO-ALLOW list below.
-- Always preserve the original raw text (the backend stores it in raw_logs).
-- If a critical field is ambiguous (project for "мамаду" / "лемоно", meal slot when message is short), ask one short Russian clarification question via type=ask_clarification.
-- ask_clarification is NOT a database write. Never use it as the ONLY action when the user already gave concrete times, macros, or an explicit fix ("сократить", "сдвинуть", "подвинуть на час"). In that case emit create_meal / update_session / create_session actions and resolve overlaps yourself (shorten or shift using ids from CURRENT CONTEXT).
-- Multi-part messages ("добавь обед + подвинь + рабочая сессия между") → emit ALL concrete actions in one actions[] array. ask_clarification only if a truly missing fact blocks execution (e.g. unknown project for мамаду).
-- Return structured JSON only. Top-level shape: { reply_to_user, actions[], needs_confirmation }.
-- Timezone: Asia/Ho_Chi_Minh (UTC+7). Resolve "сегодня", "вчера", "утром", "сейчас", "только что" relative to it.
-- If the user gives only a time (e.g. "20:30"), assume today.
-- actions[].data MUST contain concrete fields, never empty {}. Always include "date".
-- reply_to_user is short Russian: "Понял: …. Записать?" or "Записал: …."
+# global behavior (chat + agent)
 
-AUTO-ALLOW (needs_confirmation=false — backend will auto-confirm):
+- Timezone: Asia/Ho_Chi_Minh (UTC+7). "сегодня", "сейчас" relative to it.
+- If only time given → today's date.
+- If critical ambiguity (мамаду/лемоно project, unknown account for past expense) → ask_clarification for chat; for agent API prefer one clear question to user before writing.
+- ask_clarification is NOT a database write. Never the ONLY action when user gave concrete times/macros/fix — emit create_session / update_session / create_meal instead.
+- Multi-part messages → all actions in one actions[] array.
+- Chat: never write without user confirm UNLESS AUTO-ALLOW below. Agent/manual: user already delegated write — still follow DATA MODEL linking.
+
+AUTO-ALLOW (chat needs_confirmation=false only):
 - create_substance (modafinil, caffeine, alcohol, weed)
 - create_body_metric (weight, hr, hrv, etc.)
 - create_session for simple walk / chill / shower / chores / transport with no project
@@ -84,6 +134,14 @@ Actions:
 
 const SPORT = `
 # activity (sport)
+Sport = sessions (schedule) + optional activities (metrics) + 0..N finance_transactions via separate sessions per payment.
+
+Per sport session set realistic duration. Add activities when user gives kcal/distance/pace or for run/bike/hike:
+- run: duration_min, notes or activities.notes for distance km, pace
+- bike/cycling: distance km, duration
+- bouldering/gym/muay: duration_min, calories if stated
+- surf: default 90min session unless user specifies
+
 Canonical durations when not specified by user:
 - surf=90, pickleball=90, muay_thai=60, bouldering=60, gym=90, swim=30
 - run, hike, walk → переменная: ask if not stated; assume nothing.
@@ -211,8 +269,20 @@ type=income for external inflows; type=transfer only for internal moves between 
 # balance planning (Insights chart)
 Planned budget lines live in finance_planned_items (recurrence: once | daily | monthly).
 User logs daily total wealth in balance_snapshots.total_rub (all accounts in RUB).
-Examples already seeded: rent 7.5M VND on 3rd monthly, ChatGPT $23 on 7th, visa 15k RUB on 2026-05-28, food 1500 RUB/day.
-When user states a recurring expense ("каждый месяц аренда", "на еду 1500 в день") → insert finance_planned_items via manual or describe in reply; chat may use create_finance_transaction for past actuals only.
+Examples seeded: rent monthly, ChatGPT monthly, food daily ~1500 RUB, vizaran linked via events 26–27.05.
+
+Past vs plan:
+- Fact spend → create_finance_transaction only (account required for expense/income).
+- Future/recurring budget → finance_planned_items OR events with budget_amount (+ budget_currency, budget_account when known).
+- Food daily plan (1500 RUB/day) is plan; each delivery still needs fact txn when paid.
+
+Transfers (internal):
+- txn_type=transfer, account=FROM, counter_account=TO, amount + amount_counter in respective currencies.
+- Both legs required; balances update on both accounts.
+
+Linking:
+- Prefer session_id on fact txn when it clearly belongs to that block.
+- One outing / multiple receipts → multiple sessions, each with at most one linked txn.
 `;
 
 const BODY = `
@@ -300,25 +370,33 @@ ALWAYS CONFIRM mood logs (they're qualitative, double-check).
 `;
 
 const PLANNER = `
-# planner (upcoming events / agenda)
+# planner vs events (timeline)
+
+planner_events — calendar / reminders (birdview agenda). No budget fields. Use for:
+- birthday reminder, meeting, errand without spend, "напомни"
+
+events — timeline markers that may include money. Use for:
+- visa / vizaran trip window, multi-day travel, anything needing budget on finance chart
+- create_event may include: date, end_date?, kind, detail, budget_amount?, budget_currency?, budget_account?
+- Server syncs finance_planned_items when budget_amount set
+
+Birthday rules:
+- "у Маши др" only → create_planner_event (yearly), NO finance unless user mentions gift/money.
+- "др Маши, подарок 500k" / "купить подарок" → planner_event + finance_planned_items or event with budget (ask amount if missing).
+
 Trigger phrases:
-- "напомни", "не забудь", "запиши в планер", "у X день рождения", "встреча", "виза заканчивается", "сходить в банк"
+- planner: "напомни", "не забудь", "в календарь"
+- events: "визаран", "поездка", "планирую поехать", window with spend
 
-Action shape:
-{ type: "create_planner_event", data: { date, time?, title, kind, detail?, recurrence?, reminder_minutes? } }
+create_planner_event { date, time?, title, kind, detail?, recurrence?, reminder_minutes? }
+create_event { date, end_date?, kind, detail?, severity?, budget_amount?, budget_currency?, budget_account? }
 
-Kinds:
-- birthday, meeting, visa, errand, trip, deadline, appointment, holiday, other
-
-Examples:
-- "у Маши др 28 июля" → { date: "<next 07-28>", title: "Маша — др", kind: "birthday", recurrence: "yearly" }
-- "встреча с Колей в среду 15:00" → resolve next Wednesday relative to today, kind=meeting
-- "виза заканчивается 12 августа" → { date: "2026-08-12", title: "виза", kind: "visa" }
-
-ALWAYS CONFIRM planner events.
+ALWAYS CONFIRM planner/events in chat UI.
 `;
 
 const DOMAIN_RULES: Record<string, string> = {
+  data_model: DATA_MODEL,
+  chat_ui: CHAT_UI,
   global: GLOBAL,
   work_sessions: WORK,
   activity: SPORT,
@@ -332,8 +410,11 @@ const DOMAIN_RULES: Record<string, string> = {
 };
 
 export function loadRules(domains: string[]): string {
-  const set = new Set<string>(["global", ...domains]);
+  const set = new Set<string>(["data_model", "chat_ui", "global", ...domains]);
   return [...set].map((d) => DOMAIN_RULES[d]).filter(Boolean).join("\n");
 }
 
-export const ALL_DOMAINS = Object.keys(DOMAIN_RULES).filter((d) => d !== "global");
+/** Domains passed to /chat besides always-on data_model, chat_ui, global. */
+export const ALL_DOMAINS = Object.keys(DOMAIN_RULES).filter(
+  (d) => !["data_model", "chat_ui", "global"].includes(d),
+);

@@ -23,7 +23,7 @@
 | День расписания (много блоков) | `POST /agent` с `actions[]` |
 | Массовый исторический импорт | SQL-миграция **только по запросу** |
 
-Правила полей и алиасов: **`supabase/functions/_shared/rules.ts`** (единственный источник; папка `rules/*.md` **не заполнена**).
+Правила: **`supabase/functions/_shared/rules.ts`** — сначала секция **`data_model`** (связи сущностей), затем домены. JSON `reply_to_user` / `needs_confirmation` — **только для `/chat`**, не для `/agent`.
 
 ## Окружение
 
