@@ -3172,6 +3172,26 @@ button.kanban-card:hover {
   color: var(--text);
 }
 
+.body-profile-pill-sub {
+  font-size: 10px;
+  color: var(--text-3);
+}
+
+.body-activity-callout-wrap {
+  display: flex;
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--info-bg);
+}
+
+.body-activity-callout-text {
+  font-size: 11px;
+  color: var(--text-2);
+  line-height: 1.45;
+}
+
 .body-log-card-wrap {
   display: flex;
   flex-direction: column;

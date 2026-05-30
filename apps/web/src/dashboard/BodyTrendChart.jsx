@@ -153,9 +153,9 @@ export default function BodyTrendChart({
   const tooltipLines = useMemo(() => {
     if (hoverIdx < 0 || !points[hoverIdx]) return [];
     const p = points[hoverIdx];
-    const lines = [p.date];
+    const lines = [p.time ? `${String(p.date).slice(0, 10)} ${p.time}` : p.date];
     lines.push(`${fmtVal(p.value, decimals)}${unit}`);
-    if (p.verified) lines.push("✓ проверенный замер");
+    if (p.verified) lines.push("✓ замер (весы / аппарат)");
     else lines.push("расчёт по формуле");
     return lines;
   }, [hoverIdx, points, decimals, unit]);

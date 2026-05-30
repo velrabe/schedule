@@ -533,6 +533,7 @@ function App(props = {}) {
       ${tab === "body" &&
       html`<${BodyTab}
         days=${days}
+        sessions=${sessions}
         body_metrics=${liveData?.body_metrics || []}
         liveMode=${Boolean(liveData)}
         onOpenRecord=${openRecordEditor}

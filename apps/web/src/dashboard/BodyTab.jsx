@@ -10,10 +10,13 @@ import {
 } from "./bodyProfile.js";
 import {
   buildBodyTimeline,
+  buildActivityInsight,
   filterBodyPeriod,
   periodStats,
   BODY_METRIC_TABS,
 } from "./bodySeries.js";
+import { ACTIVITY_WINDOW_DAYS } from "./bodyActivity.js";
+import { activityFactorLabel } from "./bodyActivity.js";
 import BodyTrendChart from "./BodyTrendChart.jsx";
 import { InsightsLineChart } from "./insightsCharts.jsx";
 import { manualUpsertDay } from "./manualSave.js";
@@ -40,6 +43,7 @@ function fmtStat(v, decimals = 1) {
 
 export default function BodyTab({
   days = [],
+  sessions = [],
   body_metrics = [],
   liveMode = false,
   onOpenRecord,
@@ -55,9 +59,14 @@ export default function BodyTab({
   const [saving, setSaving] = useState(false);
   const [saveErr, setSaveErr] = useState("");
 
-  const { points: allPoints, latestWeight } = useMemo(
-    () => buildBodyTimeline({ days, body_metrics }),
-    [days, body_metrics],
+  const { points: allPoints, latestWeight, latestPoint } = useMemo(
+    () => buildBodyTimeline({ days, body_metrics, sessions }),
+    [days, body_metrics, sessions],
+  );
+
+  const activityInsight = useMemo(
+    () => buildActivityInsight(allPoints, sessions),
+    [allPoints, sessions],
   );
 
   const periodPoints = useMemo(
@@ -70,7 +79,8 @@ export default function BodyTab({
   const chartPoints = useMemo(
     () =>
       periodPoints.map((p) => ({
-        date: p.date,
+        date: p.pointKey || p.date,
+        time: p.time,
         value: p[activeTab.id],
         verified: activeTab.verifiedKey ? Boolean(p[activeTab.verifiedKey]) : false,
       })),
@@ -82,11 +92,18 @@ export default function BodyTab({
     [periodPoints, activeTab.id],
   );
 
-  const profileBmr = useMemo(
-    () => bmrMifflinStJeor(latestWeight ?? 81),
-    [latestWeight],
-  );
-  const profileTdee = useMemo(() => tdeeFromBmr(profileBmr), [profileBmr]);
+  const profileBmr = useMemo(() => {
+    if (latestPoint?.bmr_kcal != null) return latestPoint.bmr_kcal;
+    return bmrMifflinStJeor(latestWeight ?? 81);
+  }, [latestPoint, latestWeight]);
+
+  const profileTdee = useMemo(() => {
+    if (latestPoint?.tdee_kcal != null) return latestPoint.tdee_kcal;
+    return tdeeFromBmr(profileBmr, latestPoint?.activity_factor ?? 1.42);
+  }, [latestPoint, profileBmr]);
+
+  const profileFactor = latestPoint?.activity_factor ?? null;
+  const profileSport7 = latestPoint?.sport_h_7d ?? null;
 
   const periodFrom = periodPoints[0]?.date;
   const periodTo = periodPoints[periodPoints.length - 1]?.date;
@@ -101,7 +118,7 @@ export default function BodyTab({
     setSaveErr("");
     try {
       const { insertRow, notifyDataChanged } = await import("../api/manual");
-      const source = verified ? "measured" : "estimated";
+      const source = verified ? "device" : "estimated";
 
       await insertRow("body_metrics", {
         date: logDate,
@@ -119,7 +136,7 @@ export default function BodyTab({
           metric: "bf_pct",
           value: bf,
           unit: "%",
-          source_type: "measured",
+          source_type: "device",
           notes: "замер",
         });
       }
@@ -131,7 +148,7 @@ export default function BodyTab({
           metric: "muscle_mass_kg",
           value: muscle,
           unit: "kg",
-          source_type: "measured",
+          source_type: "device",
         });
       }
 
@@ -184,21 +201,40 @@ export default function BodyTab({
 
       <div class="body-profile-strip-wrap">
         <div class="body-profile-pill-wrap">
+          <span class="body-profile-pill-label">вес</span>
+          <span class="body-profile-pill-value"
+            >${latestWeight != null ? `${fmtStat(latestWeight)} кг` : "—"}</span
+          >
+        </div>
+        <div class="body-profile-pill-wrap">
           <span class="body-profile-pill-label">BMR</span>
           <span class="body-profile-pill-value">${fmtStat(profileBmr, 0)} ккал</span>
+          <span class="body-profile-pill-sub">Mifflin–St Jeor</span>
         </div>
         <div class="body-profile-pill-wrap">
           <span class="body-profile-pill-label">TDEE</span>
           <span class="body-profile-pill-value">${fmtStat(profileTdee, 0)} ккал</span>
-        </div>
-        <div class="body-profile-pill-wrap">
-          <span class="body-profile-pill-label">профиль</span>
-          <span class="body-profile-pill-value"
-            >${latestWeight != null ? `${fmtStat(latestWeight)} кг` : "—"} · ${BODY_PROFILE.heightCm} см ·
-            ${BODY_PROFILE.age} лет · активность ×${BODY_PROFILE.activityFactor}</span
+          <span class="body-profile-pill-sub"
+            >×${profileFactor != null ? profileFactor.toFixed(2) : "—"}
+            ${profileFactor != null ? ` · ${activityFactorLabel(profileFactor)}` : ""}</span
           >
         </div>
+        ${profileSport7 != null &&
+        html`
+          <div class="body-profile-pill-wrap">
+            <span class="body-profile-pill-label">спорт</span>
+            <span class="body-profile-pill-value">${fmtStat(profileSport7, 1)} ч</span>
+            <span class="body-profile-pill-sub">за ${ACTIVITY_WINDOW_DAYS} дн. из sessions</span>
+          </div>
+        `}
       </div>
+
+      ${activityInsight &&
+      html`
+        <div class="body-activity-callout-wrap">
+          <span class="body-activity-callout-text">${activityInsight}</span>
+        </div>
+      `}
 
       ${liveMode &&
       html`

@@ -4,8 +4,6 @@ export const BODY_PROFILE = {
   heightCm: 181,
   age: 29,
   sex: "male",
-  /** NEAT + cardio/sport 2+ h/day → ~1.725 (very active). */
-  activityFactor: 1.725,
 };
 
 export function bmrMifflinStJeor(weightKg, profile = BODY_PROFILE) {
@@ -16,9 +14,12 @@ export function bmrMifflinStJeor(weightKg, profile = BODY_PROFILE) {
   return sex === "female" ? base - 161 : base + 5;
 }
 
-export function tdeeFromBmr(bmr, profile = BODY_PROFILE) {
+/** TDEE = BMR × activity factor (from rolling sport hours in bodyActivity.js). */
+export function tdeeFromBmr(bmr, activityFactor) {
   if (bmr == null || !Number.isFinite(bmr)) return null;
-  return bmr * profile.activityFactor;
+  const f = Number(activityFactor);
+  if (!Number.isFinite(f) || f <= 0) return null;
+  return bmr * f;
 }
 
 export function bmi(weightKg, profile = BODY_PROFILE) {
