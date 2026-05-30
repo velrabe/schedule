@@ -21,6 +21,7 @@ import {
   activityDetailLabel,
 } from "./nutriViz.jsx";
 import { dayKcalOut, kcalOutBreakdown } from "./nutritionKcal.js";
+import { sportMetricsForEvent } from "./activityMetrics.js";
 import {
   mergeMealsWithFoodSessions,
   mealCountForNutrition,
@@ -482,6 +483,7 @@ function App(props = {}) {
       ${tab === "nutrition" &&
       html`<${NutritionTab}
         days=${days}
+        sessions=${sessions}
         meals=${mergedMeals}
         finance=${liveData?.finance || []}
         activities=${liveData?.activities || []}
@@ -1987,7 +1989,7 @@ function CalendarTab({
   const kcalInOf = (date) =>
     (mealsByDate.get(date) || []).reduce((a, m) => a + (m.kcal || 0), 0);
   const kcalOutOf = (date) =>
-    dayKcalOut(date, activitiesByDate.get(date) || [], sessionEvents);
+    dayKcalOut(date, activitiesByDate.get(date) || [], sessionEvents, sessions);
 
   return html`
     <div class="cal-wrap">
@@ -2199,7 +2201,7 @@ function CalendarDayDetail({
   }, [sessions, day]);
 
   const kcalIn = meals.reduce((a, m) => a + (Number(m.kcal) || 0), 0);
-  const kcalOut = dayKcalOut(date, activitiesList, sessionEvents);
+  const kcalOut = dayKcalOut(date, activitiesList, sessionEvents, sessions);
   const balance = kcalIn - kcalOut;
   const macros = meals.reduce(
     (acc, m) => ({
@@ -2537,7 +2539,7 @@ function KanbanTab({
           const colMeals = mealsByDate.get(date) || [];
           const colActs = activitiesByDate.get(date) || [];
           const kcalIn = colMeals.reduce((a, m) => a + (m.kcal || 0), 0);
-          const kcalOut = dayKcalOut(date, colActs, sessionEvents);
+          const kcalOut = dayKcalOut(date, colActs, sessionEvents, sessions);
           return html`
             <div
               class=${`kanban-col-wrap ${isToday ? "kanban-col-wrap--today" : ""} ${isFuture ? "kanban-col-wrap--future" : ""}`}
@@ -2740,6 +2742,7 @@ function KanbanSessionEditor({ value, isNew = false, onSave, onCancel, onDelete 
 
 function NutritionTab({
   days,
+  sessions = [],
   meals = [],
   finance = [],
   activities = [],
@@ -2753,8 +2756,14 @@ function NutritionTab({
     for (const d of days) set.add(d.date);
     for (const m of meals) set.add(m.date);
     for (const a of activities) set.add(a.date);
+    for (const ev of sessionEvents) if (ev.date) set.add(ev.date);
+    for (const s of sessions) {
+      if (s.date && (SPORT_CATS.has(s.category) || s.category === "walk" || s.category === "sport_walk")) {
+        set.add(s.date);
+      }
+    }
     return [...set];
-  }, [days, meals, activities]);
+  }, [days, meals, activities, sessionEvents, sessions]);
 
   const {
     today,
@@ -2799,7 +2808,7 @@ function NutritionTab({
         ${visibleDates.map((date) => {
           const dayMeals = mealsByDate.get(date) || [];
           const dayActs = actsByDate.get(date) || [];
-          const outBreak = kcalOutBreakdown(date, dayActs, sessionEvents);
+          const outBreak = kcalOutBreakdown(date, dayActs, sessionEvents, sessions);
           const kcalIn = dayMeals.reduce((a, m) => a + (Number(m.kcal) || 0), 0);
           const kcalOut = outBreak.total;
           const balance = kcalIn - kcalOut;
@@ -2845,13 +2854,27 @@ function NutritionTab({
                 `;
                 })}
               </div>
-              ${(outBreak.sportEvents.length > 0 || dayActs.length > 0) && html`
+              ${(outBreak.sportEvents.length > 0 || outBreak.sportSessions.length > 0 || dayActs.length > 0) && html`
                 <div class="nutri-acts-wrap">
+                  ${outBreak.sportSessions.map(({ session: s, kcal, label }) => html`
+                    <${RecordOpenRow}
+                      key=${"sess-" + s.id}
+                      className="nutri-act-row"
+                      onOpen=${onOpenRecord ? () => onOpenRecord({ kind: "session", record: s }) : null}
+                      disabled=${!liveMode}
+                    >
+                      <span class="nutri-act-type">${label}</span>
+                      <span class="nutri-act-kcal">🔥 ${kcal > 0 ? Math.round(kcal) : "—"}</span>
+                      ${s.min != null && html`<span class="nutri-act-dur">${s.min}m</span>`}
+                    </${RecordOpenRow}>
+                  `)}
                   ${outBreak.sportEvents.map((ev) => {
                     const linkedActId = ev.activity_id || null;
                     const actLinked = linkedActId && dayActs.some((a) => a.id === linkedActId);
                     if (actLinked) return null;
                     const k = Number(ev.calories_burned);
+                    const m = sportMetricsForEvent(ev, dayActs);
+                    const displayKcal = Number.isFinite(k) && k > 0 ? k : Number(m.calories_burned);
                     return html`
                       <${RecordOpenRow}
                         key=${"ev-" + ev.id}
@@ -2860,7 +2883,7 @@ function NutritionTab({
                         disabled=${!liveMode}
                       >
                         <span class="nutri-act-type">${ev.sport_type || ev.category || "sport"}</span>
-                        <span class="nutri-act-kcal">🔥 ${Number.isFinite(k) ? Math.round(k) : "—"}</span>
+                        <span class="nutri-act-kcal">🔥 ${Number.isFinite(displayKcal) && displayKcal > 0 ? Math.round(displayKcal) : "—"}</span>
                       </${RecordOpenRow}>
                     `;
                   })}
