@@ -308,7 +308,11 @@ Linking:
 
 const BODY = `
 # body_metrics
-- "вес 82.4" → metric=weight_kg, value=82.4, unit=kg
+- "вес 82.4" → metric=weight_kg, value=82.4, unit=kg, source_type=measured (user weigh-in)
+- also update_day { weight_kg: 82.4 } on same date when logging weight
+- Gym scale / InBody / precise body comp → source_type=measured; dedicated analyzer → source_type=device
+- Formula-only derived rows (no scale) → source_type=estimated
+- bf_pct, fat_mass_kg, muscle_mass_kg from scale → source_type=measured or device
 - "пульс 60", "hr 60" → metric=resting_hr, value=60, unit=bpm
 - "hrv 50" → metric=hrv, value=50, unit=ms
 - "давление 120/80" → emit TWO actions: metric=systolic_mmhg value=120, metric=diastolic_mmhg value=80

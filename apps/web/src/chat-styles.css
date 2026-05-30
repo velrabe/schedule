@@ -3061,6 +3061,505 @@ button.kanban-card:hover {
   font-family: var(--mono);
 }
 
+/* ---------------- body tab ---------------- */
+
+.body-tab-wrap {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  padding: 12px 16px 24px;
+  gap: 16px;
+  box-sizing: border-box;
+}
+
+.body-tab-toolbar-wrap {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  gap: 8px;
+}
+
+.body-period-bar-wrap {
+  display: flex;
+  flex-direction: row;
+  width: 100%;
+  padding: 4px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  gap: 4px;
+}
+
+.body-period-btn {
+  display: flex;
+  flex: 1 1 0;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  margin: 0;
+  padding: 8px 10px;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.body-period-btn--active {
+  background: var(--bg);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+}
+
+.body-period-btn__text {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-2);
+}
+
+.body-period-btn--active .body-period-btn__text {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.body-period-range-wrap {
+  display: flex;
+  flex-direction: row;
+  align-items: baseline;
+  width: 100%;
+  gap: 10px;
+}
+
+.body-period-range-text {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.body-period-range-sub {
+  font-size: 11px;
+  color: var(--text-3);
+  font-family: var(--mono);
+}
+
+.body-profile-strip-wrap {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  width: 100%;
+  gap: 8px;
+}
+
+.body-profile-pill-wrap {
+  display: flex;
+  flex-direction: column;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  gap: 2px;
+}
+
+.body-profile-pill-label {
+  font-size: 10px;
+  color: var(--text-3);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.body-profile-pill-value {
+  font-size: 12px;
+  font-family: var(--mono);
+  color: var(--text);
+}
+
+.body-log-card-wrap {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  gap: 10px;
+}
+
+.body-log-title {
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.body-log-form-wrap {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  width: 100%;
+  align-items: flex-end;
+  gap: 10px;
+}
+
+.body-log-field-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.body-log-field-label {
+  font-size: 10px;
+  color: var(--text-3);
+}
+
+.body-log-input {
+  display: flex;
+  margin: 0;
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--bg);
+  font-size: 13px;
+  font-family: var(--mono);
+  color: var(--text);
+  min-width: 100px;
+}
+
+.body-log-check-wrap {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+}
+
+.body-log-check-text {
+  font-size: 11px;
+  color: var(--text-2);
+}
+
+.body-log-error {
+  font-size: 11px;
+  color: var(--danger);
+}
+
+.body-log-hint {
+  font-size: 10px;
+  color: var(--text-3);
+}
+
+.body-main-chart-card-wrap {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg);
+}
+
+.body-trend-chart-wrap {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  position: relative;
+}
+
+.body-chart-layout {
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
+  width: 100%;
+  gap: 6px;
+}
+
+.body-chart-yaxis-wrap {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  flex-shrink: 0;
+  width: 36px;
+  padding: 12px 0 0 0;
+}
+
+.body-chart-yaxis-tick {
+  font-size: 10px;
+  font-family: var(--mono);
+  color: var(--text-3);
+  text-align: right;
+}
+
+.body-chart-plot-wrap {
+  display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
+  aspect-ratio: 800 / 260;
+  min-height: 180px;
+  max-height: 42vh;
+}
+
+.body-chart-svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  cursor: crosshair;
+}
+
+.body-chart-xaxis-wrap {
+  display: grid;
+  width: 100%;
+  padding: 0 0 0 42px;
+}
+
+.body-chart-xaxis-tick {
+  display: flex;
+  justify-content: center;
+  font-size: 10px;
+  font-family: var(--mono);
+  color: var(--text-3);
+}
+
+.body-chart-empty-wrap {
+  display: flex;
+  padding: 24px;
+  justify-content: center;
+}
+
+.body-chart-empty-text {
+  font-size: 12px;
+  color: var(--text-3);
+}
+
+.body-summary-card-wrap {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  gap: 12px;
+}
+
+.body-summary-head-wrap {
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+  width: 100%;
+}
+
+.body-summary-title {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.body-summary-range {
+  font-size: 11px;
+  color: var(--text-3);
+  font-family: var(--mono);
+}
+
+.body-summary-grid-wrap {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  width: 100%;
+  gap: 12px;
+}
+
+.body-summary-cell-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.body-summary-cell-value {
+  font-size: 20px;
+  font-weight: 600;
+  font-family: var(--mono);
+  color: var(--text);
+}
+
+.body-summary-cell-value--good {
+  color: var(--success);
+}
+
+.body-summary-cell-value--warn {
+  color: var(--warning);
+}
+
+.body-summary-cell-label {
+  font-size: 11px;
+  color: var(--text-3);
+}
+
+.body-metric-tabs-wrap {
+  display: flex;
+  flex-direction: row;
+  width: 100%;
+  overflow-x: auto;
+  border-bottom: 1px solid var(--border);
+  gap: 0;
+}
+
+.body-metric-tab {
+  display: flex;
+  flex-shrink: 0;
+  padding: 10px 14px;
+  border: none;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.body-metric-tab--active {
+  border-bottom-color: var(--info);
+}
+
+.body-metric-tab__text {
+  font-size: 12px;
+  color: var(--text-2);
+  white-space: nowrap;
+}
+
+.body-metric-tab--active .body-metric-tab__text {
+  color: var(--info);
+  font-weight: 600;
+}
+
+.body-mini-charts-wrap {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  gap: 10px;
+}
+
+.body-mini-charts-title {
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.body-mini-charts-grid-wrap {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  gap: 12px;
+}
+
+.body-mini-chart-card-wrap {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  gap: 8px;
+}
+
+.body-mini-chart-head-wrap {
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+  width: 100%;
+}
+
+.body-mini-chart-label {
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.body-mini-chart-link {
+  display: flex;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  padding: 0;
+}
+
+.body-mini-chart-link-text {
+  font-size: 10px;
+  color: var(--info);
+}
+
+.body-recent-list-wrap {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  gap: 8px;
+}
+
+.body-recent-title {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-2);
+}
+
+.body-recent-rows-wrap {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  gap: 4px;
+}
+
+.body-recent-row-wrap {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+  width: 100%;
+  padding: 8px 10px;
+  gap: 8px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--surface);
+  cursor: pointer;
+  font-family: inherit;
+  text-align: left;
+}
+
+.body-recent-row-wrap:disabled {
+  cursor: default;
+  opacity: 0.7;
+}
+
+.body-recent-row-date,
+.body-recent-row-metric,
+.body-recent-row-val,
+.body-recent-row-src {
+  font-size: 11px;
+  font-family: var(--mono);
+  color: var(--text-2);
+}
+
+.body-recent-row-val {
+  font-weight: 600;
+  color: var(--text);
+}
+
+@media (max-width: 719px) {
+  .body-tab-wrap {
+    padding: 8px 10px 16px;
+  }
+
+  .body-profile-strip-wrap {
+    flex-direction: column;
+  }
+
+  .body-summary-grid-wrap {
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+
+  .body-summary-cell-value {
+    font-size: 16px;
+  }
+
+  .body-log-form-wrap {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .body-log-input {
+    width: 100%;
+    min-width: 0;
+  }
+}
+
 /* keep dashboard usable while chat is open on desktop */
 @media (min-width: 720px) {
   .chat-sidebar {

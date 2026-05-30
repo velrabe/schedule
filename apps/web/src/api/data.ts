@@ -110,6 +110,9 @@ export type BodyMetricRow = {
   metric: string;
   value: number;
   unit: string | null;
+  source_type?: string;
+  notes?: string | null;
+  created_at?: string;
 };
 
 export type FinanceRow = {

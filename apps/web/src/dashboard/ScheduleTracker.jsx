@@ -37,6 +37,7 @@ import {
 import { formatKanbanDayCopy, copyTextToClipboard } from "./kanbanDayCopy.js";
 import FinanceTab from "./FinanceTab.jsx";
 import InsightsTab from "./InsightsTab.jsx";
+import BodyTab from "./BodyTab.jsx";
 import { useSheetState, applySheet, SheetHeader, Toolbar } from "./sheetUi.js";
 
 const html = htm.bind(h);
@@ -445,6 +446,13 @@ function App(props = {}) {
         <${TabBtn} id="sessions" active=${tab} onClick=${setTab} label="Sessions" count=${sessions.length} />
         <${TabBtn} id="events" active=${tab} onClick=${setTab} label="Timeline" count=${events.length} />
         <${TabBtn} id="insights" active=${tab} onClick=${setTab} label="Insights" count=${null} />
+        <${TabBtn}
+          id="body"
+          active=${tab}
+          onClick=${setTab}
+          label="Body"
+          count=${liveData?.body_metrics?.length ?? null}
+        />
       </nav>
 
       ${tab === "days" &&
@@ -521,6 +529,13 @@ function App(props = {}) {
         finance=${liveData?.finance || []}
         substances=${liveData?.raw?.substances || []}
         liveMode=${Boolean(liveData)}
+      />`}
+      ${tab === "body" &&
+      html`<${BodyTab}
+        days=${days}
+        body_metrics=${liveData?.body_metrics || []}
+        liveMode=${Boolean(liveData)}
+        onOpenRecord=${openRecordEditor}
       />`}
 
       <${RecordEditDrawer}

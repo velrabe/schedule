@@ -129,6 +129,30 @@ const KIND_META = {
       { key: "notes", label: "заметки", type: "textarea" },
     ],
   },
+  body_metric: {
+    resource: "body_metrics",
+    title: "Метрика тела",
+    subtitle: (r) => `${r.metric || "?"} · ${r.date || ""}`,
+    fields: [
+      { key: "date", label: "дата", type: "date" },
+      { key: "time", label: "время", type: "time", optional: true },
+      {
+        key: "metric",
+        label: "метрика",
+        type: "select",
+        options: ["weight_kg", "bf_pct", "fat_mass_kg", "muscle_mass_kg", "resting_hr", "hrv"],
+      },
+      { key: "value", label: "значение", type: "number" },
+      { key: "unit", label: "ед.", type: "text", optional: true },
+      {
+        key: "source_type",
+        label: "источник",
+        type: "select",
+        options: ["estimated", "measured", "device"],
+      },
+      { key: "notes", label: "заметки", type: "textarea", optional: true },
+    ],
+  },
   finance: {
     resource: "finance_transactions",
     title: "Операция",
@@ -317,6 +341,16 @@ export function recordToForm(
         merchant: record.merchant || "",
         notes: record.notes || "",
       };
+    case "body_metric":
+      return {
+        date: record.date || "",
+        time: trimTime(record.time),
+        metric: record.metric || "weight_kg",
+        value: record.value ?? "",
+        unit: record.unit || "kg",
+        source_type: record.source_type || "estimated",
+        notes: record.notes || "",
+      };
     default:
       return {};
   }
@@ -395,6 +429,16 @@ export function formToDbPatch(kind, form) {
         notes: strOrNull(form.notes),
       };
     }
+    case "body_metric":
+      return {
+        date: form.date,
+        time: strOrNull(form.time),
+        metric: form.metric || "weight_kg",
+        value: numOrNull(form.value) ?? 0,
+        unit: strOrNull(form.unit),
+        source_type: form.source_type || "estimated",
+        notes: strOrNull(form.notes),
+      };
     default:
       return {};
   }
