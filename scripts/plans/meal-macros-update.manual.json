@@ -1,0 +1,15 @@
+[
+  {
+    "op": "update",
+    "resource": "meals",
+    "id": "<meal-uuid-from-get-day>",
+    "row": {
+      "kcal": 500,
+      "protein_g": 40,
+      "fat_g": 15,
+      "carbs_g": 45,
+      "confidence": "estimate",
+      "portion_grams": 300
+    }
+  }
+]

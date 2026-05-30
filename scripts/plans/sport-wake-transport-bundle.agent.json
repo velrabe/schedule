@@ -1,0 +1,50 @@
+{
+  "actions": [
+    {
+      "type": "create_session_bundle",
+      "data": {
+        "date": "2026-05-29",
+        "type": "sport",
+        "category": "sport_cycling",
+        "project": "велосипед и байк обратно",
+        "start_time": "11:00",
+        "end_time": "11:45",
+        "events": [
+          {
+            "kind": "wake",
+            "title": "проснулся",
+            "start_time": "11:00",
+            "end_time": "11:05",
+            "instant": true
+          },
+          {
+            "kind": "sport",
+            "title": "поехал на велике",
+            "start_time": "11:05",
+            "end_time": "11:36",
+            "calories_burned": 130,
+            "expense": {
+              "amount": 150000,
+              "currency": "VND",
+              "account": "vcb_vnd",
+              "category": "sport",
+              "merchant": "vcb_vnd"
+            }
+          },
+          {
+            "kind": "transport",
+            "title": "байк обратно",
+            "start_time": "11:36",
+            "end_time": "11:45",
+            "expense": {
+              "amount": 30000,
+              "currency": "VND",
+              "account": "vcb_vnd",
+              "category": "transport"
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

@@ -20,6 +20,14 @@ import { httpPost } from "./httpTransport.mjs";
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const TOKEN_FILE = resolve(ROOT, ".schedule-token");
 
+const GET_DAY_RESOURCES = [
+  "sessions",
+  "session_events",
+  "meals",
+  "activities",
+  "finance_transactions",
+];
+
 function baseUrl() {
   return (process.env.SCHEDULE_FUNCTIONS_URL || process.env.VITE_FUNCTIONS_URL || "")
     .replace(/\/$/, "");
@@ -30,11 +38,15 @@ function usage() {
   node scripts/schedule-api.mjs check-env
   node scripts/schedule-api.mjs login
   node scripts/schedule-api.mjs get <resource> [--from YYYY-MM-DD] [--to YYYY-MM-DD] [--limit N]
-  node scripts/schedule-api.mjs manual <op> <resource> '<json-row>'
-  node scripts/schedule-api.mjs apply <file.json> [--swallow]
+  node scripts/schedule-api.mjs get-day YYYY-MM-DD
+  node scripts/schedule-api.mjs manual <op> <resource> '<json>'
+  node scripts/schedule-api.mjs apply <file.agent.json> [--swallow]
+  node scripts/schedule-api.mjs apply-manual <file.manual.json>
 
 Auth env (one of): SCHEDULE_TOKEN | SCHEDULE_API_KEY | SCHEDULE_PASSWORD
-URL env: SCHEDULE_FUNCTIONS_URL`);
+URL env: SCHEDULE_FUNCTIONS_URL
+
+Plans: scripts/plans/README.md`);
 }
 
 function loadTokenFile() {
@@ -112,6 +124,44 @@ function parseFlags(argv) {
   return { flags, rest };
 }
 
+/** Build POST /manual body; id/match may live in row or top-level item. */
+function buildManualBody(op, resource, parsed) {
+  const src = parsed && typeof parsed === "object" ? { ...parsed } : {};
+  const {
+    id,
+    match,
+    expense,
+    expense_session_id,
+    expense_event_id,
+    row: nestedRow,
+    ...rest
+  } = src;
+
+  let row = nestedRow && typeof nestedRow === "object" ? { ...nestedRow } : { ...rest };
+  if (row.id != null && id == null) {
+    const rowId = row.id;
+    delete row.id;
+    return {
+      op,
+      resource,
+      id: String(rowId),
+      row,
+      ...(match != null ? { match } : {}),
+      ...(expense !== undefined ? { expense } : {}),
+      ...(expense_session_id != null ? { expense_session_id } : {}),
+      ...(expense_event_id != null ? { expense_event_id } : {}),
+    };
+  }
+
+  const body = { op, resource, row };
+  if (id != null) body.id = String(id);
+  if (match != null) body.match = match;
+  if (expense !== undefined) body.expense = expense;
+  if (expense_session_id != null) body.expense_session_id = expense_session_id;
+  if (expense_event_id != null) body.expense_event_id = expense_event_id;
+  return body;
+}
+
 async function main() {
   loadCodexEnv();
 
@@ -147,12 +197,50 @@ async function main() {
     return;
   }
 
+  if (cmd === "get-day") {
+    const date = rest[0];
+    if (!date) throw new Error("get-day YYYY-MM-DD required");
+    const bundle = { date };
+    for (const resource of GET_DAY_RESOURCES) {
+      bundle[resource] = await api("data", {
+        resource,
+        from: date,
+        to: date,
+        limit: flags.limit ?? 2000,
+      });
+    }
+    console.log(JSON.stringify(bundle, null, 2));
+    return;
+  }
+
   if (cmd === "manual") {
     const [op, resource, jsonStr] = rest;
     if (!op || !resource || !jsonStr) throw new Error("manual <op> <resource> '<json>'");
-    const row = JSON.parse(jsonStr);
-    const out = await api("manual", { op, resource, row });
+    const parsed = JSON.parse(jsonStr);
+    const out = await api("manual", buildManualBody(op, resource, parsed));
     console.log(JSON.stringify(out, null, 2));
+    return;
+  }
+
+  if (cmd === "apply-manual") {
+    const file = rest[0];
+    if (!file) throw new Error("apply-manual <file.manual.json>");
+    const raw = readFileSync(resolve(process.cwd(), file), "utf8");
+    const items = JSON.parse(raw);
+    if (!Array.isArray(items)) throw new Error("JSON must be an array of manual ops");
+    const results = [];
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i];
+      const op = item.op;
+      const resource = item.resource;
+      if (!op || !resource) {
+        throw new Error(`item[${i}]: op and resource required`);
+      }
+      const body = buildManualBody(op, resource, item);
+      const out = await api("manual", body);
+      results.push({ index: i, op, resource, ok: true, out });
+    }
+    console.log(JSON.stringify({ ok: true, count: results.length, results }, null, 2));
     return;
   }
 

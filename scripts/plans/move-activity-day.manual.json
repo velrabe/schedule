@@ -1,0 +1,13 @@
+[
+  {
+    "op": "insert",
+    "resource": "activities",
+    "row": {
+      "date": "2026-05-27",
+      "type": "move",
+      "source": "move",
+      "calories_burned": 28,
+      "notes": "Move calories за день: 28 kcal."
+    }
+  }
+]

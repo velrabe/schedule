@@ -1,0 +1,13 @@
+{
+  "actions": [
+    {
+      "type": "update_session",
+      "data": {
+        "id": "<session-uuid-from-get-day>",
+        "date": "2026-05-30",
+        "start_time": "19:30",
+        "end_time": "20:30"
+      }
+    }
+  ]
+}

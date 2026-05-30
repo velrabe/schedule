@@ -38,6 +38,7 @@ import { afterFinanceLinkedWrite, syncFinanceToSessionEvent } from "../_shared/f
 import { afterEventWrite, beforeEventDelete } from "../_shared/eventFinanceSync.ts";
 import { afterSubstanceWrite, beforeSubstanceDelete } from "../_shared/substanceEventSync.ts";
 import { afterActivityWrite } from "../_shared/activityEventSync.ts";
+import { formatDbError } from "../_shared/formatDbError.ts";
 
 const ALLOWED = new Set([
   "days",
@@ -347,7 +348,6 @@ Deno.serve(async (req) => {
 
     return json({ ok: true });
   } catch (e) {
-    const msg = e instanceof Error ? e.message : String(e);
-    return json({ error: "db_error", detail: msg }, { status: 500 });
+    return json({ error: "db_error", detail: formatDbError(e) }, { status: 500 });
   }
 });

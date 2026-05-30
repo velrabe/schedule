@@ -1,0 +1,19 @@
+[
+  {
+    "op": "insert",
+    "resource": "finance_transactions",
+    "row": {
+      "date": "2026-05-30",
+      "time": "17:26:00",
+      "amount": 149000,
+      "currency": "VND",
+      "account": "vcb_vnd",
+      "category": "food",
+      "merchant": "Tacos DANANG",
+      "txn_type": "expense",
+      "session_id": "<food-session-uuid>",
+      "session_event_id": "<food-event-uuid>",
+      "notes": "Tacos DANANG"
+    }
+  }
+]

@@ -1,6 +1,92 @@
 # Codex / Cursor — инструкция для агентов
 
-**Читай этот файл первым.** Репозиторий: личный трекер (расписание, еда, финансы, визаран). Прод: Supabase + GitHub Pages.
+**Читай этот файл первым.** Codex подхватывает `AGENTS.md` из корня репо автоматически ([документация](https://developers.openai.com/codex/guides/agents-md)). Репозиторий: личный трекер (расписание, еда, финансы, визаран). Прод: Supabase + GitHub Pages.
+
+## Fast path — запись данных (без правок кода)
+
+Задачи «добавь еду / КБЖУ / транспорт / сдвинь сессию» — **только API**, не Python/curl, не чтение `supabase/functions/**` (кроме 2-й попытки после HTTP-ошибки).
+
+### Старт сессии (один раз)
+
+```bash
+node scripts/codex-check.mjs          # один раз в начале работы Codex
+# login — только если 401 или check-env без auth
+```
+
+`login` каждый раз **не нужен**, если `SCHEDULE_TOKEN` / API key уже в env.
+
+### Что вызывать
+
+| Задача | Команда | Не делать |
+|--------|---------|-----------|
+| Прочитать один день | `get-day YYYY-MM-DD` | 5 отдельных `get` |
+| Сдвиг сессий / bundle | `apply scripts/plans/*.agent.json` | N× `manual` на sessions |
+| КБЖУ у существующих meals | `apply-manual` (массив `update` meals) | Python-скрипт в `/tmp` |
+| Одна правка (время, сумма) | `manual update …` с **`id`** | `update` без id → `id_or_match_required` |
+| Grab/еда + finance | `apply` или `apply-manual` | orphan finance без `session_event_id` |
+
+```bash
+node scripts/schedule-api.mjs get-day 2026-05-30 > /tmp/day.json
+node scripts/schedule-api.mjs apply scripts/plans/session-time-shift.agent.json
+node scripts/schedule-api.mjs apply-manual scripts/plans/meal-macros-update.manual.json
+```
+
+Шаблоны: **`scripts/plans/README.md`**.
+
+### `manual` — формат (важно)
+
+CLI сам вынесет `id` / `match` из JSON. Сервер ждёт:
+
+```json
+{ "op": "update", "resource": "meals", "id": "<uuid>", "row": { "kcal": 500, "protein_g": 40 } }
+```
+
+Эквивалент в shell (id можно внутри объекта):
+
+```bash
+node scripts/schedule-api.mjs manual update meals '{"id":"<meal-uuid>","kcal":500,"protein_g":40,"fat_g":15,"carbs_g":45,"confidence":"estimate"}'
+```
+
+`resource`: `days`, `sessions`, **`session_events`**, `meals`, `activities`, `finance_transactions`, …
+
+**Не трогай** `session_events` ради `meal_id` — для КБЖУ достаточно `manual update meals`. Лишний `update session_events` → тяжёлые hooks и 500.
+
+### `apply` — agent actions
+
+Файл `{ "actions": [ { "type": "...", "data": {} } ] }`.
+
+| type | Когда |
+|------|--------|
+| `update_session` | сдвиг времени по `id` из `get-day` |
+| `create_session` | новый блок еды/чилла |
+| `create_session_bundle` | wake + sport + transport в одной оболочке (`events[]`) |
+| `create_meal` | новый приём с макросами (создаст/свяжет food session) |
+| `create_activity` | walk/run/move (move = дневной kcal out без времени) |
+| `create_finance_transaction` | расход с `session_id` + `session_event_id` |
+
+### `apply-manual` — пакет manual
+
+JSON-массив: `[{ "op", "resource", "id"?, "row" }, …]` — один вызов CLI, последовательные POST `/manual`. Для 10–50 meals с КБЖУ быстрее, чем 50 shell-команд в чате.
+
+### Верификация (минимум)
+
+После записи:
+
+```bash
+node scripts/schedule-api.mjs get-day YYYY-MM-DD > /tmp/after.json
+# при необходимости один jq, не 4 таблицы × 2
+```
+
+**Не пушь** репозиторий и **не деплой** functions без просьбы пользователя — данные уже в Supabase.
+
+### Запреты для скорости
+
+- **Нет** Python / `urllib` / скриптов в `/tmp` — только `node scripts/schedule-api.mjs`.
+- **Нет** `rg` по всему `supabase/functions` для data-only задач.
+- **Нет** повторного `codex-check` + `login` на каждый микро-запрос пользователя.
+- **Нет** десятков отдельных `manual`, если можно один `apply` / `apply-manual`.
+
+Полные правила домена: `supabase/functions/_shared/rules.ts` → `data_model` (по необходимости).
 
 ## Жёсткие запреты (чтобы не «наворотить говна»)
 
@@ -28,11 +114,12 @@
 ## Окружение (CLI / Codex)
 
 ```bash
-node scripts/codex-check.mjs    # диагностика: что видит shell (без секретов)
+node scripts/codex-check.mjs
 node scripts/schedule-api.mjs check-env
-node scripts/schedule-api.mjs login
+node scripts/schedule-api.mjs get-day 2026-05-30
 node scripts/schedule-api.mjs get sessions --from 2026-05-26 --to 2026-05-29
-node scripts/schedule-api.mjs apply plan.json
+node scripts/schedule-api.mjs apply scripts/plans/session-time-shift.agent.json
+node scripts/schedule-api.mjs apply-manual scripts/plans/meal-macros-update.manual.json
 ```
 
 **URL:** `SCHEDULE_FUNCTIONS_URL=https://<PROJECT_REF>.functions.supabase.co`
@@ -57,7 +144,7 @@ node scripts/schedule-api.mjs apply plan.json
 
 URL подставится сам из `schedule.project.ref`, если `SCHEDULE_FUNCTIONS_URL` не задан.
 
-Первый шаг в задаче: `node scripts/codex-check.mjs` → затем `get` / `apply`.
+Первый шаг в **новой** Codex-сессии: `codex-check` → `get-day` или `apply` / `apply-manual`.
 
 **Codex + `fetch failed`:** в setup/maintenance добавь `export SCHEDULE_USE_CURL=1` — CLI сам ходит через `curl -4` (или авто-fallback после ошибки fetch).
 
@@ -86,7 +173,9 @@ URL подставится сам из `schedule.project.ref`, если `SCHEDUL
 
 `op`: `insert` | `update` | `delete` | `upsert`
 
-`resource`: `days`, `sessions`, `meals`, `activities`, `substances`, `body_metrics`, `finance_transactions`, `events`, `planner_events`, `mood_logs`, `nutrition_goals`, `accounts`, `balance_snapshots`, `finance_planned_items`
+`resource`: `days`, `sessions`, **`session_events`**, `meals`, `activities`, `substances`, `body_metrics`, `finance_transactions`, `events`, `planner_events`, `mood_logs`, `nutrition_goals`, `accounts`, `balance_snapshots`, `finance_planned_items`
+
+`update` / `delete` требуют **`id`** (или `match`) — см. Fast path.
 
 Примеры:
 
@@ -94,6 +183,8 @@ URL подставится сам из `schedule.project.ref`, если `SCHEDUL
 node scripts/schedule-api.mjs manual upsert days '{"date":"2026-05-31","wake_time":"11:00","sleep_time":"02:00","modafinil_mg":50,"day_type":"work"}'
 
 node scripts/schedule-api.mjs manual insert sessions '{"date":"2026-05-31","start_time":"16:00","end_time":"17:00","duration_min":60,"type":"food","category":"food","project":"обед"}'
+
+node scripts/schedule-api.mjs manual update meals '{"id":"<uuid>","kcal":500,"protein_g":40,"fat_g":15,"carbs_g":45,"confidence":"estimate"}'
 ```
 
 После `food`-сессии сервер создаёт/линкует `meals`. Finance-транзакции обновляют `accounts.balance`.
@@ -154,18 +245,18 @@ events ↔ finance_planned_items (визаран и т.п.)
 **Instant:** проснулся / модаф / кофе → `create_substance` или `kind=wake|substance` с `instant:true`, без end_time+5мин.
 
 **Sport + Apple Health:** `activities` (cycling 11:21, notes с distance/kcal) ↔ `session_events` через `activity_id`; при save/link метрики с устройства переносятся на ивент (106 kcal, 4.74 km), не дублировать 130 вручную если есть activity.
-```
 
 Стабильные id импорта расписания: `521YYxxx-0000-4000-8000-...` (YY = день месяца в коде). Перед правкой дня — **`get sessions` за эту дату**.
 
 ## Рекомендуемый workflow Codex
 
-1. `get days`, `get sessions`, `get meals`, `get finance_transactions` за нужный диапазон.
-2. Сверь с запросом пользователя; не выдумывай id.
-3. Собери `actions.json` или серию `manual`.
-4. `apply` → проверь `ok: true`.
-5. Повторный `get` для верификации.
-6. **Не пушь** без просьбы; **не деплой** — данные уже в Supabase.
+См. **Fast path** выше. Кратко:
+
+1. `get-day` (или `get` для диапазона >1 дня).
+2. Собери `scripts/plans/…` или `apply-manual` массив; id только из ответа API.
+3. Один `apply` / `apply-manual` (или ≤3 `manual` для точечных правок).
+4. Один `get-day` + jq при необходимости.
+5. **Не пушь** без просьбы; **не деплой** functions без просьбы — данные уже в Supabase.
 
 ## Миграции (только по запросу)
 
