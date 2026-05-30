@@ -605,12 +605,15 @@
   display: flex;
   flex-direction: column;
   flex: 0 0 auto;
-  width: 220px;
+  width: 20vw;
+  min-width: 0;
+  max-width: 100%;
   max-height: 75vh;
   border: 1px solid var(--border);
   border-radius: var(--radius);
   background: var(--surface);
   overflow: hidden;
+  box-sizing: border-box;
 }
 
 .kanban-col-head-wrap {
@@ -665,6 +668,10 @@
   font-weight: 600;
   color: var(--text);
   flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .kanban-col-head__dow {
@@ -728,12 +735,15 @@
   display: flex;
   flex-direction: column;
   width: 100%;
+  min-width: 0;
   padding: 6px 8px;
   gap: 0;
   border-radius: 4px;
   background: var(--bg);
   border: 1px solid var(--border);
   border-left: 3px solid var(--text-3);
+  overflow: hidden;
+  box-sizing: border-box;
 }
 
 .kanban-card--work_paid {
@@ -801,6 +811,26 @@
 
 .kanban-card .session-compact-parts-wrap {
   padding-left: 6px;
+}
+
+.session-compact-inner-wrap--compact .session-compact-head-wrap {
+  gap: 4px;
+}
+
+.session-compact-inner-wrap--compact .session-compact__cat {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.session-compact-inner-wrap--compact .session-compact-body-wrap {
+  flex-wrap: nowrap;
+  overflow: hidden;
+}
+
+.session-compact-inner-wrap--compact .session-compact-part-wrap {
+  flex-wrap: nowrap;
+  overflow: hidden;
 }
 
 /* button-styled card so the click target is the whole element */
@@ -1850,12 +1880,16 @@ button.kanban-card:hover {
 .finance-day-col {
   display: flex;
   flex-direction: column;
-  min-width: 200px;
   flex: 0 0 auto;
+  width: 20vw;
+  min-width: 0;
+  max-width: 100%;
   gap: 8px;
   padding: 8px;
   border: 1px solid var(--border);
   border-radius: 6px;
+  overflow: hidden;
+  box-sizing: border-box;
 }
 
 .finance-day-col--today {
@@ -1871,6 +1905,9 @@ button.kanban-card:hover {
 .finance-day-date {
   font-size: 11px;
   font-family: var(--mono);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .finance-day-total {
@@ -1889,11 +1926,22 @@ button.kanban-card:hover {
   display: flex;
   flex-direction: column;
   width: 100%;
-  gap: 4px;
+  min-width: 0;
+  gap: 0;
   padding: 6px 8px;
   font-size: 11px;
   font-family: var(--mono);
   border-radius: 4px;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+
+.finance-tx-lines-wrap {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  min-width: 0;
+  gap: 2px;
 }
 
 .finance-tx-row--transfer .finance-tx-amount {
@@ -1905,19 +1953,26 @@ button.kanban-card:hover {
 }
 
 .finance-tx-amount {
+  display: block;
   font-weight: 600;
   font-size: 10px;
   line-height: 1.35;
+  min-width: 0;
 }
 
 .finance-tx-meta {
+  display: block;
   color: var(--text-2);
   font-size: 10px;
+  min-width: 0;
 }
 
 .finance-tx-note {
+  display: block;
   color: var(--text-3);
   font-size: 10px;
+  min-width: 0;
+  line-height: 1.35;
 }
 
 .finance-empty {
@@ -3010,6 +3065,61 @@ button.kanban-card:hover {
 @media (min-width: 720px) {
   .chat-sidebar {
     max-width: 420px;
+  }
+
+  .kanban-col-wrap,
+  .finance-day-col {
+    flex: 0 0 20vw;
+    width: 20vw;
+    min-width: 148px;
+    max-width: 320px;
+  }
+}
+
+/* Mobile: compact strips, no overflow from long text */
+@media (max-width: 719px) {
+  .kanban-wrap,
+  .finance-wrap {
+    padding: 8px;
+  }
+
+  .kanban-col-wrap,
+  .finance-day-col {
+    flex: 0 0 72vw;
+    width: 72vw;
+    max-width: 280px;
+  }
+
+  .kanban-col-meta-wrap,
+  .kanban-col-nutri-wrap {
+    display: none;
+  }
+
+  .kanban-copy-btn__text {
+    display: none;
+  }
+
+  .kanban-copy-btn {
+    padding: 2px 4px;
+  }
+
+  .finance-tx-note--desk-only,
+  .session-compact-part__exp--desk-only {
+    display: none;
+  }
+
+  .finance-day-total--transfer {
+    display: none;
+  }
+
+  .date-strip-hints-wrap {
+    display: none;
+  }
+
+  .nutri-day-col {
+    flex: 0 0 72vw;
+    width: 72vw;
+    max-width: 280px;
   }
 }
 

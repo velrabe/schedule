@@ -3,7 +3,13 @@ import { useState, useEffect, useMemo } from "preact/hooks";
 import htm from "htm";
 import { useDateStrip } from "./useDateStrip.js";
 import { RecordOpenRow } from "./RecordOpenRow.jsx";
-import { ACCOUNT_LABELS, fmtMoney, financeTxnLabel, financeTxnShortMeta } from "./financeDisplay.js";
+import {
+  ACCOUNT_LABELS,
+  fmtMoney,
+  financeTxnCompactLabel,
+  financeTxnCompactMeta,
+  financeTxnRowTitle,
+} from "./financeDisplay.js";
 import FinanceChartTab from "./FinanceChartTab.jsx";
 import FinanceTransactionsTab from "./FinanceTransactionsTab.jsx";
 
@@ -104,10 +110,14 @@ function FinanceDaysView({ days, accounts = [], finance = [], active = true, liv
                       className=${`finance-tx-row ${isTransfer ? "finance-tx-row--transfer" : ""}`}
                       onOpen=${onOpenRecord ? () => onOpenRecord({ kind: "finance", record: t }) : null}
                       disabled=${!liveMode}
+                      title=${financeTxnRowTitle(t)}
                     >
-                      <span class="finance-tx-amount">${financeTxnLabel(t)}</span>
-                      <span class="finance-tx-meta">${financeTxnShortMeta(t)}</span>
-                      ${t.notes && html`<span class="finance-tx-note">${t.notes}</span>`}
+                      <div class="finance-tx-lines-wrap">
+                        <span class="finance-tx-amount u-truncate-1">${financeTxnCompactLabel(t)}</span>
+                        <span class="finance-tx-meta u-truncate-1">${financeTxnCompactMeta(t)}</span>
+                        ${t.notes &&
+                        html`<span class="finance-tx-note u-truncate-2 finance-tx-note--desk-only">${t.notes}</span>`}
+                      </div>
                     </${RecordOpenRow}>
                   `;
                 })}

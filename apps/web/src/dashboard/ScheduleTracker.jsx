@@ -1745,17 +1745,17 @@ function CalendarTab({
 }
 
 /** Compact session row: time + category, project/note, optional session_events parts. */
-function SessionCompactContent({ session: s, sessionEvents = [], finance = [], suffix = null }) {
+function SessionCompactContent({ session: s, sessionEvents = [], finance = [], suffix = null, compact = false }) {
   const parts = childEventsForSession(s.id, sessionEvents);
   const showParts = parts.length > 0;
   const exp = showParts ? [] : expensesForSession(s.id, finance);
   const trailNote = s.note || "";
   const trailExp = !showParts && exp.length ? fmtExpensesShort(exp) : "";
   const trail = [trailNote, trailExp].filter(Boolean).join(trailNote && trailExp ? " · " : "");
-  const hasBody = Boolean(s.project || trail);
+  const hasBody = Boolean(s.project || (!compact && trail));
 
   return html`
-    <div class="session-compact-inner-wrap">
+    <div class=${`session-compact-inner-wrap ${compact ? "session-compact-inner-wrap--compact" : ""}`}>
       <div class="session-compact-head-wrap">
         <div class="session-compact-time-wrap">
           <span class="session-compact__time">${s.start}</span>
@@ -1767,8 +1767,10 @@ function SessionCompactContent({ session: s, sessionEvents = [], finance = [], s
       </div>
       ${hasBody && html`
         <div class="session-compact-body-wrap">
-          ${s.project && html`<span class="session-compact__proj">${s.project}</span>`}
-          ${trail && html`<span class="session-compact__trail">${trail}</span>`}
+          ${s.project &&
+          html`<span class="session-compact__proj u-truncate-1" title=${s.project}>${s.project}</span>`}
+          ${!compact && trail &&
+          html`<span class="session-compact__trail u-truncate-1" title=${trail}>${trail}</span>`}
         </div>
       `}
       ${showParts && html`
@@ -1783,8 +1785,9 @@ function SessionCompactContent({ session: s, sessionEvents = [], finance = [], s
             return html`
               <div class="session-compact-part-wrap ${instant ? "session-compact-part-wrap--instant" : ""}" key=${p.id}>
                 <span class="session-compact-part__time">${instant ? t0 : `${t0}–${t1}`}</span>
-                <span class="session-compact-part__label">${label}</span>
-                ${pexp.length ? html`<span class="session-compact-part__exp">${fmtExpensesShort(pexp)}</span>` : ""}
+                <span class="session-compact-part__label u-truncate-1" title=${label}>${label}</span>
+                ${pexp.length &&
+                html`<span class="session-compact-part__exp session-compact-part__exp--desk-only">${fmtExpensesShort(pexp)}</span>`}
               </div>
             `;
           })}
@@ -2253,13 +2256,14 @@ function KanbanTab({
                           class=${`kanban-card kanban-card--${(s.category || "x").replace(/[^a-z0-9_]/gi, "_")}`}
                           key=${s.id}
                           onClick=${() => onOpenRecord?.({ kind: "session", record: s })}
-                          title="открыть в редакторе"
+                          title=${[s.project, s.note, s.category].filter(Boolean).join(" · ") || "открыть сессию"}
                           disabled=${!onOpenRecord}
                         >
                           <${SessionCompactContent}
                             session=${s}
                             sessionEvents=${sessionEvents}
                             finance=${finance}
+                            compact=${true}
                             suffix=${html`<span class="kanban-card__dur">${s.min}m</span>`}
                           />
                         </button>

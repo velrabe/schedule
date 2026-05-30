@@ -73,7 +73,29 @@ body,
   flex-direction: column;
   width: 100%;
   min-height: 100vh;
+  max-width: 100vw;
+  overflow-x: hidden;
   background: var(--bg);
+}
+
+/* Text truncation helpers */
+.u-truncate-1 {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.u-truncate-2 {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .app-header {
@@ -237,6 +259,68 @@ body,
   font-size: 10px;
   font-variant-numeric: tabular-nums;
   font-family: var(--mono);
+  flex-shrink: 0;
+}
+
+.tab {
+  flex-shrink: 0;
+}
+
+@media (max-width: 719px) {
+  .app-header__row {
+    padding: 8px 10px;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  .app-header__subtitle {
+    display: none;
+  }
+
+  .app-header__actions .btn--ghost {
+    display: none;
+  }
+
+  .stat-bar {
+    display: none;
+  }
+
+  .tabbar {
+    overflow-x: auto;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+    padding: 0 8px;
+    flex-wrap: nowrap;
+    max-width: 100%;
+  }
+
+  .tab {
+    padding: 8px 10px;
+    font-size: 11px;
+  }
+
+  .tab__count {
+    display: none;
+  }
+
+  .toolbar {
+    padding: 6px 10px;
+    gap: 6px;
+  }
+
+  .search-wrap {
+    min-width: 0;
+    flex: 1 1 100%;
+    max-width: none;
+  }
+
+  .insights-kpi-strip-wrap {
+    padding: 8px 10px;
+  }
+
+  .insights-grid {
+    padding: 0 10px 12px;
+  }
 }
 
 .toolbar {

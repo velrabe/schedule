@@ -50,3 +50,39 @@ export function financeTxnShortMeta(t) {
   }
   return `${t.category || "—"} · ${t.merchant || t.account || ""}`;
 }
+
+/** One-line amount for day columns (no long transfer prose). */
+export function financeTxnCompactLabel(t) {
+  if (t._planned || (t.txn_type || "").toLowerCase() === "planned") {
+    const kind = (t._planned_txn_type || "expense").toLowerCase();
+    const sign = kind === "income" ? "+" : "−";
+    return `план ${sign}${fmtMoney(t.amount, t.currency)}`;
+  }
+  const type = (t.txn_type || "expense").toLowerCase();
+  if (type === "transfer") {
+    return `⇄ ${fmtMoney(t.amount, t.currency)}`;
+  }
+  if (type === "income") {
+    return `+${fmtMoney(t.amount, t.currency)}`;
+  }
+  return `−${fmtMoney(t.amount, t.currency)}`;
+}
+
+/** Short second line: merchant or category only. */
+export function financeTxnCompactMeta(t) {
+  if (t._planned || (t.txn_type || "").toLowerCase() === "planned") {
+    return (t.merchant || t.category || "план").trim();
+  }
+  if ((t.txn_type || "").toLowerCase() === "transfer") {
+    const from = accountLabel(t.account);
+    const to = t.counter_account ? accountLabel(t.counter_account) : "";
+    return to ? `${from} → ${to}` : from;
+  }
+  return (t.merchant || t.category || accountLabel(t.account) || "—").trim();
+}
+
+export function financeTxnRowTitle(t) {
+  const parts = [financeTxnLabel(t), financeTxnShortMeta(t)];
+  if (t.notes) parts.push(t.notes);
+  return parts.filter(Boolean).join("\n");
+}
