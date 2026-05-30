@@ -10,7 +10,8 @@ const DATA_MODEL = `
 |--------|-------|------|
 | Day meta | days | wake/sleep, modafinil, mood, day_type |
 | Diary block | sessions | **one line in the daily schedule** ("болдеринг", "работа app", "завтрак") — envelope times roll up from children |
-| Atomic part | session_events | taxi, gym, snack, gift run, … — **building block**; optional session_id parent; each may have its own expense |
+| Atomic part | session_events | taxi, gym, snack, wake, substance, … — **building block**; optional session_id parent; each may have its own expense |
+| Substance dose | substances | modafinil, caffeine, alcohol, weed — **fact row**; server mirrors instant session_event (kind=substance) |
 | Nutrition row | meals | KBJU + name; 1:1 with a food session (session_id) |
 | Sport aggregate | activities | optional extra row (distance, kcal burned, source) parallel to sport **session_event** / session |
 | Money FACT | finance_transactions | happened: expense / income / transfer; link **session_event_id** (one txn per event); session_id kept for rollups |
@@ -29,6 +30,8 @@ const DATA_MODEL = `
 3. **Food:** parent session type=food → meals 1:1. Price on the **food session_event** (expense in bundle or create_finance_transaction with session_event_id).
 4. **Sport:** session_event kind=sport, category sport_*; sport_type bouldering|run|…; run → distance_km, pace; bouldering → duration only. Optional activities row for extra metrics. Calories on event (calories_burned) when user states them.
 5. **Finance fact:** txn_type expense|income|transfer. **Past/fact** MUST have account. Prefer session_event_id over bare session_id when cost is for one atomic part (taxi vs gym fee).
+   - **One human label:** finance_transactions.notes = what user said ("такси к барберу"). session_events.title mirrors notes (server sync). merchant = brand/payee only ("Grab"), not the diary title.
+   - Do not put "Grab к барберу" in event title if notes already say "такси к барберу".
 6. **Finance plan:** finance_planned_items OR events.budget_* OR session_events.planned_* fields — not fact until paid.
 7. **Events vs planner:** visa / vizaran → events. "Поздравить с ДР" без денег → planner_events + optional session "поздравить …" with session_event kind=reminder, no expense. Gift with sum → session_event + expense or planned line.
 8. **Unattached events:** session_events with session_id=null allowed (orphan atomic rows); attach later via update.
@@ -51,8 +54,15 @@ const DATA_MODEL = `
 
 - "Concrete" = real column names and values for the target table (see action type), never empty {}.
 - Almost always include "date" (ISO YYYY-MM-DD). Times as HH:MM or HH:MM:SS.
-- **create_session_bundle** { date, type?, category?, title|project?, notes?, events[] } — each event: start_time, end_time, kind, category?, title?, sport_type?, distance_km?, calories_burned?, pace?, expense?: { amount, currency, account?, category?, merchant?, notes? } }
+- **create_session_bundle** { date, type?, category?, title|project?, notes?, events[] } — each event: start_time, end_time?, kind, category?, title?, sport_type?, distance_km?, calories_burned?, pace?, instant?, expense?: { … } }
 - **create_session_event** — same fields as one element of events[]; session_id optional (null = unattached).
+
+## Instant vs duration (session_events)
+
+- **Instant** (проснулся, модаф, кофе, покурил): one timestamp only — `start_time` required; omit `end_time` OR set `instant: true` OR `kind` wake|substance. Server sets `end_time=start_time`, `duration_min=0`, `is_instant=true`. **Never** invent 5-minute windows for wake/substance.
+- **Duration** (зал 90 мин, работа, сон-блок): `start_time` + `end_time` (or duration_min > 0).
+- **Substances:** always `create_substance` { date, time?, name, amount?, unit? } — writes `substances` + auto instant `session_event` (kind=substance). Optionally group in morning `create_session_bundle` with wake instant event + separate create_substance actions.
+- **Wake:** `update_day` { wake_time } for day header AND instant session_event kind=wake at that time (in bundle or create_session_event). Do not use duration for wake.
 - For /agent and /manual: actions[] only — no reply_to_user / needs_confirmation.
 `;
 
@@ -308,10 +318,12 @@ Auto-allow without confirmation.
 `;
 
 const SUBSTANCES = `
-# substances
+# substances (table substances + mirrored instant session_event kind=substance)
+Always use create_substance — NOT a fake 5-min session. Server links session_event and syncs days.modafinil_mg from modafinil rows.
+
 Modafinil:
-- "75 мг модафа", "100 мг модафинила", "50 модф" → name=modafinil, amount=NN, unit=mg
-- "без модафа", "сегодня без" → name=modafinil, amount=0, unit=mg
+- "75 мг модафа", "100 мг модафинила", "50 модф" → create_substance { name=modafinil, amount=NN, unit=mg, time=now or stated }
+- "без модафа", "сегодня без" → create_substance { name=modafinil, amount=0, unit=mg }
 
 Caffeine:
 - "кофе", "эспрессо", "латте", "капучино", "американо", "чашку кофе" → name=caffeine, amount=1, unit=cup
@@ -332,9 +344,10 @@ Auto-allow without confirmation.
 
 const SLEEP = `
 # sleep
-Wake terms (sets days.wake_time):
-- "встал в X", "проснулся в X", "пробуждение X", "проснулся X" → wake_time=HH:MM
-- "проснулся" (without time) → wake_time=now_time
+Wake terms (sets days.wake_time + instant session_event):
+- "встал в X", "проснулся в X", "пробуждение X", "проснулся X" → update_day { wake_time=HH:MM } AND instant event { kind=wake, start_time=HH:MM, title="проснулся" } (in create_session_bundle events[] or create_session_event)
+- "проснулся" (without time) → wake_time=now_time + wake event at now_time
+- Wake is INSTANT — never end_time 5 min later.
 
 Sleep terms (sets days.sleep_time):
 - "лёг X", "лёг в X", "отбой X", "отбой в X", "ушёл спать X" → sleep_time=HH:MM

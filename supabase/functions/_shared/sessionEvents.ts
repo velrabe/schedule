@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
-import { padTime, diffMinutes, inferSessionType } from "./actions.ts";
+import { padTime, diffMinutes, diffMinutesExact, inferSessionType } from "./actions.ts";
 import { syncMealFromFoodSession, isFoodSession, type SessionRow } from "./foodMealSync.ts";
 import {
   deleteSessionExpenses,
@@ -26,14 +26,20 @@ export type SessionEventRow = {
   planned_currency: string | null;
   planned_account: string | null;
   notes: string | null;
+  is_instant?: boolean;
+  substance_id?: string | null;
 };
+
+const INSTANT_KINDS = new Set(["wake", "substance"]);
 
 function toMin(t: string): number {
   const [h, m] = t.split(":").map(Number);
   return (h ?? 0) * 60 + (m ?? 0);
 }
 
-function minMaxTime(events: { start_time: string; end_time: string }[]): {
+function minMaxTime(
+  events: { start_time: string; end_time: string; is_instant?: boolean }[],
+): {
   start_time: string;
   end_time: string;
   duration_min: number;
@@ -42,37 +48,53 @@ function minMaxTime(events: { start_time: string; end_time: string }[]): {
   let maxE = 0;
   for (const e of events) {
     const s = toMin(padTime(e.start_time) ?? "00:00:00");
-    let en = toMin(padTime(e.end_time) ?? "00:00:00");
-    if (en <= s) en += 24 * 60;
+    const instant = Boolean(e.is_instant);
+    let en = instant ? s : toMin(padTime(e.end_time) ?? "00:00:00");
+    if (!instant && en <= s) en += 24 * 60;
     minS = Math.min(minS, s);
     maxE = Math.max(maxE, en);
   }
   const start_time = `${String(Math.floor(minS / 60) % 24).padStart(2, "0")}:${String(minS % 60).padStart(2, "0")}:00`;
   const endMin = maxE % (24 * 60);
   const end_time = `${String(Math.floor(endMin / 60)).padStart(2, "0")}:${String(endMin % 60).padStart(2, "0")}:00`;
-  return { start_time, end_time, duration_min: diffMinutes(start_time, end_time) };
+  const duration_min = diffMinutesExact(start_time, end_time);
+  return {
+    start_time,
+    end_time,
+    duration_min: duration_min > 0 ? duration_min : diffMinutes(start_time, end_time),
+  };
 }
 
 export function normalizeSessionEventPayload(raw: Record<string, unknown>): Record<string, unknown> {
   const date = String(raw.date);
   const start_time = padTime(raw.start_time ?? raw.start) ?? "00:00:00";
-  const end_time = padTime(raw.end_time ?? raw.end) ?? start_time;
-  let duration_min = Number(raw.duration_min ?? raw.min);
-  if (!Number.isFinite(duration_min) || duration_min <= 0) {
-    duration_min = diffMinutes(start_time, end_time);
-  }
   const kind = raw.kind != null
     ? String(raw.kind)
     : raw.type != null
     ? String(raw.type)
     : "other";
+  const explicitInstant = raw.instant === true || raw.is_instant === true;
+  const explicitDuration = Number(raw.duration_min ?? raw.min);
+  const kindInstant = INSTANT_KINDS.has(kind);
+  const is_instant = explicitInstant || kindInstant ||
+    (Number.isFinite(explicitDuration) && explicitDuration === 0);
+  let end_time = padTime(raw.end_time ?? raw.end) ?? start_time;
+  let duration_min = Number.isFinite(explicitDuration) ? Math.round(explicitDuration) : NaN;
+  if (is_instant) {
+    end_time = start_time;
+    duration_min = 0;
+  } else if (!Number.isFinite(duration_min) || duration_min <= 0) {
+    duration_min = diffMinutesExact(start_time, end_time);
+    if (duration_min <= 0) duration_min = diffMinutes(start_time, end_time);
+  }
   const category = raw.category != null ? String(raw.category) : null;
   return {
     date,
     session_id: raw.session_id != null ? String(raw.session_id) : null,
     start_time,
     end_time,
-    duration_min: Math.round(duration_min),
+    duration_min,
+    is_instant,
     kind,
     category,
     title: raw.title != null ? String(raw.title) : raw.project != null ? String(raw.project) : null,
@@ -85,6 +107,7 @@ export function normalizeSessionEventPayload(raw: Record<string, unknown>): Reco
     planned_currency: raw.planned_currency != null ? String(raw.planned_currency) : null,
     planned_account: raw.planned_account != null ? String(raw.planned_account) : null,
     notes: raw.notes != null ? String(raw.notes) : null,
+    substance_id: raw.substance_id != null ? String(raw.substance_id) : null,
   };
 }
 
@@ -95,7 +118,7 @@ export async function rollupSessionEnvelope(
 ): Promise<void> {
   const { data: events, error } = await db
     .from("session_events")
-    .select("start_time, end_time")
+    .select("start_time, end_time, is_instant")
     .eq("session_id", sessionId);
   if (error) throw error;
   if (!events?.length) return;
@@ -140,8 +163,14 @@ export async function syncEventExpense(
   if (!Number.isFinite(amount) || amount <= 0) return;
 
   const { afterFinanceWrite, replaceFinanceWrite } = await import("./financeBalanceSync.ts");
+  const { financeHumanLabel, syncFinanceToSessionEvent } = await import("./financeEventSync.ts");
   const currency = (expense?.currency || "VND").toUpperCase();
   const account = expense?.account || (currency === "RUB" ? "savings_rub" : "cash_vnd");
+  const humanLabel = financeHumanLabel({
+    notes: expense?.notes ?? ctx.title ?? ctx.notes,
+    merchant: expense?.merchant ?? null,
+  }) || (ctx.title || "").trim() || null;
+  const merchant = (expense?.merchant || "").trim() || null;
   const payload = {
     date: ctx.date,
     time: padTime(ctx.start_time),
@@ -149,11 +178,11 @@ export async function syncEventExpense(
     currency,
     account,
     category: expense?.category || ctx.category || ctx.kind,
-    merchant: expense?.merchant || ctx.title,
+    merchant,
     txn_type: "expense",
     session_id: ctx.session_id,
     session_event_id: eventId,
-    notes: expense?.notes ?? ctx.notes,
+    notes: humanLabel,
   };
 
   if (existing) {
@@ -165,6 +194,7 @@ export async function syncEventExpense(
       .single();
     if (upErr) throw upErr;
     await replaceFinanceWrite(db, existing as never, String(updated.id));
+    if (humanLabel) await syncFinanceToSessionEvent(db, { session_event_id: eventId, ...payload });
     return;
   }
 
@@ -175,6 +205,7 @@ export async function syncEventExpense(
     .single();
   if (insErr) throw insErr;
   await afterFinanceWrite(db, String(inserted.id));
+  if (humanLabel) await syncFinanceToSessionEvent(db, { session_event_id: eventId, ...payload });
 }
 
 export async function ensureSessionEventMirror(
@@ -264,12 +295,16 @@ export async function executeSessionBundle(
   let start_time = padTime(data.start_time) ?? padTime(eventsIn[0]?.start_time) ?? "12:00:00";
   let end_time = padTime(data.end_time) ?? padTime(eventsIn[eventsIn.length - 1]?.end_time) ??
     start_time;
-  if (eventsIn.length > 1) {
+  if (eventsIn.length > 0) {
     const mm = minMaxTime(
-      eventsIn.map((e) => ({
-        start_time: String(padTime(e.start_time) ?? start_time),
-        end_time: String(padTime(e.end_time) ?? end_time),
-      })),
+      eventsIn.map((e) => {
+        const norm = normalizeSessionEventPayload({ ...e, date });
+        return {
+          start_time: String(norm.start_time),
+          end_time: String(norm.end_time),
+          is_instant: Boolean(norm.is_instant),
+        };
+      }),
     );
     start_time = mm.start_time;
     end_time = mm.end_time;

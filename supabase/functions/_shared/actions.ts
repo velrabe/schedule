@@ -19,11 +19,21 @@ function toMin(t: string): number {
   return h * 60 + m;
 }
 
+/** Diary block duration; minimum 1 minute when start === end. */
 export function diffMinutes(start: string, end: string): number {
   const s = toMin(start);
   const e = toMin(end);
   const d = (e - s + 24 * 60) % (24 * 60);
   return d > 0 ? d : 1;
+}
+
+/** Atomic event duration; 0 when start === end (instant). */
+export function diffMinutesExact(start: string, end: string): number {
+  const s = toMin(start);
+  const e = toMin(end);
+  if (s === e) return 0;
+  const d = (e - s + 24 * 60) % (24 * 60);
+  return d > 0 ? d : 0;
 }
 
 export function inferSessionType(category: string | null | undefined): string {

@@ -31,6 +31,7 @@ import {
   expensesForSession,
   expensesForSessionEvent,
   fmtExpensesShort,
+  linkedEventLabel,
 } from "./sessionFinance.js";
 import FinanceTab from "./FinanceTab.jsx";
 import { useSheetState, applySheet, SheetHeader, Toolbar } from "./sheetUi.js";
@@ -2051,11 +2052,13 @@ function SessionCompactContent({ session: s, sessionEvents = [], finance = [], s
           ${parts.map((p) => {
             const t0 = String(p.start_time || "").slice(0, 5);
             const t1 = String(p.end_time || "").slice(0, 5);
+            const instant = p.is_instant || p.kind === "wake" || p.kind === "substance" ||
+              (p.duration_min === 0 && t0 === t1);
             const pexp = expensesForSessionEvent(p.id, finance);
-            const label = p.title || p.category || p.kind || "—";
+                    const label = linkedEventLabel(p, finance);
             return html`
-              <div class="session-compact-part-wrap" key=${p.id}>
-                <span class="session-compact-part__time">${t0}–${t1}</span>
+              <div class="session-compact-part-wrap ${instant ? "session-compact-part-wrap--instant" : ""}" key=${p.id}>
+                <span class="session-compact-part__time">${instant ? t0 : `${t0}–${t1}`}</span>
                 <span class="session-compact-part__label">${label}</span>
                 ${pexp.length ? html`<span class="session-compact-part__exp">${fmtExpensesShort(pexp)}</span>` : ""}
               </div>

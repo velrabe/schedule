@@ -36,6 +36,21 @@ export function fmtExpensesShort(txns) {
   return txns.map((t) => fmtExpenseShort(t)).filter(Boolean).join(" + ");
 }
 
+/** Same label as finance tab: notes, else merchant, else event title. */
+export function financeHumanLabel(txn) {
+  if (!txn) return "";
+  const notes = String(txn.notes || "").trim();
+  if (notes) return notes;
+  return String(txn.merchant || "").trim();
+}
+
+export function linkedEventLabel(event, finance = []) {
+  const txn = expensesForSessionEvent(event?.id, finance)[0];
+  const fromFinance = financeHumanLabel(txn);
+  if (fromFinance) return fromFinance;
+  return (event?.title || event?.category || event?.kind || "—").trim();
+}
+
 export function fmtExpenseShort(txn) {
   if (!txn) return "";
   const n = Number(txn.amount) || 0;
@@ -50,13 +65,14 @@ export function expenseFromForm(form) {
     ? null
     : Number(form.expense_amount);
   if (!Number.isFinite(amount) || amount <= 0) return null;
+  const notes = String(form.expense_notes || form.title || "").trim() || null;
   return {
     amount,
     currency: form.expense_currency || "VND",
     account: form.expense_account || null,
     category: form.expense_category || null,
     merchant: form.expense_merchant || null,
-    notes: form.expense_notes || null,
+    notes,
   };
 }
 

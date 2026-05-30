@@ -12,7 +12,7 @@ import {
   SwallowRequiredError,
 } from "./sessionConfirm.ts";
 import { afterMealWrite } from "./foodMealSync.ts";
-import { afterFinanceWrite } from "./financeBalanceSync.ts";
+import { afterFinanceLinkedWrite } from "./financeEventSync.ts";
 import { afterEventWrite } from "./eventFinanceSync.ts";
 import {
   executeCreateSessionEvent,
@@ -122,6 +122,8 @@ async function executeOne(
         .select()
         .single();
       if (error) throw error;
+      const { afterSubstanceWrite } = await import("./substanceEventSync.ts");
+      await afterSubstanceWrite(db, String(data.id));
       return data;
     }
     case "create_body_metric": {
@@ -140,7 +142,7 @@ async function executeOne(
         .select()
         .single();
       if (error) throw error;
-      await afterFinanceWrite(db, String(data.id));
+      await afterFinanceLinkedWrite(db, String(data.id));
       return data;
     }
     case "create_session_event": {

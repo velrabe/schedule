@@ -479,6 +479,14 @@
   flex: 0 0 auto;
 }
 
+.session-compact-part-wrap--instant .session-compact-part__time {
+  color: var(--text-2);
+}
+
+.session-compact-part-wrap--instant .session-compact-part__label {
+  color: var(--text);
+}
+
 .cal-detail-session-block-wrap {
   display: flex;
   flex-direction: column;

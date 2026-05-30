@@ -7,6 +7,7 @@ import {
   childEventsForSession,
   fmtExpensesShort,
   expensesForSessionEvent,
+  linkedEventLabel,
   expenseFromForm,
 } from "./sessionFinance.js";
 import {
@@ -53,7 +54,7 @@ function FieldInput({ field, value, onChange, disabled }) {
   `;
 }
 
-const PART_KINDS = ["other", "wake", "chores", "transport", "sport", "food", "work", "chill", "reminder"];
+const PART_KINDS = ["other", "wake", "substance", "chores", "transport", "sport", "food", "work", "chill", "reminder"];
 
 export default function SessionBundleDrawer({
   session,
@@ -196,7 +197,7 @@ export default function SessionBundleDrawer({
             const form = partForms[p.id] || {};
             const linkedAct = findActivityForEvent(p, activities);
             const pexp = expensesForSessionEvent(p.id, finance);
-            const label = form.title || p.title || p.category || p.kind || `часть ${idx + 1}`;
+            const label = form.title || linkedEventLabel(p, finance) || `часть ${idx + 1}`;
             return html`
               <div class="session-bundle-part-wrap" key=${p.id}>
                 <div class="session-bundle-part-head-wrap">

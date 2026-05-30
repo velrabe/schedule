@@ -182,7 +182,7 @@ const KIND_META = {
       { key: "date", label: "дата", type: "date" },
       { key: "start", label: "начало", type: "time" },
       { key: "end", label: "конец", type: "time" },
-      { key: "kind", label: "kind", type: "select", options: ["wake", "chores", "transport", "sport", "food", "work", "chill", "reminder", "other"] },
+      { key: "kind", label: "kind", type: "select", options: ["wake", "substance", "chores", "transport", "sport", "food", "work", "chill", "reminder", "other"] },
       { key: "title", label: "название", type: "text" },
       { key: "category", label: "category", type: "text", optional: true },
       { key: "sport_type", label: "sport_type", type: "text", optional: true },

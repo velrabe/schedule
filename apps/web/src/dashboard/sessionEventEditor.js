@@ -1,6 +1,6 @@
 /** session_events ↔ drawer form (atomic parts of a diary session). */
 
-import { expensesForSessionEvent } from "./sessionFinance.js";
+import { expensesForSessionEvent, financeHumanLabel } from "./sessionFinance.js";
 
 function trimTime(t) {
   if (!t) return "";
@@ -32,12 +32,16 @@ function diffMinutes(start, end) {
 }
 
 export function mapSessionEventUi(row) {
+  const instant = Boolean(row.is_instant) || row.kind === "wake" || row.kind === "substance";
+  const start = trimTime(row.start_time);
+  const end = trimTime(row.end_time);
   return {
     id: row.id,
     date: row.date,
     session_id: row.session_id,
-    start: trimTime(row.start_time),
-    end: trimTime(row.end_time),
+    start,
+    end: instant ? start : end,
+    is_instant: instant,
     kind: row.kind || "other",
     category: row.category || "",
     title: row.title || "",
@@ -68,8 +72,10 @@ export function findActivityForEvent(ev, activities = []) {
 
 export function sessionEventToForm(ev, finance = []) {
   const exp = expensesForSessionEvent(ev.id, finance)[0];
+  const label = financeHumanLabel(exp) || ev.title || "";
   return {
-    ...mapSessionEventUi(ev),
+    ...mapSessionEventUi({ ...ev, title: label }),
+    title: label,
     expense_amount: exp?.amount ?? "",
     expense_currency: exp?.currency || "VND",
     expense_account: exp?.account || "vcb_vnd",
@@ -81,12 +87,17 @@ export function sessionEventToForm(ev, finance = []) {
 }
 
 export function formToSessionEventPatch(form, sessionId) {
+  const instant = Boolean(form.is_instant) || form.kind === "wake" || form.kind === "substance";
+  const start = form.start;
+  const end = instant ? start : form.end;
   return {
     date: form.date,
     session_id: sessionId,
-    start_time: form.start,
-    end_time: form.end,
-    duration_min: diffMinutes(form.start, form.end),
+    start_time: start,
+    end_time: end,
+    duration_min: instant ? 0 : diffMinutes(start, end),
+    is_instant: instant,
+    instant,
     kind: form.kind || "other",
     category: strOrNull(form.category),
     title: strOrNull(form.title),

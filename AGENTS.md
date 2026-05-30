@@ -141,12 +141,17 @@ node scripts/schedule-api.mjs manual insert sessions '{"date":"2026-05-31","star
 ## Связки (обязательно понимать)
 
 ```
-days (date PK)
-  └── sessions (food → auto meals via session_id)
+days (date PK) — wake_time, modafinil_mg (сумма из substances modafinil)
+  └── sessions — оболочка в ежедневнике
+  └── session_events — атомы; is_instant=true → только start_time (wake, substance)
+  └── substances — дозы; сервер зеркалит session_event kind=substance
   └── meals.session_id → sessions.id
-  └── finance_transactions.session_id → sessions.id (unique)
+  └── finance_transactions.session_event_id — расход на атом
   └── activities — параллельно sport-сессиям по времени
 events ↔ finance_planned_items (визаран и т.п.)
+```
+
+**Instant:** проснулся / модаф / кофе → `create_substance` или `kind=wake|substance` с `instant:true`, без end_time+5мин.
 ```
 
 Стабильные id импорта расписания: `521YYxxx-0000-4000-8000-...` (YY = день месяца в коде). Перед правкой дня — **`get sessions` за эту дату**.
