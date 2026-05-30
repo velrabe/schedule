@@ -10,6 +10,7 @@ import {
   formToSessionUi,
   withAccountOptions,
   isExpenseField,
+  filterSessionEventFields,
 } from "./recordEditor.js";
 import { findFoodSessionForMeal } from "./mergeNutrition.js";
 import {
@@ -309,7 +310,10 @@ export default function RecordEditDrawer({
   const subtitle = isNew ? "новая запись" : meta.subtitle(current.record);
   const busy = saving || deleting;
   const stopInside = (e) => e.stopPropagation();
-  const mainFields = fields.filter((f) => !isExpenseField(f));
+  let mainFields = fields.filter((f) => !isExpenseField(f));
+  if (current?.kind === "session_event") {
+    mainFields = filterSessionEventFields(current.record, mainFields);
+  }
   const expenseFields = fields.filter((f) => isExpenseField(f));
   const showExpense = expenseFields.length > 0;
 

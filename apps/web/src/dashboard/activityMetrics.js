@@ -38,6 +38,19 @@ export function metricsFromActivity(act) {
   };
 }
 
+/** Diary atom is sport (links activities / kcal out). Not food/work/chill. */
+export function isSportSessionEvent(ev) {
+  if (!ev) return false;
+  const kind = (ev.kind || "").toLowerCase();
+  const cat = (ev.category || "").toLowerCase();
+  if (kind === "food" || kind === "wake" || kind === "substance") return false;
+  if (cat === "food") return false;
+  if (kind === "sport") return true;
+  if (cat.startsWith("sport_")) return true;
+  if (cat === "walk" || cat === "walking") return true;
+  return false;
+}
+
 function sportTypesMatch(evSport, actType) {
   const a = (actType || "").toLowerCase();
   const e = (evSport || "").toLowerCase();
@@ -48,7 +61,6 @@ function sportTypesMatch(evSport, actType) {
   }
   if (a.includes("run") && e.includes("run")) return true;
   if (a.includes("walk") && e.includes("walk")) return true;
-  if (e.includes("sport") && a.length > 0) return true;
   return false;
 }
 
@@ -63,7 +75,7 @@ export function activityOverlapsEvent(ev, act) {
 }
 
 export function findActivityForEvent(ev, activities = []) {
-  if (!ev?.date) return null;
+  if (!ev?.date || !isSportSessionEvent(ev)) return null;
   if (ev.activity_id) {
     const byId = activities.find((a) => a.id === ev.activity_id);
     if (byId) return byId;
@@ -81,12 +93,20 @@ export function findActivityForEvent(ev, activities = []) {
     });
     return overlapping[0];
   }
-  if (typed.length === 1) return typed[0];
   return null;
 }
 
 /** Merge session_event form fields with linked activity (device metrics win when empty on event). */
 export function sportMetricsForEvent(ev, activities = []) {
+  if (!isSportSessionEvent(ev)) {
+    return {
+      calories_burned: "",
+      distance_km: "",
+      pace: "",
+      sport_type: "",
+      linkedActivity: null,
+    };
+  }
   const linked = findActivityForEvent(ev, activities);
   if (!linked) {
     return {

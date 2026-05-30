@@ -14,6 +14,7 @@ import { formToSessionEventPatch, sessionEventToForm } from "./sessionEventEdito
 import { withAccountOptions, isExpenseField, getRecordEditorMeta } from "./recordEditor.js";
 import DrawerNav from "./DrawerNav.jsx";
 import { getRelatedLinks } from "./recordLinks.js";
+import { isSportSessionEvent } from "./activityMetrics.js";
 
 const html = htm.bind(h);
 
@@ -246,7 +247,7 @@ export default function SessionBundleDrawer({
                   <${FieldInput} field=${{ key: "end", label: "конец", type: "time" }}
                     value=${form.end} onChange=${(k, v) => setPartField(p.id, k, v)} disabled=${!liveMode || saving} />
                 </div>
-                ${(form.kind === "sport" || p.kind === "sport") && html`
+                ${(isSportSessionEvent(p) || form.kind === "sport") && html`
                   <${FieldInput} field=${{ key: "sport_type", label: "sport_type", type: "text" }}
                     value=${form.sport_type} onChange=${(k, v) => setPartField(p.id, k, v)} disabled=${!liveMode || saving} />
                   <${FieldInput} field=${{ key: "calories_burned", label: "ккал (ивент)", type: "number" }}

@@ -84,7 +84,6 @@ function sportTypesMatch(evSport: string, actType: string): boolean {
   if (a.includes("run") && e.includes("run")) return true;
   if (a.includes("walk") && e.includes("walk")) return true;
   if (a.includes("boulder") && e.includes("boulder")) return true;
-  if (e.includes("sport") && a.length > 0) return true;
   return false;
 }
 
@@ -95,10 +94,11 @@ export function isSportSessionEvent(ev: {
 }): boolean {
   const kind = (ev.kind || "").toLowerCase();
   const cat = (ev.category || "").toLowerCase();
+  if (kind === "food" || kind === "wake" || kind === "substance") return false;
+  if (cat === "food") return false;
   if (kind === "sport") return true;
   if (cat.startsWith("sport_")) return true;
   if (cat === "walk" || cat === "walking") return true;
-  if (ev.sport_type) return true;
   return false;
 }
 
@@ -138,7 +138,6 @@ export function findBestActivityForEvent(
     });
     return overlapping[0];
   }
-  if (typed.length === 1) return typed[0];
   return null;
 }
 
@@ -152,6 +151,9 @@ export async function applyActivityMetricsToEvent(
   eventId: string,
   act: ActivityRow,
 ): Promise<void> {
+  const { data: evRow } = await db.from("session_events").select("*").eq("id", eventId).single();
+  if (!evRow || !isSportSessionEvent(evRow as SessionEventSportRow)) return;
+
   const m = metricsFromActivity(act);
   const { data: ev } = await db.from("session_events").select(
     "calories_burned, distance_km, pace, sport_type",
@@ -221,8 +223,6 @@ export async function linkActivityToSportEvent(
       }
     }
   }
-  if (!best && candidates.length === 1) best = candidates[0];
-
   if (!best) return null;
   await applyActivityMetricsToEvent(db, best.id, act as ActivityRow);
   return best.id;

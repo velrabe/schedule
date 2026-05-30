@@ -1,7 +1,7 @@
 /** Resolve related records and labels for drawer navigation. */
 
 import { findFoodSessionForMeal } from "./mergeNutrition.js";
-import { findActivityForEvent, activityLinkLabel } from "./activityMetrics.js";
+import { findActivityForEvent, activityLinkLabel, isSportSessionEvent } from "./activityMetrics.js";
 import {
   childEventsForSession,
   expensesForSessionEvent,
@@ -88,6 +88,7 @@ export function getRelatedLinks(kind, record, ctx = {}) {
         label: `${financeTxnLabel(txn)} · ${financeTxnShortMeta(txn)}`,
       });
     }
+    if (isSportSessionEvent(record)) {
     const act = record.activity_id
       ? activities.find((a) => a.id === record.activity_id)
       : findActivityForEvent(record, activities);
@@ -98,6 +99,7 @@ export function getRelatedLinks(kind, record, ctx = {}) {
         label: `активность · ${activityLinkLabel(act)}`,
       });
     }
+    }
     if (record.meal_id) {
       const meal = meals.find((m) => m.id === record.meal_id);
       if (meal) push({ kind: "meal", record: meal, label: meal.name || "meal" });
@@ -105,8 +107,9 @@ export function getRelatedLinks(kind, record, ctx = {}) {
   }
 
   if (kind === "finance" && record) {
+    let ev = null;
     if (record.session_event_id) {
-      const ev = sessionEvents.find((e) => e.id === record.session_event_id);
+      ev = sessionEvents.find((e) => e.id === record.session_event_id) || null;
       if (ev) {
         push({
           kind: "session_event",
@@ -115,8 +118,9 @@ export function getRelatedLinks(kind, record, ctx = {}) {
         });
       }
     }
-    if (record.session_id) {
-      const sess = sessions.find((s) => s.id === record.session_id);
+    const sessionId = ev?.session_id || record.session_id;
+    if (sessionId) {
+      const sess = sessions.find((s) => s.id === sessionId);
       if (sess) {
         push({
           kind: "session",

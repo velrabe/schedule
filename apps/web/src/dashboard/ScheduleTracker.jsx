@@ -20,6 +20,7 @@ import {
   activityTypeLabel,
   activityDetailLabel,
 } from "./nutriViz.jsx";
+import { dayKcalOut, kcalOutBreakdown } from "./nutritionKcal.js";
 import {
   mergeMealsWithFoodSessions,
   mealCountForNutrition,
@@ -484,6 +485,7 @@ function App(props = {}) {
         meals=${mergedMeals}
         finance=${liveData?.finance || []}
         activities=${liveData?.activities || []}
+        sessionEvents=${liveData?.raw?.session_events || []}
         active=${true}
         liveMode=${Boolean(liveData)}
         onOpenRecord=${openRecordEditor}
@@ -1985,7 +1987,7 @@ function CalendarTab({
   const kcalInOf = (date) =>
     (mealsByDate.get(date) || []).reduce((a, m) => a + (m.kcal || 0), 0);
   const kcalOutOf = (date) =>
-    (activitiesByDate.get(date) || []).reduce((a, a2) => a + (a2.calories_burned || 0), 0);
+    dayKcalOut(date, activitiesByDate.get(date) || [], sessionEvents);
 
   return html`
     <div class="cal-wrap">
@@ -2197,7 +2199,7 @@ function CalendarDayDetail({
   }, [sessions, day]);
 
   const kcalIn = meals.reduce((a, m) => a + (Number(m.kcal) || 0), 0);
-  const kcalOut = activitiesList.reduce((a, a2) => a + (Number(a2.calories_burned) || 0), 0);
+  const kcalOut = dayKcalOut(date, activitiesList, sessionEvents);
   const balance = kcalIn - kcalOut;
   const macros = meals.reduce(
     (acc, m) => ({
@@ -2535,7 +2537,7 @@ function KanbanTab({
           const colMeals = mealsByDate.get(date) || [];
           const colActs = activitiesByDate.get(date) || [];
           const kcalIn = colMeals.reduce((a, m) => a + (m.kcal || 0), 0);
-          const kcalOut = colActs.reduce((a, x) => a + (x.calories_burned || 0), 0);
+          const kcalOut = dayKcalOut(date, colActs, sessionEvents);
           return html`
             <div
               class=${`kanban-col-wrap ${isToday ? "kanban-col-wrap--today" : ""} ${isFuture ? "kanban-col-wrap--future" : ""}`}
@@ -2736,7 +2738,16 @@ function KanbanSessionEditor({ value, isNew = false, onSave, onCancel, onDelete 
 
 // ---------------- nutrition view ----------------
 
-function NutritionTab({ days, meals = [], finance = [], activities = [], active = true, liveMode = false, onOpenRecord }) {
+function NutritionTab({
+  days,
+  meals = [],
+  finance = [],
+  activities = [],
+  sessionEvents = [],
+  active = true,
+  liveMode = false,
+  onOpenRecord,
+}) {
   const knownDates = useMemo(() => {
     const set = new Set();
     for (const d of days) set.add(d.date);
@@ -2788,8 +2799,9 @@ function NutritionTab({ days, meals = [], finance = [], activities = [], active 
         ${visibleDates.map((date) => {
           const dayMeals = mealsByDate.get(date) || [];
           const dayActs = actsByDate.get(date) || [];
+          const outBreak = kcalOutBreakdown(date, dayActs, sessionEvents);
           const kcalIn = dayMeals.reduce((a, m) => a + (Number(m.kcal) || 0), 0);
-          const kcalOut = dayActs.reduce((a, x) => a + (Number(x.calories_burned) || 0), 0);
+          const kcalOut = outBreak.total;
           const balance = kcalIn - kcalOut;
           const carbs = dayMeals.reduce((a, m) => a + (Number(m.carbs_g) || 0), 0);
           const protein = dayMeals.reduce((a, m) => a + (Number(m.protein_g) || 0), 0);
@@ -2833,9 +2845,28 @@ function NutritionTab({ days, meals = [], finance = [], activities = [], active 
                 `;
                 })}
               </div>
-              ${dayActs.length > 0 && html`
+              ${(outBreak.sportEvents.length > 0 || dayActs.length > 0) && html`
                 <div class="nutri-acts-wrap">
-                  ${dayActs.map((a) => html`
+                  ${outBreak.sportEvents.map((ev) => {
+                    const linkedActId = ev.activity_id || null;
+                    const actLinked = linkedActId && dayActs.some((a) => a.id === linkedActId);
+                    if (actLinked) return null;
+                    const k = Number(ev.calories_burned);
+                    return html`
+                      <${RecordOpenRow}
+                        key=${"ev-" + ev.id}
+                        className="nutri-act-row"
+                        onOpen=${onOpenRecord ? () => onOpenRecord({ kind: "session_event", record: ev }) : null}
+                        disabled=${!liveMode}
+                      >
+                        <span class="nutri-act-type">${ev.sport_type || ev.category || "sport"}</span>
+                        <span class="nutri-act-kcal">🔥 ${Number.isFinite(k) ? Math.round(k) : "—"}</span>
+                      </${RecordOpenRow}>
+                    `;
+                  })}
+                  ${dayActs
+                    .filter((a) => !outBreak.linkedActivityIds.has(a.id))
+                    .map((a) => html`
                     <${RecordOpenRow}
                       key=${a.id}
                       className="nutri-act-row"

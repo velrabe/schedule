@@ -1,7 +1,7 @@
 /** session_events ↔ drawer form (atomic parts of a diary session). */
 
 import { expensesForSessionEvent, financeHumanLabel } from "./sessionFinance.js";
-import { findActivityForEvent, sportMetricsForEvent } from "./activityMetrics.js";
+import { findActivityForEvent, isSportSessionEvent, sportMetricsForEvent } from "./activityMetrics.js";
 
 function trimTime(t) {
   if (!t) return "";
@@ -94,11 +94,21 @@ export function formToSessionEventPatch(form, sessionId) {
     kind: form.kind || "other",
     category: strOrNull(form.category),
     title: strOrNull(form.title),
-    sport_type: strOrNull(form.sport_type),
-    calories_burned: numOrNull(form.calories_burned),
-    distance_km: numOrNull(form.distance_km),
-    pace: strOrNull(form.pace),
+    sport_type: form.kind === "sport" || (form.category || "").startsWith("sport_")
+      ? strOrNull(form.sport_type)
+      : null,
+    calories_burned: form.kind === "sport" || (form.category || "").startsWith("sport_")
+      ? numOrNull(form.calories_burned)
+      : null,
+    distance_km: form.kind === "sport" || (form.category || "").startsWith("sport_")
+      ? numOrNull(form.distance_km)
+      : null,
+    pace: form.kind === "sport" || (form.category || "").startsWith("sport_")
+      ? strOrNull(form.pace)
+      : null,
     notes: strOrNull(form.notes),
-    activity_id: strOrNull(form.activity_id),
+    activity_id: form.kind === "sport" || (form.category || "").startsWith("sport_")
+      ? strOrNull(form.activity_id)
+      : null,
   };
 }

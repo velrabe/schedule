@@ -2,6 +2,19 @@
 
 import { inferMealSlotFromSession } from "./mergeNutrition.js";
 import { formToSessionEventPatch, sessionEventToForm } from "./sessionEventEditor.js";
+import { isSportSessionEvent } from "./activityMetrics.js";
+
+export const SPORT_EVENT_FIELD_KEYS = new Set([
+  "sport_type",
+  "calories_burned",
+  "distance_km",
+  "pace",
+]);
+
+export function filterSessionEventFields(record, fields = []) {
+  if (isSportSessionEvent(record)) return fields;
+  return fields.filter((f) => !SPORT_EVENT_FIELD_KEYS.has(f.key));
+}
 import { expensesForSessionEvent } from "./sessionFinance.js";
 import { metricsFromActivity } from "./activityMetrics.js";
 

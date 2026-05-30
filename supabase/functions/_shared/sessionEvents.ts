@@ -103,6 +103,7 @@ export function normalizeSessionEventPayload(raw: Record<string, unknown>): Reco
     kindOut = "sport";
   }
   if (kindOut === "walk" || kindOut === "walking") kindOut = "sport";
+  const isFood = kindOut === "food" || category === "food";
   return {
     date,
     session_id: raw.session_id != null ? String(raw.session_id) : null,
@@ -113,10 +114,11 @@ export function normalizeSessionEventPayload(raw: Record<string, unknown>): Reco
     kind: kindOut,
     category,
     title: raw.title != null ? String(raw.title) : raw.project != null ? String(raw.project) : null,
-    sport_type,
-    distance_km: raw.distance_km != null ? Number(raw.distance_km) : null,
-    calories_burned: raw.calories_burned != null ? Number(raw.calories_burned) : null,
-    pace: raw.pace != null ? String(raw.pace) : null,
+    sport_type: isFood ? null : sport_type,
+    distance_km: isFood ? null : raw.distance_km != null ? Number(raw.distance_km) : null,
+    calories_burned: isFood ? null : raw.calories_burned != null ? Number(raw.calories_burned) : null,
+    pace: isFood ? null : raw.pace != null ? String(raw.pace) : null,
+    activity_id: isFood ? null : raw.activity_id != null ? String(raw.activity_id) : null,
     meal_id: raw.meal_id != null ? String(raw.meal_id) : null,
     planned_amount: raw.planned_amount != null ? Number(raw.planned_amount) : null,
     planned_currency: raw.planned_currency != null ? String(raw.planned_currency) : null,
