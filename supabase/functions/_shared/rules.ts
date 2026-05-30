@@ -59,10 +59,10 @@ const DATA_MODEL = `
 
 ## Instant vs duration (session_events)
 
-- **Instant** (проснулся, модаф, кофе, покурил): one timestamp only — `start_time` required; omit `end_time` OR set `instant: true` OR `kind` wake|substance. Server sets `end_time=start_time`, `duration_min=0`, `is_instant=true`. **Never** invent 5-minute windows for wake/substance.
-- **Duration** (зал 90 мин, работа, сон-блок): `start_time` + `end_time` (or duration_min > 0).
-- **Substances:** always `create_substance` { date, time?, name, amount?, unit? } — writes `substances` + auto instant `session_event` (kind=substance). Optionally group in morning `create_session_bundle` with wake instant event + separate create_substance actions.
-- **Wake:** `update_day` { wake_time } for day header AND instant session_event kind=wake at that time (in bundle or create_session_event). Do not use duration for wake.
+- **Instant** (проснулся, модаф, кофе, покурил): one timestamp only — start_time required; omit end_time OR instant:true OR kind wake|substance. Server sets end_time=start_time, duration_min=0, is_instant=true. **Never** invent 5-minute windows for wake/substance.
+- **Duration** (зал 90 мин, работа, сон-блок): start_time + end_time (or duration_min > 0).
+- **Substances:** always create_substance { date, time?, name, amount?, unit? } — writes substances + auto instant session_event (kind=substance). Optionally group in morning create_session_bundle with wake instant event + separate create_substance actions.
+- **Wake:** update_day { wake_time } for day header AND instant session_event kind=wake at that time (in bundle or create_session_event). Do not use duration for wake.
 - For /agent and /manual: actions[] only — no reply_to_user / needs_confirmation.
 `;
 
