@@ -9,6 +9,21 @@ export function expensesForSession(sessionId, finance = []) {
   );
 }
 
+export function expensesForSessionEvent(eventId, finance = []) {
+  if (!eventId) return [];
+  return finance.filter(
+    (t) => t.session_event_id === eventId && (t.txn_type || "expense") === "expense",
+  );
+}
+
+/** Atomic parts of a diary session (session_events table). */
+export function childEventsForSession(sessionId, sessionEvents = []) {
+  if (!sessionId) return [];
+  return sessionEvents
+    .filter((e) => e.session_id === sessionId)
+    .sort((a, b) => String(a.start_time || "").localeCompare(String(b.start_time || "")));
+}
+
 /** Primary expense for simple UI (first linked txn). */
 export function expenseForSession(sessionId, finance = []) {
   const rows = expensesForSession(sessionId, finance);

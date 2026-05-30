@@ -26,7 +26,12 @@ import {
   findFoodSessionForMeal,
   mealHasMacroData,
 } from "./mergeNutrition.js";
-import { expensesForSession, fmtExpensesShort } from "./sessionFinance.js";
+import {
+  childEventsForSession,
+  expensesForSession,
+  expensesForSessionEvent,
+  fmtExpensesShort,
+} from "./sessionFinance.js";
 import FinanceTab from "./FinanceTab.jsx";
 import { useSheetState, applySheet, SheetHeader, Toolbar } from "./sheetUi.js";
 
@@ -390,7 +395,7 @@ function App(props = {}) {
         <${TabBtn} id="nutrition" active=${tab} onClick=${setTab} label="Nutrition" count=${liveData ? mealCountForNutrition(sessions, liveData.meals) : null} />
         <${TabBtn} id="finance" active=${tab} onClick=${setTab} label="Finance" count=${liveData?.finance?.length ?? null} />
         <${TabBtn} id="sessions" active=${tab} onClick=${setTab} label="Sessions" count=${sessions.length} />
-        <${TabBtn} id="events" active=${tab} onClick=${setTab} label="Events" count=${events.length} />
+        <${TabBtn} id="events" active=${tab} onClick=${setTab} label="Timeline" count=${events.length} />
         <${TabBtn} id="insights" active=${tab} onClick=${setTab} label="Insights" count=${null} />
       </nav>
 
@@ -408,6 +413,7 @@ function App(props = {}) {
         meals=${mergedMeals}
         finance=${liveData?.finance || []}
         activities=${liveData?.activities || []}
+        sessionEvents=${liveData?.raw?.session_events || []}
         liveMode=${Boolean(liveData)}
         setSessions=${setSessions}
         setDays=${setDays}
@@ -1440,8 +1446,18 @@ function EventsTab({ events, setEvents, liveMode = false, onOpenRecord }) {
       </table>
     </div>
     <div class="footer-bar">
-      <span>${view.length} of ${events.length} events</span>
+      <span>${view.length} of ${events.length} timeline rows</span>
     </div>
+    ${events.length === 0 &&
+    html`
+      <div class="cal-detail-empty-wrap events-tab-hint-wrap">
+        <span class="events-tab-hint">
+          Пусто — в таблице events только крупные вехи (визаран, поездка, бюджет на график).
+          Еда, работа, такси, зал — это sessions в календаре; части с отдельными чеками — session_events (видны в календаре, если их больше одной на сессию).
+          planner_events в этом UI пока нет.
+        </span>
+      </div>
+    `}
   `;
 }
 
@@ -1823,7 +1839,18 @@ const MEAL_SLOT_RU = {
 
 // ---------------- calendar view ----------------
 
-function CalendarTab({ days, sessions, meals = [], finance = [], activities = [], liveMode = false, setSessions, setDays, onOpenRecord }) {
+function CalendarTab({
+  days,
+  sessions,
+  meals = [],
+  finance = [],
+  activities = [],
+  sessionEvents = [],
+  liveMode = false,
+  setSessions,
+  setDays,
+  onOpenRecord,
+}) {
   const byDate = useMemo(() => {
     const map = new Map();
     for (const d of days) map.set(d.date, d);
@@ -1967,6 +1994,7 @@ function CalendarTab({ days, sessions, meals = [], finance = [], activities = []
             meals=${mealsByDate.get(selected) || []}
             finance=${finance}
             activitiesList=${activitiesByDate.get(selected) || []}
+            sessionEvents=${sessionEvents}
             liveMode=${liveMode}
             setSessions=${setSessions}
             setDays=${setDays}
@@ -2033,6 +2061,7 @@ function CalendarDayDetail({
   meals = [],
   finance = [],
   activitiesList = [],
+  sessionEvents = [],
   liveMode = false,
   setSessions,
   setDays,
@@ -2193,23 +2222,45 @@ function CalendarDayDetail({
         <div class="cal-detail-sessions-wrap">
           ${sorted.length === 0 && html`<div class="cal-detail-empty-wrap"><span>сессии не записаны</span></div>`}
           ${sorted.map((s) => {
-            const exp = expensesForSession(s.id, finance);
+            const parts = childEventsForSession(s.id, sessionEvents);
+            const showParts = parts.length > 1;
+            const exp = showParts
+              ? []
+              : expensesForSession(s.id, finance);
             return html`
-            <${RecordOpenRow}
-              key=${s.id}
-              className="cal-detail-session"
-              onOpen=${onOpenRecord ? () => onOpenRecord({ kind: "session", record: s }) : null}
-              disabled=${!liveMode}
-            >
-              <div class="cal-detail-session-time-wrap">
-                <span class="cal-detail-session__time">${s.start}</span>
-                <span class="cal-detail-session__sep">–</span>
-                <span class="cal-detail-session__time">${s.end}</span>
-              </div>
-              <span class="cal-detail-session__cat">${s.category}</span>
-              <span class="cal-detail-session__proj">${s.project || "—"}</span>
-              <span class="cal-detail-session__note">${s.note || ""}${exp.length ? ` · ${fmtExpensesShort(exp)}` : ""}</span>
-            </${RecordOpenRow}>
+            <div class="cal-detail-session-block-wrap" key=${s.id}>
+              <${RecordOpenRow}
+                className="cal-detail-session"
+                onOpen=${onOpenRecord ? () => onOpenRecord({ kind: "session", record: s }) : null}
+                disabled=${!liveMode}
+              >
+                <div class="cal-detail-session-time-wrap">
+                  <span class="cal-detail-session__time">${s.start}</span>
+                  <span class="cal-detail-session__sep">–</span>
+                  <span class="cal-detail-session__time">${s.end}</span>
+                </div>
+                <span class="cal-detail-session__cat">${s.category}</span>
+                <span class="cal-detail-session__proj">${s.project || "—"}</span>
+                <span class="cal-detail-session__note">${s.note || ""}${!showParts && exp.length ? ` · ${fmtExpensesShort(exp)}` : ""}</span>
+              </${RecordOpenRow}>
+              ${showParts && html`
+                <div class="cal-detail-session-parts-wrap">
+                  ${parts.map((p) => {
+                    const t0 = String(p.start_time || "").slice(0, 5);
+                    const t1 = String(p.end_time || "").slice(0, 5);
+                    const pexp = expensesForSessionEvent(p.id, finance);
+                    const label = p.title || p.category || p.kind || "—";
+                    return html`
+                      <div class="cal-detail-session-part-wrap" key=${p.id}>
+                        <span class="cal-detail-session-part__time">${t0}–${t1}</span>
+                        <span class="cal-detail-session-part__label">${label}</span>
+                        ${pexp.length ? html`<span class="cal-detail-session-part__exp">${fmtExpensesShort(pexp)}</span>` : ""}
+                      </div>
+                    `;
+                  })}
+                </div>
+              `}
+            </div>
           `;
           })}
         </div>

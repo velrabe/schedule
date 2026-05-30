@@ -422,6 +422,57 @@
   color: var(--text-3);
 }
 
+.cal-detail-session-block-wrap {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+}
+
+.cal-detail-session-parts-wrap {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  padding: 0 0 6px 12px;
+  gap: 2px;
+}
+
+.cal-detail-session-part-wrap {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: baseline;
+  width: 100%;
+  gap: 8px;
+}
+
+.cal-detail-session-part__time {
+  font-size: 10px;
+  font-family: var(--mono);
+  color: var(--text-3);
+}
+
+.cal-detail-session-part__label {
+  font-size: 10px;
+  color: var(--text-2);
+}
+
+.cal-detail-session-part__exp {
+  font-size: 10px;
+  font-family: var(--mono);
+  color: var(--text-3);
+}
+
+.events-tab-hint-wrap {
+  padding: 12px;
+}
+
+.events-tab-hint {
+  font-size: 12px;
+  color: var(--text-2);
+  line-height: 1.45;
+  max-width: 52rem;
+}
+
 /* ---------------- kanban ---------------- */
 
 .kanban-wrap {
