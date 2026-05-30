@@ -279,7 +279,7 @@ type=income for external inflows; type=transfer only for internal moves between 
 # balance planning (Insights chart)
 Planned budget lines live in finance_planned_items (recurrence: once | daily | monthly).
 User logs daily total wealth in balance_snapshots.total_rub (all accounts in RUB).
-Examples seeded: rent monthly, ChatGPT monthly, food daily ~1500 RUB, vizaran linked via events 26–27.05.
+Examples: rent monthly, ChatGPT monthly, food daily budget line, trip events with budget_*.
 
 Past vs plan:
 - Fact spend → create_finance_transaction only (account required for expense/income).
