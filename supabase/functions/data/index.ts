@@ -83,6 +83,27 @@ const RESOURCES: Record<string, ResourceConfig> = {
     dateCol: "date",
     defaultOrder: [{ col: "date", asc: false }],
   },
+  planner_events: {
+    table: "planner_events",
+    dateCol: "date",
+    defaultOrder: [
+      { col: "date", asc: false },
+      { col: "time", asc: true },
+    ],
+  },
+  mood_logs: {
+    table: "mood_logs",
+    dateCol: "date",
+    defaultOrder: [
+      { col: "date", asc: false },
+      { col: "time", asc: true },
+    ],
+  },
+  nutrition_goals: {
+    table: "nutrition_goals",
+    dateCol: "effective_from",
+    defaultOrder: [{ col: "effective_from", asc: false }],
+  },
   raw_logs: {
     table: "raw_logs",
     dateCol: "occurred_at",

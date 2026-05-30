@@ -12,6 +12,9 @@ export type Resource =
   | "balance_snapshots"
   | "finance_planned_items"
   | "events"
+  | "planner_events"
+  | "mood_logs"
+  | "nutrition_goals"
   | "raw_logs";
 
 type DataResponse<T> = { rows: T[]; resource: Resource; count: number };

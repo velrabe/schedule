@@ -14,6 +14,7 @@
     "supabase:start": "supabase start",
     "supabase:stop": "supabase stop",
     "supabase:reset": "supabase db reset",
-    "supabase:deploy:functions": "supabase functions deploy --no-verify-jwt"
+    "supabase:deploy:functions": "supabase functions deploy --no-verify-jwt",
+    "api": "node scripts/schedule-api.mjs"
   }
 }

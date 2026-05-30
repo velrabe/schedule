@@ -1,123 +1,157 @@
-# Codex / agents — API без CI и без Gemini
+# Codex / Cursor — инструкция для агентов
 
-Данные в Supabase можно менять **напрямую через Edge Functions** (JWT). Миграции SQL — только для крупных импортов.
+**Читай этот файл первым.** Репозиторий: личный трекер (расписание, еда, финансы, визаран). Прод: Supabase + GitHub Pages.
 
-## Быстрый старт
+## Жёсткие запреты (чтобы не «наворотить говна»)
 
-1. Скопируй `apps/web/.env.local` или задай:
-   - `SCHEDULE_FUNCTIONS_URL` — `https://<ref>.functions.supabase.co`
-   - `SCHEDULE_PASSWORD` — тот же пароль, что в Supabase secret `APP_PASSWORD`
-2. Логин и запрос:
+1. **Не трогай `supabase/migrations/*.sql`** без явной просьбы пользователя. Импорт истории — только по запросу; дневные правки — через API.
+2. **Не редактируй уже применённые миграции** — только новый файл `00XX_*.sql`.
+3. **Не коммить** `.env`, `.env.local`, `.schedule-token`, ключи Supabase/Gemini.
+4. **Не используй `service_role`** во фронте и в скриптах агента — только Edge Functions + JWT.
+5. **Не создавай счёт `loco_rub`** — удалён; ИП = `ip_rub` (Business bank).
+6. **UUID** — только валидный hex (`[0-9a-f]{8}-...`). Префиксы `s`, `p`, `m` в id **нельзя**.
+7. **Не дублируй food**: для приёма пищи → `create_session` с `type=food`, `category=food`; `meals` создаётся на сервере. Отдельный `create_meal` — только если нужны макросы без сессии.
+8. **Не удаляй сессии** с привязанным `finance_transactions.session_id` без понимания последствий для балансов.
+9. **Публичный GitHub** (`velrabe/schedule`) — не клади персональные данные в коммиты; пароль только в secrets/локальном env.
+
+## Что делать вместо миграций и CI
+
+| Задача | Инструмент |
+|--------|------------|
+| Прочитать день/неделю | `POST /data` или CLI `get` |
+| Одна правка (сумма, время) | `POST /manual` |
+| День расписания (много блоков) | `POST /agent` с `actions[]` |
+| Массовый исторический импорт | SQL-миграция **только по запросу** |
+
+Правила полей и алиасов: **`supabase/functions/_shared/rules.ts`** (единственный источник; папка `rules/*.md` **не заполнена**).
+
+## Окружение
 
 ```bash
-export SCHEDULE_FUNCTIONS_URL="https://YOUR-REF.functions.supabase.co"
-export SCHEDULE_PASSWORD="your-app-password"
+# из корня репозитория
+export SCHEDULE_FUNCTIONS_URL="https://<PROJECT_REF>.functions.supabase.co"
+export SCHEDULE_PASSWORD="<APP_PASSWORD из Supabase Edge secrets>"
 
-node scripts/schedule-api.mjs login
-node scripts/schedule-api.mjs get sessions --from 2026-05-24 --to 2026-05-29
+node scripts/schedule-api.mjs login          # токен → .schedule-token
+node scripts/schedule-api.mjs get sessions --from 2026-05-24 --to 2026-05-30
+node scripts/schedule-api.mjs apply plan.json
+node scripts/schedule-api.mjs apply plan.json --swallow   # если пересечение сессий
 ```
 
-Токен сохраняется в `.schedule-token` (gitignored).
+Локальный фронт: `apps/web/.env.local` — `VITE_FUNCTIONS_URL`, `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` (см. `.env.example`).
 
-## Endpoints
+Часовой пояс логов: **Asia/Ho_Chi_Minh** (UTC+7).
 
-| Endpoint | Назначение |
-|----------|------------|
-| `POST /auth/login` | `{ "password" }` → `{ "token" }` |
-| `POST /data` | Чтение: `{ "resource", "from?", "to?", "limit?" }` |
-| `POST /manual` | CRUD одной строки: `{ "resource", "op", "row?", "id?" }` |
-| `POST /agent` | **Пакет действий** (как confirm, без чата): `{ "actions": [...], "swallow_ok?": true }` |
-| `POST /chat` | Gemini → предложения (UI) |
-| `POST /confirm` | Подтверждение из `raw_logs` после chat |
+## API (все POST, кроме login)
 
-Все кроме `/auth/login` требуют заголовок `Authorization: Bearer <token>`.
+| Endpoint | Auth | Назначение |
+|----------|------|------------|
+| `/auth/login` | нет | `{ "password" }` → `{ "token" }` |
+| `/data` | Bearer | чтение таблицы |
+| `/manual` | Bearer | CRUD одной строки |
+| `/agent` | Bearer | пакет `actions[]` (без Gemini) |
+| `/chat` | Bearer | Gemini (UI, можно не использовать) |
+| `/confirm` | Bearer | подтверждение после chat |
 
-## `/manual` — одна запись
+### `/data` — ресурсы для `get`
+
+`days`, `sessions`, `meals`, `activities`, `substances`, `body_metrics`, `finance_transactions`, `accounts`, `balance_snapshots`, `finance_planned_items`, `events`, `planner_events`, `mood_logs`, `nutrition_goals`, `raw_logs`
+
+Тело: `{ "resource": "sessions", "from": "2026-05-01", "to": "2026-05-31", "limit": 1000 }`
+
+### `/manual` — запись одной строки
 
 `op`: `insert` | `update` | `delete` | `upsert`
 
 `resource`: `days`, `sessions`, `meals`, `activities`, `substances`, `body_metrics`, `finance_transactions`, `events`, `planner_events`, `mood_logs`, `nutrition_goals`, `accounts`, `balance_snapshots`, `finance_planned_items`
 
-```bash
-node scripts/schedule-api.mjs manual upsert days '{"date":"2026-05-30","wake_time":"12:00","sleep_time":"02:00","modafinil_mg":50}'
-node scripts/schedule-api.mjs manual insert sessions '{"date":"2026-05-30","start_time":"14:00","end_time":"15:00","duration_min":60,"type":"food","category":"food","project":"обед"}'
-```
-
-Food-сессии автоматически создают/связывают `meals`. Finance обновляет балансы счетов.
-
-## `/agent` — расписание и логи пакетом
-
-Те же `actions[]`, что возвращает Gemini в `/chat`. Правила: `supabase/functions/_shared/rules.ts`.
-
-```json
-{
-  "actions": [
-    {
-      "type": "update_day",
-      "data": {
-        "date": "2026-05-30",
-        "wake_time": "11:00",
-        "sleep_time": "02:00",
-        "modafinil_mg": 50,
-        "day_type": "work"
-      }
-    },
-    {
-      "type": "create_session",
-      "data": {
-        "date": "2026-05-30",
-        "start_time": "16:00",
-        "end_time": "17:00",
-        "type": "food",
-        "category": "food",
-        "project": "обед"
-      }
-    },
-    {
-      "type": "create_finance_transaction",
-      "data": {
-        "date": "2026-05-30",
-        "time": "16:05",
-        "amount": 150000,
-        "currency": "VND",
-        "account": "vcb_vnd",
-        "category": "food",
-        "merchant": "Mesala",
-        "txn_type": "expense"
-      }
-    }
-  ]
-}
-```
+Примеры:
 
 ```bash
-node scripts/schedule-api.mjs apply actions.json
-# при пересечении сессий на день:
-node scripts/schedule-api.mjs apply actions.json --swallow
+node scripts/schedule-api.mjs manual upsert days '{"date":"2026-05-31","wake_time":"11:00","sleep_time":"02:00","modafinil_mg":50,"day_type":"work"}'
+
+node scripts/schedule-api.mjs manual insert sessions '{"date":"2026-05-31","start_time":"16:00","end_time":"17:00","duration_min":60,"type":"food","category":"food","project":"обед"}'
 ```
 
-Типы действий: `create_session`, `update_session`, `delete_session`, `create_meal`, `create_activity`, `update_day`, `create_finance_transaction`, `create_event`, `create_planner_event`, … — полный список в `supabase/functions/chat/index.ts`.
+После `food`-сессии сервер создаёт/линкует `meals`. Finance-транзакции обновляют `accounts.balance`.
 
-## Счета (slug)
+### `/agent` — пакет действий
 
-- `savings_rub` — Savings RUB
-- `ip_rub` — Business RUB
-- `vcb_vnd`, `cash_vnd`
+Тело: `{ "actions": [ { "type": "...", "data": { ... } } ], "swallow_ok": false }`
 
-## Когда что использовать
+Если ответ `409 swallow_required` — перечитай `warnings`, согласуй с пользователем, повтори с `"swallow_ok": true`.
 
-| Задача | Инструмент |
-|--------|------------|
-| Один приём пищи / правка суммы | `/manual` |
-| День расписания (5–15 блоков) | `/agent` |
-| Массовый импорт истории | SQL migration + `supabase db push` (CI) |
-| Скриншот / неструктурированный текст в UI | `/chat` (Gemini) — можно не использовать |
+**Типы** (полные правила в `rules.ts` + примеры в `chat/index.ts`):
 
-## Codex в репозитории
+| type | Назначение |
+|------|------------|
+| `update_day` | поля строки `days` |
+| `create_session` | блок расписания (еда, work, sport, walk, …) |
+| `update_session` | сдвиг/правка по `id` из `get sessions` |
+| `delete_session` | только по явной просьбе |
+| `create_work_session_open` / `close_work_session` | открытая работа |
+| `create_meal` | макросы (обычно после food-сессии) |
+| `create_activity` | спорт (run, cycling, …) |
+| `create_finance_transaction` | расход/доход/transfer |
+| `create_substance` | мода, кофе, … |
+| `create_body_metric` | вес, пульс, … |
+| `create_event` | событие (visa, planning, …) |
+| `create_planner_event` | календарь |
+| `create_mood_log` | настроение |
+| `ask_clarification` | **не пишет в БД** — для `/agent` избегай, уточни у пользователя в чате |
 
-1. Клон: `git clone https://github.com/velrabe/schedule.git`
-2. Читай `AGENTS.md` + `rules.ts` перед записью.
-3. Пиши через `scripts/schedule-api.mjs`, не правь прод SQL без необходимости.
-4. После записи: `get sessions` / `get finance_transactions` для проверки.
+Для `/agent` поле `reply_to_user` / `needs_confirmation` **не нужны** — только `actions[]`.
 
-Веб-дашборд подхватывает данные при обновлении страницы (читает те же таблицы через `/data`).
+## Счета (`accounts.id`)
+
+| slug | Описание |
+|------|----------|
+| `savings_rub` | Savings RUB |
+| `ip_rub` | Business bank / ИП |
+| `vcb_vnd` | Bank VND |
+| `cash_vnd` | Наличные |
+
+Перевод: `txn_type=transfer`, `account` (откуда), `counter_account`, `amount` (валюта `account`), `amount_counter` (валюта счёта-получателя).
+
+## Связки (обязательно понимать)
+
+```
+days (date PK)
+  └── sessions (food → auto meals via session_id)
+  └── meals.session_id → sessions.id
+  └── finance_transactions.session_id → sessions.id (unique)
+  └── activities — параллельно sport-сессиям по времени
+events ↔ finance_planned_items (визаран и т.п.)
+```
+
+Стабильные id импорта расписания: `521YYxxx-0000-4000-8000-...` (YY = день месяца в коде). Перед правкой дня — **`get sessions` за эту дату**.
+
+## Рекомендуемый workflow Codex
+
+1. `get days`, `get sessions`, `get meals`, `get finance_transactions` за нужный диапазон.
+2. Сверь с запросом пользователя; не выдумывай id.
+3. Собери `actions.json` или серию `manual`.
+4. `apply` → проверь `ok: true`.
+5. Повторный `get` для верификации.
+6. **Не пушь** без просьбы; **не деплой** — данные уже в Supabase.
+
+## Миграции (только по запросу)
+
+Файлы `0001`…`0012` — история схемы и разовые импорты. Новый импорт: `0013_short_name.sql`, push через CI или `supabase db push`.
+
+## Архитектура (кратко)
+
+- `apps/web` — дашборд на **live Supabase** (`useSupabaseSnapshot`), не seed (seed только offline/fallback).
+- `supabase/functions` — auth, data, manual, agent, chat, confirm.
+- Деплой: push `main` → Actions (Pages + migrations + functions).
+
+## Чего нет / не путать
+
+- Нет отдельного REST кроме Edge Functions.
+- Gemini **не обязателен** для Codex — используй `/agent` и `/manual`.
+- `rules/global.md` и др. **не существуют** — только `rules.ts`.
+- README «Tasks for Vel» и «dashboard reads seed» — **устарели** (см. актуальный README).
+
+## Если сомневаешься
+
+Спроси пользователя одним вопросом вместо массового `delete` или новой миграции. При конфликте сессий на день — `update_session` цепочкой или `--swallow` с явного согласия.

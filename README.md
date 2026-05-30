@@ -1,18 +1,21 @@
 # schedule
 
-Personal life-logging tracker.
+Personal life-logging tracker: schedule, nutrition, finance, events.
 
 ```
-Chat (web) → Gemini 2.5 Flash → Supabase Postgres → Dashboard
-                ↑
-       confirm before write
+UI (GitHub Pages) ──read/write──► Supabase Edge Functions ──► Postgres
+                                        ▲
+Codex / scripts ──/manual, /agent, /data──┘
+Chat UI (optional) ──/chat (Gemini)──► /confirm
 ```
 
-- **Frontend**: Vite + Preact, deployed to GitHub Pages on a custom domain.
-- **Backend**: Supabase Edge Functions (Deno).
-- **Database**: Supabase Postgres.
-- **LLM**: Gemini 2.5 Flash (free tier covers personal use).
-- **Auth**: one shared password → HS256 JWT without expiry, stored in localStorage.
+> **Codex / Cursor agents:** read **[AGENTS.md](./AGENTS.md)** first. Day-to-day data → API, not SQL migrations.
+
+- **Frontend**: Vite + Preact → [velrabe.github.io/schedule](https://velrabe.github.io/schedule)
+- **Backend**: Supabase Edge Functions (Deno)
+- **Database**: Supabase Postgres (migrations in `supabase/migrations/`)
+- **Auth**: shared password → HS256 JWT (`APP_PASSWORD` + `JWT_SECRET`)
+- **Optional LLM**: Gemini in `/chat` (UI); agents use `/agent` without Gemini
 
 ---
 
@@ -20,216 +23,119 @@ Chat (web) → Gemini 2.5 Flash → Supabase Postgres → Dashboard
 
 ```
 schedule/
-├── apps/
-│   └── web/                # Vite + Preact frontend → GitHub Pages
+├── AGENTS.md               # Codex/Cursor: API, запреты, workflow
+├── apps/web/               # Dashboard + optional chat FAB
+├── scripts/
+│   └── schedule-api.mjs    # CLI: login, get, manual, apply
 ├── supabase/
-│   ├── migrations/         # SQL schema (initial: 0001_init.sql)
-│   ├── functions/
-│   │   ├── auth/           # POST /auth/login → JWT
-│   │   ├── chat/           # POST /chat → calls Gemini, returns proposed actions
-│   │   ├── confirm/        # POST /confirm → writes confirmed actions to DB
-│   │   ├── manual/         # POST /manual → direct CRUD (dashboard + Codex)
-│   │   ├── data/           # POST /data → read API
-│   │   ├── agent/          # POST /agent → batch actions without Gemini
-│   │   └── _shared/        # jwt, gemini, db, rules, cors helpers
-│   └── config.toml
-├── rules/                  # Markdown rulesets per domain (future: bundled into functions)
-└── .github/workflows/
-    ├── deploy-frontend.yml   # build apps/web → GH Pages
-    └── deploy-functions.yml  # push migrations + deploy edge functions
+│   ├── migrations/         # Schema + rare bulk imports (0012 latest schedule)
+│   └── functions/
+│       ├── auth/           # POST /auth/login
+│       ├── data/           # POST /data (read)
+│       ├── manual/         # POST /manual (CRUD row)
+│       ├── agent/          # POST /agent (batch actions)
+│       ├── chat/           # POST /chat (Gemini)
+│       ├── confirm/        # POST /confirm
+│       └── _shared/        # rules.ts, applyActions, sync helpers
+├── rules/README.md         # Points to rules.ts (no .md rules yet)
+└── .github/workflows/      # deploy-frontend + deploy supabase
 ```
 
 ---
 
-## Setup checklist
+## Setup (one-time)
 
-### 1. Supabase project (one-time, in the browser)
+### Supabase
 
-1. Go to <https://supabase.com> and create a new project.
-2. Save:
-   - **Project Reference** (looks like `abcdefghijklmnop`) — found in `Project Settings → General`.
-   - **Project URL** (`https://<ref>.supabase.co`).
-   - **anon key** (public) — `Project Settings → API → anon public`.
-   - **service_role key** (secret) — `Project Settings → API → service_role`. Never put in the frontend.
-   - **Database password** — set when creating the project.
-3. Wait a couple of minutes until the project is ready.
-
-### 2. Get a Gemini API key
-
-1. Go to <https://aistudio.google.com/app/apikey> and create a new key.
-2. Save the key — you'll paste it as `GEMINI_API_KEY` below.
-
-### 3. Generate a JWT secret and pick an app password
-
-```bash
-openssl rand -hex 32   # JWT_SECRET — copy the output
-```
-
-Pick any strong-ish password — it will be your single password to enter the app.
-
-### 4. Edge Function secrets (Supabase Dashboard)
-
-Go to `Project Settings → Edge Functions → Environment variables` and add:
+1. Create project at <https://supabase.com> — save **Project ref**, **URL**, **anon key**, **DB password**.
+2. Edge Function secrets (`Project Settings → Edge Functions`):
 
 | Name | Value |
-|---|---|
-| `GEMINI_API_KEY` | from step 2 |
-| `GEMINI_MODEL` | optional, default `gemini-2.0-flash-lite` — see below |
-| `APP_PASSWORD` | your shared password |
-| `JWT_SECRET` | output of `openssl rand -hex 32` |
+|------|--------|
+| `GEMINI_API_KEY` | optional if not using chat |
+| `GEMINI_MODEL` | optional, see below |
+| `APP_PASSWORD` | app + Codex CLI password |
+| `JWT_SECRET` | `openssl rand -hex 32` |
 
-`SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` are injected automatically by Supabase into every Edge Function — you don't need to set them manually.
+`SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` are injected automatically.
 
-### 5. GitHub repo secrets (for CI deploy)
+### GitHub Actions secrets
 
-Settings of the GitHub repo → `Secrets and variables → Actions → New repository secret`:
+`VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, `VITE_FUNCTIONS_URL`, `VITE_BASE_PATH` (`/schedule/` for project pages), `SUPABASE_ACCESS_TOKEN`, `SUPABASE_PROJECT_REF`, `SUPABASE_DB_PASSWORD`
 
-| Name | Value |
-|---|---|
-| `VITE_SUPABASE_URL` | `https://<ref>.supabase.co` |
-| `VITE_SUPABASE_ANON_KEY` | anon key from step 1 |
-| `VITE_FUNCTIONS_URL` | `https://<ref>.functions.supabase.co` |
-| `VITE_BASE_PATH` | `/` for custom domain, or `/<repo-name>/` for `<user>.github.io/<repo>/` |
-| `SUPABASE_ACCESS_TOKEN` | personal token from <https://supabase.com/dashboard/account/tokens> |
-| `SUPABASE_PROJECT_REF` | project ref from step 1 |
-| `SUPABASE_DB_PASSWORD` | database password from step 1 |
+### Local dev
 
-### 6. Local dev `.env`
-
-Create `apps/web/.env.local` (gitignored):
+`apps/web/.env.local`:
 
 ```
 VITE_SUPABASE_URL=https://<ref>.supabase.co
-VITE_SUPABASE_ANON_KEY=eyJ...your-anon-key
+VITE_SUPABASE_ANON_KEY=eyJ...
 VITE_FUNCTIONS_URL=https://<ref>.functions.supabase.co
 ```
 
-### 7. Install deps and run locally
-
 ```bash
 npm install
-npm run dev          # → http://127.0.0.1:5173
+npm run dev          # http://127.0.0.1:5173
 ```
 
-To run edge functions locally (optional, requires Docker + Supabase CLI):
+Codex CLI (repo root): see `.env.example` for `SCHEDULE_FUNCTIONS_URL` + `SCHEDULE_PASSWORD`.
 
-```bash
-brew install supabase/tap/supabase
-supabase start
-supabase functions serve --no-verify-jwt
-```
-
-Then set `VITE_FUNCTIONS_URL=http://127.0.0.1:54321/functions/v1` in `.env.local`.
-
-### 8. Push migrations + functions once
-
-After linking your CLI to the project:
+### Migrations + functions (first time)
 
 ```bash
 supabase login
 supabase link --project-ref <ref>
-supabase db push                       # applies migrations/0001_init.sql
-supabase functions deploy auth --no-verify-jwt
-supabase functions deploy chat --no-verify-jwt
-supabase functions deploy confirm --no-verify-jwt
+supabase db push
+supabase functions deploy auth chat confirm data manual agent --no-verify-jwt
 ```
 
-(After this, the GitHub Action `deploy-functions.yml` will keep them in sync on every push to `main`.)
-
-### 9. Enable GitHub Pages
-
-Repo `Settings → Pages → Source: GitHub Actions`.
-
-If using a custom domain:
-
-1. Add a `CNAME` file in `apps/web/public/` containing your domain.
-2. Configure DNS:
-   - For apex domain (`example.com`): A records to `185.199.108.153`, `…109.153`, `…110.153`, `…111.153`.
-   - For subdomain (`schedule.example.com`): CNAME to `<your-user>.github.io`.
-3. In `Settings → Pages` set the custom domain.
+Further pushes to `main` deploy via CI.
 
 ---
 
-## Gemini models (chat / log / images)
+## Writing data (Codex)
 
-Chat supports **text + screenshots** (`image_base64` in `/chat`). The UI compresses images before upload.
+**Do not** edit production data via new migrations unless the user explicitly asks.
 
-| Model | When to use |
-|---|---|
-| `gemini-2.0-flash-lite` | **Default for text only.** Lowest quota use. |
-| `gemini-2.0-flash` | **Default when a photo is attached** (auto if `GEMINI_MODEL` unset). Better for receipts, macros, schedules. |
-| `gemini-2.5-flash` | Smarter but burns free quota faster — avoid for heavy daily use. |
+```bash
+npm run api -- login
+npm run api -- get sessions --from 2026-05-29 --to 2026-05-31
+npm run api -- apply my-plan.json
+```
 
-Set explicitly: Supabase → Edge Functions → Secrets → `GEMINI_MODEL=gemini-2.0-flash` → redeploy `chat`.
-
-### Free tier reality (2026)
-
-There is **no** reliable “unlimited free” vision API for production. All hosted options cap RPM/RPD per key:
-
-| Provider | Vision | Typical free limit | Notes |
-|---|---|---|---|
-| **Google Gemini** | yes | ~15 RPM, low RPD on free | Best fit for this app (JSON + images). Enable **billing** in [AI Studio](https://aistudio.google.com/) — personal use is usually **cents/month**, quota jumps sharply. |
-| **Groq** | limited models | high text RPM | Great for text-only; vision models change often, no structured JSON guarantee. |
-| **OpenRouter** | some free routes | ~50 req/day free | Good for experiments, not daily driver. |
-| **Local Ollama** (Qwen2-VL, LLaVA) | yes | unlimited on your GPU | Zero API quota; you host and wire yourself. |
-
-**Dashboard `0/0` on 2.5 Pro / 2 Flash:** this means **no free-tier quota** for that model (not “unlimited”). Only models with a non-zero cap (e.g. 2.5 Flash `20/20`) work until billing is enabled.
-
-**Automatic fallback:** if the primary model returns 429, `/chat` tries `gemini-2.0-flash-lite` and `gemini-2.0-flash` (separate daily buckets). It does **not** switch to 2.5 Pro when that row is `0/0`.
-
-**Practical advice:** delete `GEMINI_MODEL` in Supabase secrets (use app defaults) or set `gemini-2.0-flash-lite`. Avoid `gemini-2.5-flash` on free tier (20 requests/day). Enable **billing** for serious use.
+Full contract: **[AGENTS.md](./AGENTS.md)**. Business rules: **`supabase/functions/_shared/rules.ts`**.
 
 ---
 
-## How auth works
+## Auth
 
-- `POST /auth/login { password }` → compares against `APP_PASSWORD`. If match, returns `{ token }` (HS256 JWT, no expiry, signed with `JWT_SECRET`).
-- Frontend saves `token` in `localStorage` under `schedule:auth-token`.
-- All subsequent `fetch` to edge functions include `Authorization: Bearer <token>`.
-- Each protected edge function (`chat`, `confirm`) calls `requireAuth()` which verifies the token.
-- "Logout" = clear localStorage (token can't be revoked server-side because there's no session table; this is intentional simplicity for a one-user app).
-
-## Codex / agents (without CI or Gemini)
-
-See **[AGENTS.md](./AGENTS.md)**. Summary:
-
-- **`POST /manual`** — insert/update/delete one row (same as dashboard editors).
-- **`POST /data`** — read days, sessions, meals, finance, …
-- **`POST /agent`** — apply `actions[]` (same schema as chat → confirm, no LLM).
-- CLI: `node scripts/schedule-api.mjs login|get|manual|apply`.
-
-SQL migrations remain for large one-off imports; day-to-day logging → API.
+- `POST /auth/login { password }` → JWT (no expiry), stored in `localStorage` as `schedule:auth-token` in the UI.
+- Protected: `data`, `manual`, `agent`, `chat`, `confirm` — header `Authorization: Bearer <token>`.
 
 ---
 
-## How chat works
+## Optional: Gemini chat (UI)
 
-1. You type a message and/or attach a screenshot (📷 button or paste).
-2. Frontend `POST /chat { message, image_base64?, image_mime? }`.
-3. Edge function:
-   - Saves the raw message to `raw_logs` (status=pending).
-   - Builds context: open work sessions, today's day row, today's sessions.
-   - Calls Gemini 2.5 Flash with rules + tools schema + your message.
-   - Gemini returns structured JSON: `{ reply_to_user, actions[], needs_confirmation }`.
-   - Updates `raw_logs.parsed_json`.
-   - Returns to frontend.
-4. Frontend shows the reply + an action preview + ✓/✗ buttons.
-5. On ✓: `POST /confirm { raw_log_id, decision: "confirm" }` → backend writes typed rows to `sessions/meals/...` and marks the raw log as `saved`.
+1. `POST /chat` → proposed `actions[]` in `raw_logs`.
+2. User confirms → `POST /confirm`.
 
-## How the dashboard works
-
-The existing dashboard from before the rebuild now lives at `apps/web/src/dashboard/`. It currently reads from seed data (`seed.js`). Wiring it to Supabase is the next step.
+Models: prefer `gemini-2.0-flash-lite` (text) / `gemini-2.0-flash` (images). See comments in old commits or AI Studio for quota notes.
 
 ---
 
-## Tasks for you (Vel)
+## Dashboard
 
-- [ ] Create Supabase project, save secrets.
-- [ ] Add `GEMINI_API_KEY`, `APP_PASSWORD`, `JWT_SECRET` in Supabase Edge Function env.
-- [ ] Push migrations: `supabase db push`.
-- [ ] Deploy functions: `supabase functions deploy auth chat confirm --no-verify-jwt`.
-- [ ] Add GH Actions secrets (`VITE_*`, `SUPABASE_*`).
-- [ ] Tell me your custom domain and I'll wire the CNAME.
-- [ ] Confirm repo name + I push to GitHub.
+`apps/web/src/dashboard/ScheduleTracker.jsx` loads live data via `useSupabaseSnapshot()` → `POST /data` (days, sessions, meals, finance, …). Manual edits in UI use `POST /manual`. Local `seed.js` is legacy/offline only when `liveData` is absent.
 
-After that, the auth + chat MVP will be live. Dashboard data wiring is the next phase.
+---
+
+## Accounts (current)
+
+| id | Label |
+|----|--------|
+| `savings_rub` | Savings RUB |
+| `ip_rub` | Business RUB |
+| `vcb_vnd` | Bank VND |
+| `cash_vnd` | Наличные |
+
+`loco_rub` was removed (merged into `ip_rub`).
