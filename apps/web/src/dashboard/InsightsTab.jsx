@@ -147,13 +147,13 @@ export default function InsightsTab({
 
         ${hasNutrition &&
         html`
-          <${InsightCard} title="Питание" subtitle="meals + activities / session_events">
+          <${InsightCard} title="Питание" subtitle="приход · расход · баланс (meals − activity)">
             <${InsightsLineChart}
               dates=${enriched.map((d) => d.date)}
               series=${[
                 {
                   key: "kcal_in",
-                  label: "Ккал приход",
+                  label: "Приход",
                   color: "var(--warning)",
                   data: enriched.map((d) => (d.kcalIn > 0 ? d.kcalIn : null)),
                   unit: " ккал",
@@ -161,19 +161,23 @@ export default function InsightsTab({
                 },
                 {
                   key: "kcal_out",
-                  label: "Ккал расход",
+                  label: "Расход",
                   color: "var(--danger)",
                   data: enriched.map((d) => (d.kcalOut > 0 ? d.kcalOut : null)),
                   unit: " ккал",
                   formatValue: (v) => String(Math.round(v)),
                 },
+                {
+                  key: "kcal_balance",
+                  label: "Баланс",
+                  color: "var(--success)",
+                  data: enriched.map((d) =>
+                    d.kcalBalance != null ? d.kcalBalance : null,
+                  ),
+                  unit: " ккал",
+                  formatValue: (v) => `${v >= 0 ? "+" : ""}${Math.round(v)}`,
+                },
               ]}
-              extraLines=${(date, i) => {
-                const d = enriched[i];
-                if (!d || (d.kcalIn <= 0 && d.kcalOut <= 0)) return [];
-                if (d.kcalBalance == null) return [];
-                return [`Баланс: ${d.kcalBalance >= 0 ? "+" : ""}${d.kcalBalance} ккал`];
-              }}
             />
             <div class="insights-mini-table-wrap">
               ${enriched
