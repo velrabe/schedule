@@ -244,7 +244,7 @@ Deno.serve(async (req) => {
         await afterMealWrite(db, String(row0.id));
       }
 
-      if (expense !== undefined) {
+      if (expense !== undefined && resource !== "session_events") {
         let sid = expense_session_id || (resource === "sessions" ? id : null);
         if (resource === "meals") {
           const mealId = id || (row0 ? String(row0.id) : null);

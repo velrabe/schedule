@@ -473,6 +473,58 @@
   max-width: 52rem;
 }
 
+.record-drawer--wide {
+  width: min(420px, 100vw);
+}
+
+.session-bundle-part-wrap {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  padding: 8px 0;
+  border-top: 1px solid var(--border);
+  gap: 0;
+}
+
+.session-bundle-part-head-wrap {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: baseline;
+  width: 100%;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.session-bundle-part-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.session-bundle-part-exp {
+  font-size: 11px;
+  font-family: var(--mono);
+  color: var(--text-3);
+}
+
+.session-bundle-part-times-wrap {
+  display: flex;
+  flex-direction: row;
+  width: 100%;
+  gap: 8px;
+}
+
+.session-bundle-part-times-wrap .record-drawer-field-wrap {
+  flex: 1;
+}
+
+.session-bundle-activity-link-wrap {
+  display: flex;
+  width: 100%;
+  margin-bottom: 4px;
+}
+
 /* ---------------- kanban ---------------- */
 
 .kanban-wrap {

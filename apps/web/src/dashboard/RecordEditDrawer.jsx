@@ -13,10 +13,13 @@ import {
 } from "./recordEditor.js";
 import { findFoodSessionForMeal } from "./mergeNutrition.js";
 import {
+  childEventsForSession,
   expenseForSession,
+  expensesForSessionEvent,
   expenseFromForm,
   resolveExpenseSessionId,
 } from "./sessionFinance.js";
+import SessionBundleDrawer from "./SessionBundleDrawer.jsx";
 
 const html = htm.bind(h);
 
@@ -91,12 +94,36 @@ function FieldInput({ field, value, onChange, disabled }) {
 export default function RecordEditDrawer({
   target,
   onClose,
+  onSwitchTarget,
   liveMode = false,
   setSessions,
   sessions = [],
+  sessionEvents = [],
+  activities = [],
   finance = [],
   accounts = [],
 }) {
+  const bundleParts = useMemo(() => {
+    if (!target || target.kind !== "session") return [];
+    return childEventsForSession(target.record.id, sessionEvents);
+  }, [target, sessionEvents]);
+
+  if (target?.kind === "session" && bundleParts.length > 0) {
+    return html`
+      <${SessionBundleDrawer}
+        session=${target.record}
+        sessionEvents=${sessionEvents}
+        activities=${activities}
+        finance=${finance}
+        accounts=${accounts}
+        liveMode=${liveMode}
+        onClose=${onClose}
+        onOpenRecord=${(t) => (onSwitchTarget ? onSwitchTarget(t) : null)}
+        setSessions=${setSessions}
+      />
+    `;
+  }
+
   const [form, setForm] = useState({});
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -120,12 +147,15 @@ export default function RecordEditDrawer({
 
   const linkedExpense = useMemo(() => {
     if (!target) return null;
+    if (target.kind === "session_event") {
+      return expensesForSessionEvent(target.record.id, finance)[0] ?? null;
+    }
     const sid = resolveExpenseSessionId(target.kind, target.record, sessions);
     return expenseForSession(sid, finance);
   }, [target, finance, sessions]);
 
   useEffect(() => {
-    if (target) setForm(recordToForm(target.kind, target.record, linkedExpense, linkedSession));
+    if (target) setForm(recordToForm(target.kind, target.record, linkedExpense, linkedSession, finance));
     else setForm({});
   }, [target?.kind, target?.record?.id, linkedExpense?.id, linkedSession?.id, linkedSession?.start]);
 
@@ -165,7 +195,8 @@ export default function RecordEditDrawer({
       if (target.kind === "meal" && linkedSession?.id) {
         patch.session_id = linkedSession.id;
       }
-      const supportsExpense = target.kind === "session" || target.kind === "meal";
+      const supportsExpense =
+        target.kind === "session" || target.kind === "meal" || target.kind === "session_event";
       let expensePayload = undefined;
       if (supportsExpense) {
         const parsed = expenseFromForm(form);

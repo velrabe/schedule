@@ -1,6 +1,8 @@
 /** Field specs and form ↔ DB mapping for RecordEditDrawer. */
 
 import { inferMealSlotFromSession } from "./mergeNutrition.js";
+import { formToSessionEventPatch, sessionEventToForm } from "./sessionEventEditor.js";
+import { expensesForSessionEvent } from "./sessionFinance.js";
 
 export const MEAL_SLOTS = ["breakfast", "lunch", "dinner", "snack"];
 export const CONFIDENCE_OPTIONS = ["high", "medium", "low"];
@@ -172,13 +174,32 @@ const KIND_META = {
       ...EXPENSE_FIELDS,
     ],
   },
+  session_event: {
+    resource: "session_events",
+    title: "Часть сессии",
+    subtitle: (r) => `${r.start || "?"}–${r.end || "?"} · ${r.title || r.kind || ""}`,
+    fields: [
+      { key: "date", label: "дата", type: "date" },
+      { key: "start", label: "начало", type: "time" },
+      { key: "end", label: "конец", type: "time" },
+      { key: "kind", label: "kind", type: "select", options: ["wake", "chores", "transport", "sport", "food", "work", "chill", "reminder", "other"] },
+      { key: "title", label: "название", type: "text" },
+      { key: "category", label: "category", type: "text", optional: true },
+      { key: "sport_type", label: "sport_type", type: "text", optional: true },
+      { key: "calories_burned", label: "ккал", type: "number", optional: true },
+      { key: "distance_km", label: "дистанция, км", type: "number", optional: true },
+      { key: "pace", label: "pace", type: "text", optional: true },
+      { key: "notes", label: "заметки", type: "textarea", optional: true },
+      ...EXPENSE_FIELDS,
+    ],
+  },
 };
 
 export function getRecordEditorMeta(kind) {
   return KIND_META[kind] || null;
 }
 
-export function recordToForm(kind, record, linkedExpense = null, linkedSession = null) {
+export function recordToForm(kind, record, linkedExpense = null, linkedSession = null, finance = []) {
   if (!record) return {};
   const expense = expenseToFormFields(linkedExpense);
   switch (kind) {
@@ -230,6 +251,18 @@ export function recordToForm(kind, record, linkedExpense = null, linkedSession =
         project: record.project || "",
         note: record.note || "",
         ...expense,
+      };
+    case "session_event":
+      return {
+        ...sessionEventToForm(
+          {
+            ...record,
+            start_time: record.start_time || record.start,
+            end_time: record.end_time || record.end,
+          },
+          linkedExpense ? [linkedExpense] : finance,
+        ),
+        _session_id: record.session_id,
       };
     case "event":
       return {
@@ -300,6 +333,10 @@ export function formToDbPatch(kind, form) {
         project: strOrNull(form.project),
         notes: strOrNull(form.note),
       };
+    }
+    case "session_event": {
+      const { _session_id, ...rest } = form;
+      return formToSessionEventPatch(rest, _session_id || null);
     }
     case "event":
       return {

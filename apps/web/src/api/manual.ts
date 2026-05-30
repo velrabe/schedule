@@ -3,6 +3,7 @@ import { call } from "./client";
 export type ManualResource =
   | "days"
   | "sessions"
+  | "session_events"
   | "meals"
   | "activities"
   | "substances"

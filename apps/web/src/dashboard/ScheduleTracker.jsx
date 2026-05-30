@@ -455,9 +455,12 @@ function App(props = {}) {
       <${RecordEditDrawer}
         target=${recordEditor}
         onClose=${closeRecordEditor}
+        onSwitchTarget=${setRecordEditor}
         liveMode=${Boolean(liveData)}
         setSessions=${setSessions}
         sessions=${sessions}
+        sessionEvents=${liveData?.raw?.session_events || []}
+        activities=${liveData?.activities || []}
         finance=${liveData?.finance || []}
         accounts=${liveData?.accounts || []}
       />
@@ -2223,7 +2226,7 @@ function CalendarDayDetail({
           ${sorted.length === 0 && html`<div class="cal-detail-empty-wrap"><span>сессии не записаны</span></div>`}
           ${sorted.map((s) => {
             const parts = childEventsForSession(s.id, sessionEvents);
-            const showParts = parts.length > 1;
+            const showParts = parts.length > 0;
             const exp = showParts
               ? []
               : expensesForSession(s.id, finance);
