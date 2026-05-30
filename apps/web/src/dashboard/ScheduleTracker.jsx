@@ -33,6 +33,7 @@ import {
   fmtExpensesShort,
   linkedEventLabel,
 } from "./sessionFinance.js";
+import { formatKanbanDayCopy, copyTextToClipboard } from "./kanbanDayCopy.js";
 import FinanceTab from "./FinanceTab.jsx";
 import { useSheetState, applySheet, SheetHeader, Toolbar } from "./sheetUi.js";
 
@@ -426,6 +427,7 @@ function App(props = {}) {
         meals=${mergedMeals}
         activities=${liveData?.activities || []}
         sessionEvents=${liveData?.raw?.session_events || []}
+        substances=${liveData?.raw?.substances || []}
         finance=${liveData?.finance || []}
         setSessions=${setSessions}
         liveMode=${Boolean(liveData)}
@@ -2335,6 +2337,7 @@ function KanbanTab({
   meals = [],
   activities = [],
   sessionEvents = [],
+  substances = [],
   finance = [],
   setSessions,
   liveMode = false,
@@ -2396,6 +2399,32 @@ function KanbanTab({
   const [editing, setEditing] = useState(null);
   const [adding, setAdding] = useState(null);
   const [saving, setSaving] = useState(false);
+  const [copiedDate, setCopiedDate] = useState(null);
+
+  const onCopyDay = useCallback(
+    async (date) => {
+      const day = byDate.get(date);
+      const text = formatKanbanDayCopy({
+        date,
+        day,
+        sessions,
+        sessionEvents,
+        meals,
+        activities,
+        substances,
+        finance,
+        wakeRelativeMin,
+      });
+      const ok = await copyTextToClipboard(text);
+      if (ok) {
+        setCopiedDate(date);
+        setTimeout(() => setCopiedDate((d) => (d === date ? null : d)), 2000);
+      } else {
+        alert("Не удалось скопировать");
+      }
+    },
+    [byDate, sessions, sessionEvents, meals, activities, substances, finance],
+  );
 
   const onSaveEdit = useCallback(
     async (id, patch) => {
@@ -2514,9 +2543,22 @@ function KanbanTab({
               ref=${isToday ? todayColRef : null}
             >
               <div class="kanban-col-head-wrap">
-                <span class="kanban-col-head__date">${date}${isToday ? " · today" : ""}</span>
-                ${day && html`<span class="kanban-col-head__dow">${day.dow}</span>`}
-                ${day && day.modafinil_mg > 0 && html`<span class="kanban-col-head__mod">${day.modafinil_mg}mg</span>`}
+                <div class="kanban-col-head-main-wrap">
+                  <span class="kanban-col-head__date">${date}${isToday ? " · today" : ""}</span>
+                  ${day && html`<span class="kanban-col-head__dow">${day.dow}</span>`}
+                  ${day && day.modafinil_mg > 0 && html`<span class="kanban-col-head__mod">${day.modafinil_mg}mg</span>`}
+                </div>
+                <button
+                  type="button"
+                  class="kanban-copy-btn"
+                  onClick=${(e) => {
+                    e.stopPropagation();
+                    onCopyDay(date);
+                  }}
+                  title="копировать краткое описание дня"
+                >
+                  <span class="kanban-copy-btn__text">${copiedDate === date ? "скопировано" : "копировать"}</span>
+                </button>
               </div>
               ${day && html`
                 <div class="kanban-col-meta-wrap">

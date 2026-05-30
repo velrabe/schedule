@@ -67,6 +67,8 @@ export type SessionEventRow = {
   calories_burned: number | null;
   pace: string | null;
   meal_id: string | null;
+  activity_id: string | null;
+  is_instant?: boolean;
   planned_amount: number | null;
   planned_currency: string | null;
   planned_account: string | null;
@@ -165,6 +167,8 @@ export type ActivityRow = {
   type: string;
   duration_min: number | null;
   calories_burned: number | null;
+  distance_km: number | null;
+  pace: string | null;
   intensity: number | null;
   source: string | null;
   notes: string | null;

@@ -113,6 +113,8 @@ async function executeOne(
         .select()
         .single();
       if (error) throw error;
+      const { afterActivityWrite } = await import("./activityEventSync.ts");
+      await afterActivityWrite(db, String(data.id));
       return data;
     }
     case "create_substance": {

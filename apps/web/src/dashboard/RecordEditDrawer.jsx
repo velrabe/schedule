@@ -155,9 +155,11 @@ export default function RecordEditDrawer({
   }, [target, finance, sessions]);
 
   useEffect(() => {
-    if (target) setForm(recordToForm(target.kind, target.record, linkedExpense, linkedSession, finance));
+    if (target) {
+      setForm(recordToForm(target.kind, target.record, linkedExpense, linkedSession, finance, activities));
+    }
     else setForm({});
-  }, [target?.kind, target?.record?.id, linkedExpense?.id, linkedSession?.id, linkedSession?.start]);
+  }, [target?.kind, target?.record?.id, linkedExpense?.id, linkedSession?.id, linkedSession?.start, activities]);
 
   useEffect(() => {
     if (!target) return;

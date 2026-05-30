@@ -10,11 +10,8 @@ import {
   linkedEventLabel,
   expenseFromForm,
 } from "./sessionFinance.js";
-import {
-  formToSessionEventPatch,
-  sessionEventToForm,
-  findActivityForEvent,
-} from "./sessionEventEditor.js";
+import { findActivityForEvent, activityLinkLabel } from "./activityMetrics.js";
+import { formToSessionEventPatch, sessionEventToForm } from "./sessionEventEditor.js";
 import { withAccountOptions, isExpenseField, getRecordEditorMeta } from "./recordEditor.js";
 
 const html = htm.bind(h);
@@ -195,7 +192,8 @@ export default function SessionBundleDrawer({
 
           ${parts.map((p, idx) => {
             const form = partForms[p.id] || {};
-            const linkedAct = findActivityForEvent(p, activities);
+            const linkedAct = findActivityForEvent(p, activities) ||
+              (form.activity_id ? activities.find((a) => a.id === form.activity_id) : null);
             const pexp = expensesForSessionEvent(p.id, finance);
             const label = form.title || linkedEventLabel(p, finance) || `часть ${idx + 1}`;
             return html`
@@ -224,7 +222,7 @@ export default function SessionBundleDrawer({
                   ${linkedAct && onOpenRecord && html`
                     <div class="session-bundle-activity-link-wrap">
                       <button type="button" class="btn btn--ghost" onClick=${() => onOpenRecord({ kind: "activity", record: linkedAct })}>
-                        <span class="btn__text-wrap">активность ${linkedAct.calories_burned || "?"} kcal →</span>
+                        <span class="btn__text-wrap">активность · ${activityLinkLabel(linkedAct)} →</span>
                       </button>
                     </div>
                   `}

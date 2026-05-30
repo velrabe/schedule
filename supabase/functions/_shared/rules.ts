@@ -28,7 +28,7 @@ const DATA_MODEL = `
    - Parent session times = min(start) … max(end) of children (rollup).
 2. **Single simple block** (прогулка 40 мин без детализации) → create_session still OK; server mirrors one session_event.
 3. **Food:** parent session type=food → meals 1:1. Price on the **food session_event** (expense in bundle or create_finance_transaction with session_event_id).
-4. **Sport:** session_event kind=sport, category sport_*; sport_type bouldering|run|…; run → distance_km, pace; bouldering → duration only. Optional activities row for extra metrics. Calories on event (calories_burned) when user states them.
+4. **Sport:** session_event kind=sport + optional activities row (Apple Health). Server links by date + time inside event window (activity_id). **Device metrics win:** activities.calories_burned / distance_km / pace (parse notes "distance 4.74 km", "total 130 kcal") → copy to session_event. Do not duplicate conflicting kcal on event if activity exists — one source: activities for apple_health.
 5. **Finance fact:** txn_type expense|income|transfer. **Past/fact** MUST have account. Prefer session_event_id over bare session_id when cost is for one atomic part (taxi vs gym fee).
    - **One human label:** finance_transactions.notes = what user said ("такси к барберу"). session_events.title mirrors notes (server sync). merchant = brand/payee only ("Grab"), not the diary title.
    - Do not put "Grab к барберу" in event title if notes already say "такси к барберу".

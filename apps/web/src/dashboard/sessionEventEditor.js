@@ -1,6 +1,7 @@
 /** session_events ↔ drawer form (atomic parts of a diary session). */
 
 import { expensesForSessionEvent, financeHumanLabel } from "./sessionFinance.js";
+import { findActivityForEvent, sportMetricsForEvent } from "./activityMetrics.js";
 
 function trimTime(t) {
   if (!t) return "";
@@ -19,15 +20,11 @@ function strOrNull(v) {
   return s === "" ? null : s;
 }
 
-function timeToMin(t) {
-  if (!t) return 0;
-  const [h, m] = String(t).slice(0, 5).split(":").map(Number);
-  return (h || 0) * 60 + (m || 0);
-}
-
 function diffMinutes(start, end) {
-  const s = timeToMin(start);
-  const e = timeToMin(end);
+  const [h1, m1] = String(start).slice(0, 5).split(":").map(Number);
+  const [h2, m2] = String(end).slice(0, 5).split(":").map(Number);
+  const s = (h1 || 0) * 60 + (m1 || 0);
+  const e = (h2 || 0) * 60 + (m2 || 0);
   return ((e - s + 24 * 60) % (24 * 60)) || 0;
 }
 
@@ -50,32 +47,27 @@ export function mapSessionEventUi(row) {
     distance_km: row.distance_km ?? "",
     pace: row.pace || "",
     notes: row.notes || "",
+    activity_id: row.activity_id || "",
   };
 }
 
-export function findActivityForEvent(ev, activities = []) {
-  if (!ev?.date) return null;
-  const t0 = trimTime(ev.start_time);
-  const sport = (ev.sport_type || ev.kind || "").toLowerCase();
-  const exact = activities.find(
-    (a) => a.date === ev.date && trimTime(a.time) === t0,
-  );
-  if (exact) return exact;
-  return (
-    activities.find(
-      (a) =>
-        a.date === ev.date &&
-        (a.type === sport || (sport && String(a.type || "").includes(sport))),
-    ) || null
-  );
-}
+export { findActivityForEvent } from "./activityMetrics.js";
 
-export function sessionEventToForm(ev, finance = []) {
+export function sessionEventToForm(ev, finance = [], activities = []) {
   const exp = expensesForSessionEvent(ev.id, finance)[0];
   const label = financeHumanLabel(exp) || ev.title || "";
+  const base = mapSessionEventUi({ ...ev, title: label });
+  const sport = sportMetricsForEvent(ev, activities);
+  const isSport = (ev.kind || "") === "sport" || (ev.category || "").startsWith("sport_") ||
+    ev.sport_type;
   return {
-    ...mapSessionEventUi({ ...ev, title: label }),
+    ...base,
     title: label,
+    sport_type: isSport ? sport.sport_type : base.sport_type,
+    calories_burned: isSport ? sport.calories_burned : base.calories_burned,
+    distance_km: isSport ? sport.distance_km : base.distance_km,
+    pace: isSport ? sport.pace : base.pace,
+    activity_id: ev.activity_id || sport.linkedActivity?.id || "",
     expense_amount: exp?.amount ?? "",
     expense_currency: exp?.currency || "VND",
     expense_account: exp?.account || "vcb_vnd",
@@ -106,5 +98,6 @@ export function formToSessionEventPatch(form, sessionId) {
     distance_km: numOrNull(form.distance_km),
     pace: strOrNull(form.pace),
     notes: strOrNull(form.notes),
+    activity_id: strOrNull(form.activity_id),
   };
 }

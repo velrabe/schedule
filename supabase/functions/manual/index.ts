@@ -36,6 +36,7 @@ import {
 import { afterFinanceLinkedWrite, syncFinanceToSessionEvent } from "../_shared/financeEventSync.ts";
 import { afterEventWrite, beforeEventDelete } from "../_shared/eventFinanceSync.ts";
 import { afterSubstanceWrite, beforeSubstanceDelete } from "../_shared/substanceEventSync.ts";
+import { afterActivityWrite } from "../_shared/activityEventSync.ts";
 
 const ALLOWED = new Set([
   "days",
@@ -189,6 +190,9 @@ Deno.serve(async (req) => {
       if (resource === "substances" && data) {
         await afterSubstanceWrite(db, String((data as Record<string, unknown>).id));
       }
+      if (resource === "activities" && data) {
+        await afterActivityWrite(db, String((data as Record<string, unknown>).id));
+      }
       return json({ row: data });
     }
 
@@ -214,6 +218,9 @@ Deno.serve(async (req) => {
       }
       if (resource === "substances" && data) {
         await afterSubstanceWrite(db, String((data as Record<string, unknown>).id));
+      }
+      if (resource === "activities" && data) {
+        await afterActivityWrite(db, String((data as Record<string, unknown>).id));
       }
       return json({ row: data });
     }
@@ -288,6 +295,11 @@ Deno.serve(async (req) => {
         await afterSubstanceWrite(db, id);
       } else if (resource === "substances" && row0) {
         await afterSubstanceWrite(db, String(row0.id));
+      }
+      if (resource === "activities" && id) {
+        await afterActivityWrite(db, id);
+      } else if (resource === "activities" && row0) {
+        await afterActivityWrite(db, String(row0.id));
       }
 
       return json({ rows: data });

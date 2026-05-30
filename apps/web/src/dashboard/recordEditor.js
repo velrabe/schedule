@@ -3,6 +3,7 @@
 import { inferMealSlotFromSession } from "./mergeNutrition.js";
 import { formToSessionEventPatch, sessionEventToForm } from "./sessionEventEditor.js";
 import { expensesForSessionEvent } from "./sessionFinance.js";
+import { metricsFromActivity } from "./activityMetrics.js";
 
 export const MEAL_SLOTS = ["breakfast", "lunch", "dinner", "snack"];
 export const CONFIDENCE_OPTIONS = ["high", "medium", "low"];
@@ -108,6 +109,8 @@ const KIND_META = {
       { key: "type", label: "тип", type: "text" },
       { key: "duration_min", label: "длительность, мин", type: "number" },
       { key: "calories_burned", label: "ккал сожжено", type: "number" },
+      { key: "distance_km", label: "дистанция, км", type: "number", optional: true },
+      { key: "pace", label: "темп", type: "text", optional: true },
       { key: "intensity", label: "интенсивность", type: "number", optional: true },
       { key: "source", label: "источник", type: "text", optional: true },
       { key: "notes", label: "заметки", type: "textarea" },
@@ -199,7 +202,14 @@ export function getRecordEditorMeta(kind) {
   return KIND_META[kind] || null;
 }
 
-export function recordToForm(kind, record, linkedExpense = null, linkedSession = null, finance = []) {
+export function recordToForm(
+  kind,
+  record,
+  linkedExpense = null,
+  linkedSession = null,
+  finance = [],
+  activities = [],
+) {
   if (!record) return {};
   const expense = expenseToFormFields(linkedExpense);
   switch (kind) {
@@ -231,17 +241,21 @@ export function recordToForm(kind, record, linkedExpense = null, linkedSession =
         expense_category: expense.expense_category || "food",
       };
     }
-    case "activity":
+    case "activity": {
+      const m = metricsFromActivity(record);
       return {
         date: record.date || "",
         time: trimTime(record.time),
         type: record.type || "move",
         duration_min: record.duration_min ?? "",
-        calories_burned: record.calories_burned ?? "",
+        calories_burned: record.calories_burned ?? m.calories_burned ?? "",
+        distance_km: record.distance_km ?? m.distance_km ?? "",
+        pace: record.pace || m.pace || "",
         intensity: record.intensity ?? "",
         source: record.source || "",
         notes: record.notes || "",
       };
+    }
     case "session":
       return {
         date: record.date || "",
@@ -261,6 +275,7 @@ export function recordToForm(kind, record, linkedExpense = null, linkedSession =
             end_time: record.end_time || record.end,
           },
           linkedExpense ? [linkedExpense] : finance,
+          activities,
         ),
         _session_id: record.session_id,
       };
@@ -318,6 +333,8 @@ export function formToDbPatch(kind, form) {
         type: form.type || "move",
         duration_min: numOrNull(form.duration_min),
         calories_burned: numOrNull(form.calories_burned),
+        distance_km: numOrNull(form.distance_km),
+        pace: strOrNull(form.pace),
         intensity: numOrNull(form.intensity),
         source: strOrNull(form.source),
         notes: strOrNull(form.notes),

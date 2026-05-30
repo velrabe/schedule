@@ -152,6 +152,8 @@ events ↔ finance_planned_items (визаран и т.п.)
 ```
 
 **Instant:** проснулся / модаф / кофе → `create_substance` или `kind=wake|substance` с `instant:true`, без end_time+5мин.
+
+**Sport + Apple Health:** `activities` (cycling 11:21, notes с distance/kcal) ↔ `session_events` через `activity_id`; при save/link метрики с устройства переносятся на ивент (106 kcal, 4.74 km), не дублировать 130 вручную если есть activity.
 ```
 
 Стабильные id импорта расписания: `521YYxxx-0000-4000-8000-...` (YY = день месяца в коде). Перед правкой дня — **`get sessions` за эту дату**.

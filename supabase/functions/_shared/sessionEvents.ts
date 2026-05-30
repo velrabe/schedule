@@ -264,6 +264,11 @@ export async function afterSessionEventWrite(
   if (opts.expense !== undefined) {
     await syncEventExpense(db, eventId, row, opts.expense);
   }
+
+  const { isSportSessionEvent, afterSportSessionEventWrite } = await import("./activityEventSync.ts");
+  if (isSportSessionEvent(row)) {
+    await afterSportSessionEventWrite(db, eventId);
+  }
 }
 
 export async function deleteSessionEventTree(

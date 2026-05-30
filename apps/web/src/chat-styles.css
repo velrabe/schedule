@@ -624,6 +624,41 @@
   border-bottom: 1px solid var(--border);
 }
 
+.kanban-col-head-main-wrap {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  flex: 1 1 auto;
+  min-width: 0;
+  gap: 6px;
+}
+
+.kanban-copy-btn {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  flex: 0 0 auto;
+  margin: 0;
+  padding: 2px 6px;
+  box-sizing: border-box;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  background: transparent;
+  cursor: pointer;
+  font-family: var(--mono);
+}
+
+.kanban-copy-btn:hover {
+  border-color: var(--accent);
+}
+
+.kanban-copy-btn__text {
+  font-size: 9px;
+  color: var(--text-3);
+  text-transform: lowercase;
+  white-space: nowrap;
+}
+
 .kanban-col-head__date {
   font-size: 11px;
   font-family: var(--mono);
