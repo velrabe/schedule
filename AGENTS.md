@@ -86,7 +86,9 @@ node scripts/schedule-api.mjs manual insert sessions '{"date":"2026-05-31","star
 | type | Назначение |
 |------|------------|
 | `update_day` | поля строки `days` |
-| `create_session` | блок расписания (еда, work, sport, walk, …) |
+| `create_session` | одна строка в ежедневнике (простой блок) |
+| `create_session_bundle` | сессия + несколько `session_events` (такси, зал, перекус) |
+| `create_session_event` | один атомарный ивент, опционально `session_id` |
 | `update_session` | сдвиг/правка по `id` из `get sessions` |
 | `delete_session` | только по явной просьбе |
 | `create_work_session_open` / `close_work_session` | открытая работа |

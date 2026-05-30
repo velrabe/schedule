@@ -1,7 +1,6 @@
 import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
 import { padTime, diffMinutes } from "./actions.ts";
 import { trimTime } from "./sessionSchedule.ts";
-import { deleteSessionExpenses } from "./sessionExpenseSync.ts";
 
 export type SessionRow = {
   id: string;
@@ -227,8 +226,13 @@ export async function afterFoodSessionWrite(
   const { data, error } = await db.from("sessions").select("*").eq("id", sessionId).single();
   if (error) throw error;
   const session = sessionFromDb(data as Record<string, unknown>);
-  if (!isFoodSession(session)) return;
+  const { ensureSessionEventMirror } = await import("./sessionEvents.ts");
+  if (!isFoodSession(session)) {
+    await ensureSessionEventMirror(db, sessionId, sourceLogId);
+    return;
+  }
   await syncMealFromFoodSession(db, session, sourceLogId);
+  await ensureSessionEventMirror(db, sessionId, sourceLogId);
 }
 
 export async function afterMealWrite(
@@ -242,8 +246,8 @@ export async function afterMealWrite(
 }
 
 export async function afterFoodSessionDelete(db: SupabaseClient, sessionId: string): Promise<void> {
-  await deleteSessionExpenses(db, sessionId);
-  await db.from("meals").delete().eq("session_id", sessionId);
+  const { afterSessionDelete } = await import("./sessionEvents.ts");
+  await afterSessionDelete(db, sessionId);
 }
 
 /** Batch sync after session schedule executor finishes. */

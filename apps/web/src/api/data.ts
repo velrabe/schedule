@@ -3,6 +3,7 @@ import { call } from "./client";
 export type Resource =
   | "days"
   | "sessions"
+  | "session_events"
   | "meals"
   | "activities"
   | "substances"
@@ -49,6 +50,27 @@ export type SessionRow = {
   notes: string | null;
   source_log_id: string | null;
   created_at: string;
+};
+
+export type SessionEventRow = {
+  id: string;
+  date: string;
+  session_id: string | null;
+  start_time: string;
+  end_time: string;
+  duration_min: number;
+  kind: string;
+  category: string | null;
+  title: string | null;
+  sport_type: string | null;
+  distance_km: number | null;
+  calories_burned: number | null;
+  pace: string | null;
+  meal_id: string | null;
+  planned_amount: number | null;
+  planned_currency: string | null;
+  planned_account: string | null;
+  notes: string | null;
 };
 
 export type MealRow = {
@@ -102,6 +124,7 @@ export type FinanceRow = {
   merchant: string | null;
   txn_type: string;
   session_id: string | null;
+  session_event_id: string | null;
   notes: string | null;
 };
 
@@ -181,10 +204,11 @@ export async function fetchRows<T = unknown>(
 
 // Bulk fetcher for the dashboard's initial load.
 export async function fetchDashboardSnapshot(opts: { from?: string; to?: string } = {}) {
-  const [days, sessions, meals, substances, body_metrics, finance, accounts, balance_snapshots, finance_planned_items, activities, events] =
+  const [days, sessions, session_events, meals, substances, body_metrics, finance, accounts, balance_snapshots, finance_planned_items, activities, events] =
     await Promise.all([
       fetchRows<DayRow>("days", { ...opts, limit: 1000, order: "asc" }),
       fetchRows<SessionRow>("sessions", { ...opts, limit: 5000, order: "asc" }),
+      fetchRows<SessionEventRow>("session_events", { ...opts, limit: 5000, order: "asc" }),
       fetchRows<MealRow>("meals", { ...opts, limit: 2000, order: "asc" }),
       fetchRows<SubstanceRow>("substances", { ...opts, limit: 2000, order: "asc" }),
       fetchRows<BodyMetricRow>("body_metrics", { ...opts, limit: 2000, order: "asc" }),
@@ -198,6 +222,7 @@ export async function fetchDashboardSnapshot(opts: { from?: string; to?: string 
   return {
     days,
     sessions,
+    session_events,
     meals,
     substances,
     body_metrics,

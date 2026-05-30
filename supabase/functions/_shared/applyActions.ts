@@ -14,6 +14,10 @@ import {
 import { afterMealWrite } from "./foodMealSync.ts";
 import { afterFinanceWrite } from "./financeBalanceSync.ts";
 import { afterEventWrite } from "./eventFinanceSync.ts";
+import {
+  executeCreateSessionEvent,
+  executeSessionBundle,
+} from "./sessionEvents.ts";
 
 export type Action = { type: string; data: Record<string, unknown> };
 
@@ -138,6 +142,12 @@ async function executeOne(
       if (error) throw error;
       await afterFinanceWrite(db, String(data.id));
       return data;
+    }
+    case "create_session_event": {
+      return await executeCreateSessionEvent(db, d, sourceLogId);
+    }
+    case "create_session_bundle": {
+      return await executeSessionBundle(db, d, sourceLogId);
     }
     case "create_event": {
       const { data, error } = await db

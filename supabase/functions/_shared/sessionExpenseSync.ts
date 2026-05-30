@@ -1,6 +1,5 @@
 import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
-import { padTime } from "./actions.ts";
-import { isFoodSession } from "./foodMealSync.ts";
+import type { SessionEventRow } from "./sessionEvents.ts";
 
 export type SessionExpenseInput = {
   amount?: number | null;
@@ -10,23 +9,6 @@ export type SessionExpenseInput = {
   merchant?: string | null;
   notes?: string | null;
 };
-
-function num(v: unknown): number | null {
-  if (v == null || v === "") return null;
-  const n = Number(v);
-  return Number.isFinite(n) && n > 0 ? n : null;
-}
-
-function inferExpenseCategory(session: {
-  category?: string | null;
-  type?: string | null;
-}): string {
-  const c = (session.category || "").toLowerCase();
-  if (c === "food" || isFoodSession(session)) return "food";
-  if (c === "transport") return "transport";
-  if (/taxi|такси|доставк|delivery|grab|gojek/.test(c)) return "transport";
-  return "other";
-}
 
 /** Reverse an expense: add amount back to account balance. */
 async function applyBalanceDelta(
@@ -62,7 +44,7 @@ export async function deleteSessionExpenses(db: SupabaseClient, sessionId: strin
   if (delErr) throw delErr;
 }
 
-/** Upsert or remove the expense linked to a session (one txn per session_id). */
+/** Upsert or remove expense on the primary session_event (legacy UI passes expense per session). */
 export async function syncSessionExpense(
   db: SupabaseClient,
   sessionId: string,
@@ -76,57 +58,20 @@ export async function syncSessionExpense(
   },
   expense: SessionExpenseInput | null | undefined,
 ): Promise<void> {
-  const { data: existing, error: findErr } = await db
-    .from("finance_transactions")
-    .select("*")
-    .eq("session_id", sessionId)
-    .maybeSingle();
-  if (findErr) throw findErr;
+  const { ensureSessionEventMirror, syncEventExpense } = await import("./sessionEvents.ts");
+  const eventId = await ensureSessionEventMirror(db, sessionId);
+  if (!eventId) return;
 
-  const amount = num(expense?.amount);
-  const shouldClear = expense === null || amount == null;
+  const { data: ev } = await db.from("session_events").select("*").eq("id", eventId).single();
+  if (!ev) return;
 
-  if (shouldClear) {
-    if (existing) {
-      if ((existing.txn_type || "expense") === "expense" && existing.account) {
-        await applyBalanceDelta(db, String(existing.account), Number(existing.amount) || 0, "refund");
-      }
-      const { error: delErr } = await db.from("finance_transactions").delete().eq("id", existing.id);
-      if (delErr) throw delErr;
-    }
-    return;
-  }
-
-  const currency = (expense?.currency || "VND").toUpperCase();
-  const account = expense?.account || (currency === "RUB" ? "savings_rub" : "cash_vnd");
-  const category = expense?.category || inferExpenseCategory(ctx);
-  const merchant = expense?.merchant || ctx.project || null;
-  const time = padTime(ctx.start_time) ?? null;
-
-  const payload = {
-    date: ctx.date,
-    time,
-    amount,
-    currency,
-    account,
-    category,
-    merchant,
-    txn_type: "expense",
-    session_id: sessionId,
-    notes: expense?.notes ?? ctx.notes ?? null,
+  const row = ev as SessionEventRow;
+  const patched: SessionEventRow = {
+    ...row,
+    category: ctx.category ?? row.category,
+    title: ctx.project ?? row.title,
+    notes: ctx.notes ?? row.notes,
+    kind: ctx.type ?? row.kind,
   };
-
-  if (existing) {
-    if ((existing.txn_type || "expense") === "expense" && existing.account) {
-      await applyBalanceDelta(db, String(existing.account), Number(existing.amount) || 0, "refund");
-    }
-    const { error: upErr } = await db.from("finance_transactions").update(payload).eq("id", existing.id);
-    if (upErr) throw upErr;
-    await applyBalanceDelta(db, account, amount, "charge");
-    return;
-  }
-
-  const { error: insErr } = await db.from("finance_transactions").insert(payload);
-  if (insErr) throw insErr;
-  await applyBalanceDelta(db, account, amount, "charge");
+  await syncEventExpense(db, eventId, patched, expense);
 }

@@ -15,10 +15,14 @@ import {
 } from "../_shared/actions.ts";
 import {
   afterFoodSessionWrite,
-  afterFoodSessionDelete,
   afterMealWrite,
   isFoodSession,
 } from "../_shared/foodMealSync.ts";
+import {
+  afterSessionDelete,
+  afterSessionEventWrite,
+  normalizeSessionEventPayload,
+} from "../_shared/sessionEvents.ts";
 import {
   syncSessionExpense,
   deleteSessionExpenses,
@@ -35,6 +39,7 @@ import { afterEventWrite, beforeEventDelete } from "../_shared/eventFinanceSync.
 const ALLOWED = new Set([
   "days",
   "sessions",
+  "session_events",
   "meals",
   "activities",
   "substances",
@@ -59,6 +64,9 @@ function normalizeManualRow(
   if (resource === "sessions") {
     if (op === "update") return normalizeSessionUpdatePatch(row);
     if (op === "insert" || op === "upsert") return normalizeSessionPayload(row);
+  }
+  if (resource === "session_events" && (op === "insert" || op === "upsert" || op === "update")) {
+    return normalizeSessionEventPayload(row);
   }
   if (resource === "meals" && (op === "insert" || op === "upsert" || op === "update")) {
     return normalizeMealPayload(row);
@@ -121,7 +129,7 @@ Deno.serve(async (req) => {
     return json({ error: "bad_json" }, { status: 400 });
   }
 
-  const { resource, op, id, match, expense, expense_session_id } = body;
+  const { resource, op, id, match, expense, expense_session_id, expense_event_id } = body;
   const row = body.row ?? {};
 
   async function applyExpenseForSession(
@@ -160,8 +168,13 @@ Deno.serve(async (req) => {
     if (op === "insert") {
       const { data, error } = await table.insert(normalizedRow).select().single();
       if (error) throw error;
-      if (resource === "sessions" && data && isFoodSession(data as Record<string, unknown>)) {
+      if (resource === "sessions" && data) {
         await afterFoodSessionWrite(db, String((data as Record<string, unknown>).id));
+      }
+      if (resource === "session_events" && data) {
+        await afterSessionEventWrite(db, String((data as Record<string, unknown>).id), {
+          expense: expense as SessionExpenseInput | undefined,
+        });
       }
       if (resource === "meals" && data) {
         await afterMealWrite(db, String((data as Record<string, unknown>).id));
@@ -178,8 +191,13 @@ Deno.serve(async (req) => {
     if (op === "upsert") {
       const { data, error } = await table.upsert(normalizedRow).select().single();
       if (error) throw error;
-      if (resource === "sessions" && data && isFoodSession(data as Record<string, unknown>)) {
+      if (resource === "sessions" && data) {
         await afterFoodSessionWrite(db, String((data as Record<string, unknown>).id));
+      }
+      if (resource === "session_events" && data) {
+        await afterSessionEventWrite(db, String((data as Record<string, unknown>).id), {
+          expense: expense as SessionExpenseInput | undefined,
+        });
       }
       if (resource === "meals" && data) {
         await afterMealWrite(db, String((data as Record<string, unknown>).id));
@@ -212,6 +230,13 @@ Deno.serve(async (req) => {
         await afterFoodSessionWrite(db, id);
       } else if (resource === "sessions" && row0) {
         await afterFoodSessionWrite(db, String(row0.id));
+      }
+      if (resource === "session_events" && id) {
+        await afterSessionEventWrite(db, id, { expense: expense as SessionExpenseInput | undefined });
+      } else if (resource === "session_events" && row0) {
+        await afterSessionEventWrite(db, String(row0.id), {
+          expense: expense as SessionExpenseInput | undefined,
+        });
       }
       if (resource === "meals" && id) {
         await afterMealWrite(db, id);
@@ -264,8 +289,13 @@ Deno.serve(async (req) => {
           await db.from("sessions").delete().eq("id", meal.session_id);
         }
       }
+      if (resource === "session_events" && id) {
+        const { deleteSessionEventTree } = await import("../_shared/sessionEvents.ts");
+        await deleteSessionEventTree(db, id);
+        return json({ rows: [] });
+      }
       if (resource === "sessions" && id) {
-        await afterFoodSessionDelete(db, id);
+        await afterSessionDelete(db, id);
       }
       if (resource === "events" && id) {
         await beforeEventDelete(db, id);

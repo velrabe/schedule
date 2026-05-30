@@ -9,10 +9,11 @@ const DATA_MODEL = `
 | Entity | Table | Role |
 |--------|-------|------|
 | Day meta | days | wake/sleep, modafinil, mood, day_type |
-| Schedule block | sessions | time on the day (work, food, sport, walk, transport, …) |
+| Diary block | sessions | **one line in the daily schedule** ("болдеринг", "работа app", "завтрак") — envelope times roll up from children |
+| Atomic part | session_events | taxi, gym, snack, gift run, … — **building block**; optional session_id parent; each may have its own expense |
 | Nutrition row | meals | KBJU + name; 1:1 with a food session (session_id) |
-| Sport aggregate | activities | optional extra row (distance, kcal burned, source) parallel to sport session |
-| Money FACT | finance_transactions | happened: expense / income / transfer; updates account balances |
+| Sport aggregate | activities | optional extra row (distance, kcal burned, source) parallel to sport **session_event** / session |
+| Money FACT | finance_transactions | happened: expense / income / transfer; link **session_event_id** (one txn per event); session_id kept for rollups |
 | Money PLAN | finance_planned_items | future/recurring budget line (chart "plan", not yet spent) |
 | Timeline event | events | trip / visa / hike window; may carry budget → auto finance_planned_items |
 | Calendar note | planner_events | reminder/agenda (birthday, meeting); NO auto budget — add budget separately if money implied |
@@ -20,29 +21,38 @@ const DATA_MODEL = `
 
 ## Linking rules (critical)
 
-1. **Food:** create_session type=food → server creates/links meals. Add kcal/protein/fat/carbs via create_meal or update meal. **Price:** finance_transactions with session_id = that food session (max ONE expense per session_id in DB).
-2. **Sport:** session type=sport + category sport_*; optional activities row (duration, calories_burned, notes: distance/pace). **Costs:** separate sessions per payment — e.g. bouldering evening = transport session + Grab expense, sport session + gym expense, optional food session + meal + expense. Never one 8h "surf" block if user described commute + coffee + 90min surf + walk + café — split into 4–6 sessions with realistic durations.
-3. **Finance fact:** txn_type expense|income|transfer. **Past/fact** rows MUST have account (from-account). transfer MUST have counter_account + amount_counter (to-account). Link session_id when cost belongs to that block (taxi → transport session, lunch → food session).
-4. **Finance plan:** recurring/daily/monthly or one-off future cost → finance_planned_items OR events.budget_* (server syncs planned line). Not the same table as fact transactions.
-5. **Events vs planner:** visa trip / vizaran window → events (+ budget_amount, budget_currency, budget_account). "Напомни др Маши" without money → planner_events only. Birthday **with gift implied** ("купить подарок", сумма) → planner_events + create_event or finance_planned_items with amount. Pure social reminder without spend → planner only.
-6. **One session_id → at most one finance_transactions** (unique index). Multiple receipts for one outing = multiple sessions.
+1. **Outing / composite activity** ("болдеринг: такси туда, зал, такси обратно"):
+   - Prefer **create_session_bundle**: one parent session (title/category for diary) + events[] with realistic start/end per part.
+   - Each event may include **expense** { amount, currency, account, category, merchant } — server creates finance_transactions with session_event_id.
+   - Parent session times = min(start) … max(end) of children (rollup).
+2. **Single simple block** (прогулка 40 мин без детализации) → create_session still OK; server mirrors one session_event.
+3. **Food:** parent session type=food → meals 1:1. Price on the **food session_event** (expense in bundle or create_finance_transaction with session_event_id).
+4. **Sport:** session_event kind=sport, category sport_*; sport_type bouldering|run|…; run → distance_km, pace; bouldering → duration only. Optional activities row for extra metrics. Calories on event (calories_burned) when user states them.
+5. **Finance fact:** txn_type expense|income|transfer. **Past/fact** MUST have account. Prefer session_event_id over bare session_id when cost is for one atomic part (taxi vs gym fee).
+6. **Finance plan:** finance_planned_items OR events.budget_* OR session_events.planned_* fields — not fact until paid.
+7. **Events vs planner:** visa / vizaran → events. "Поздравить с ДР" без денег → planner_events + optional session "поздравить …" with session_event kind=reminder, no expense. Gift with sum → session_event + expense or planned line.
+8. **Unattached events:** session_events with session_id=null allowed (orphan atomic rows); attach later via update.
 
 ## Past vs future money
 
-- **Fact (прошлое, оплатил):** create_finance_transaction — date in the past/today, account required, balances change.
-- **Plan (будущее, заложить):** finance_planned_items or events with budget_* — account on event may be null until user decides; when user later pays, add fact transaction (account mandatory) and keep plan line if still useful for chart.
-- Do NOT log future spend as fact without account unless user explicitly records an accrual; prefer planned line.
+- **Fact (прошлое, оплатил):** create_finance_transaction or event.expense in bundle — account required, balances change.
+- **Plan (будущее):** finance_planned_items / events.budget_* / session_events.planned_amount — ask account if user cares; when paid → fact txn linked to same session_event_id.
+- Agent: if user mentions cost but no amount → ask_clarification once; if amount given → always attach expense to the matching event.
 
-## Session granularity (reports must add up)
+## Session granularity (diary vs atoms)
 
-- User blob "с 8 до 15 серф и кофе" → NOT one 7h sport session. Infer: chores/transport → coffee food snack → sport 90min → walk → food café → transport. Durations must match story (~30min coffee, not 7h sport).
-- Prefer update_session by id over delete+recreate when shifting times.
-- Overlaps: chain update_session; if <5min swallow → ask or swallow_ok on agent API.
+- **Diary shows sessions only** — do NOT create 3 diary rows for one outing.
+- **Atoms are session_events** — user story "такси, зал 90 мин, такси" → create_session_bundle with 3 events, NOT 3 sessions.
+- User blob "с 8 до 15 серф и кофе" → one session "surf day" OR sport session + separate food sessions as needed; inside sport session use events for coffee vs surf 90min vs walk if user gave detail.
+- Prefer update_session / update session_events over delete+recreate when shifting times.
+- Overlaps between **sessions**: chain update_session; swallow_ok on agent API.
 
 ## actions[].data fields
 
 - "Concrete" = real column names and values for the target table (see action type), never empty {}.
 - Almost always include "date" (ISO YYYY-MM-DD). Times as HH:MM or HH:MM:SS.
+- **create_session_bundle** { date, type?, category?, title|project?, notes?, events[] } — each event: start_time, end_time, kind, category?, title?, sport_type?, distance_km?, calories_burned?, pace?, expense?: { amount, currency, account?, category?, merchant?, notes? } }
+- **create_session_event** — same fields as one element of events[]; session_id optional (null = unattached).
 - For /agent and /manual: actions[] only — no reply_to_user / needs_confirmation.
 `;
 
@@ -134,9 +144,9 @@ Actions:
 
 const SPORT = `
 # activity (sport)
-Sport = sessions (schedule) + optional activities (metrics) + 0..N finance_transactions via separate sessions per payment.
+Sport = session (diary) + session_events (atoms) + optional activities (metrics). Each paid part → session_event with expense.
 
-Per sport session set realistic duration. Add activities when user gives kcal/distance/pace or for run/bike/hike:
+Per sport **event** set realistic duration. Add activities when user gives kcal/distance/pace or for run/bike/hike:
 - run: duration_min, notes or activities.notes for distance km, pace
 - bike/cycling: distance km, duration
 - bouldering/gym/muay: duration_min, calories if stated
@@ -162,9 +172,9 @@ Map ru→type:
 - "йога" → yoga
 - "скейт" → skate
 
-Always insert:
-- a session row: type=sport, category=sport_<X>, project=<X> if specific.
-- AND optionally an activities row when calories_burned or extra metadata is provided.
+Prefer create_session_bundle for outings with transport + gym + snack.
+Always include at least one session_event with kind=sport, category=sport_<X>, sport_type=<X>.
+AND optionally an activities row when calories_burned or extra metadata is provided on the event.
 
 MOVE — дневное движение вне тренировок (логируется в конце дня, НЕ сессия):
 - If user says "набегал шагов", "за день нашагал", "ходьба за день", "просто ходьба бытовая", "движение за день", "move за день" → activities table with type=move, source=move (legacy: type=walking + source=base_move still accepted).
@@ -191,8 +201,8 @@ For every meal (create_meal or synced from food session) include:
 - name: human-readable string
 - kcal, protein_g, fat_g, carbs_g — required for tracking. If user provides numbers, use exactly. If only food name → estimate, confidence="low".
 - confidence: "high" if user gave exact numbers, "medium" if just portion size, "low" if pure estimate.
-- If meal had a cost ("кофе за 50к", "обед 150к") → create_session (food) first, then create_finance_transaction with session_id set to that food session, txn_type=expense, account inferred, category=food.
-- Manual UI also supports expense on any session via linked finance_transactions (one expense per session_id).
+- If meal had a cost ("кофе за 50к", "обед 150к") → food session + session_event with expense { amount, currency, account } in bundle, or create_finance_transaction with session_event_id.
+- Manual UI: expense on session → primary session_event; expense on session_event directly also supported.
 
 Common Vel dishes (canonical estimates if no numbers given):
 - "кимчи бургер" → kimchi_burger ≈ 550 kcal / 50c / 25p / 30f

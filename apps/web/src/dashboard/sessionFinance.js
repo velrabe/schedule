@@ -2,9 +2,23 @@
 
 import { findFoodSessionForMeal } from "./mergeNutrition.js";
 
+export function expensesForSession(sessionId, finance = []) {
+  if (!sessionId) return [];
+  return finance.filter(
+    (t) => t.session_id === sessionId && (t.txn_type || "expense") === "expense",
+  );
+}
+
+/** Primary expense for simple UI (first linked txn). */
 export function expenseForSession(sessionId, finance = []) {
-  if (!sessionId) return null;
-  return finance.find((t) => t.session_id === sessionId && (t.txn_type || "expense") === "expense") ?? null;
+  const rows = expensesForSession(sessionId, finance);
+  return rows[0] ?? null;
+}
+
+export function fmtExpensesShort(txns) {
+  if (!txns?.length) return "";
+  if (txns.length === 1) return fmtExpenseShort(txns[0]);
+  return txns.map((t) => fmtExpenseShort(t)).filter(Boolean).join(" + ");
 }
 
 export function fmtExpenseShort(txn) {

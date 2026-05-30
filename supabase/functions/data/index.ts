@@ -28,6 +28,14 @@ const RESOURCES: Record<string, ResourceConfig> = {
       { col: "start_time", asc: true },
     ],
   },
+  session_events: {
+    table: "session_events",
+    dateCol: "date",
+    defaultOrder: [
+      { col: "date", asc: false },
+      { col: "start_time", asc: true },
+    ],
+  },
   meals: {
     table: "meals",
     dateCol: "date",

@@ -26,7 +26,7 @@ import {
   findFoodSessionForMeal,
   mealHasMacroData,
 } from "./mergeNutrition.js";
-import { expenseForSession, fmtExpenseShort } from "./sessionFinance.js";
+import { expensesForSession, fmtExpensesShort } from "./sessionFinance.js";
 import FinanceTab from "./FinanceTab.jsx";
 import { useSheetState, applySheet, SheetHeader, Toolbar } from "./sheetUi.js";
 
@@ -2193,7 +2193,7 @@ function CalendarDayDetail({
         <div class="cal-detail-sessions-wrap">
           ${sorted.length === 0 && html`<div class="cal-detail-empty-wrap"><span>сессии не записаны</span></div>`}
           ${sorted.map((s) => {
-            const exp = expenseForSession(s.id, finance);
+            const exp = expensesForSession(s.id, finance);
             return html`
             <${RecordOpenRow}
               key=${s.id}
@@ -2208,7 +2208,7 @@ function CalendarDayDetail({
               </div>
               <span class="cal-detail-session__cat">${s.category}</span>
               <span class="cal-detail-session__proj">${s.project || "—"}</span>
-              <span class="cal-detail-session__note">${s.note || ""}${exp ? ` · ${fmtExpenseShort(exp)}` : ""}</span>
+              <span class="cal-detail-session__note">${s.note || ""}${exp.length ? ` · ${fmtExpensesShort(exp)}` : ""}</span>
             </${RecordOpenRow}>
           `;
           })}
@@ -2682,7 +2682,7 @@ function NutritionTab({ days, meals = [], finance = [], activities = [], active 
               <div class="nutri-meals-wrap">
                 ${dayMeals.length === 0 && html`<span class="nutri-meal-empty">нет приёмов пищи</span>`}
                 ${dayMeals.map((m) => {
-                  const exp = expenseForSession(m.session_id, finance);
+                  const exp = expensesForSession(m.session_id, finance);
                   return html`
                   <${RecordOpenRow}
                     key=${m.id}
@@ -2697,7 +2697,7 @@ function NutritionTab({ days, meals = [], finance = [], activities = [], active 
                       ${m.carbs_g != null ? `C${Math.round(Number(m.carbs_g))}` : ""}
                       ${m.protein_g != null ? ` P${Math.round(Number(m.protein_g))}` : ""}
                       ${m.fat_g != null ? ` F${Math.round(Number(m.fat_g))}` : ""}
-                      ${exp ? html` · ${fmtExpenseShort(exp)}` : ""}
+                      ${exp.length ? html` · ${fmtExpensesShort(exp)}` : ""}
                     </span>
                   </${RecordOpenRow}>
                 `;
