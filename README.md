@@ -55,6 +55,7 @@ schedule/
 | `GEMINI_API_KEY` | optional if not using chat |
 | `GEMINI_MODEL` | optional, see below |
 | `APP_PASSWORD` | app + Codex CLI password |
+| `AGENT_API_KEY` | optional: `openssl rand -hex 32` — only for Codex (`SCHEDULE_API_KEY` in CLI) |
 | `JWT_SECRET` | `openssl rand -hex 32` |
 
 `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` are injected automatically.

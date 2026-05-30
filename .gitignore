@@ -5,6 +5,9 @@ dist/
 .env
 .env.local
 .schedule-token
+codex.env
+.codex.env
+.secrets/
 .env.*.local
 .vite/
 .turbo/

@@ -12,7 +12,7 @@
 6. **UUID** — только валидный hex (`[0-9a-f]{8}-...`). Префиксы `s`, `p`, `m` в id **нельзя**.
 7. **Не дублируй food**: для приёма пищи → `create_session` с `type=food`, `category=food`; `meals` создаётся на сервере. Отдельный `create_meal` — только если нужны макросы без сессии.
 8. **Не удаляй сессии** с привязанным `finance_transactions.session_id` без понимания последствий для балансов.
-9. **Публичный GitHub** (`velrabe/schedule`) — не клади персональные данные в коммиты; пароль только в secrets/локальном env.
+9. **Не клади** пароли/токены в коммиты; только secrets / `codex.env` (gitignored).
 
 ## Что делать вместо миграций и CI
 
@@ -25,20 +25,34 @@
 
 Правила: **`supabase/functions/_shared/rules.ts`** — сначала секция **`data_model`** (связи сущностей), затем домены. JSON `reply_to_user` / `needs_confirmation` — **только для `/chat`**, не для `/agent`.
 
-## Окружение
+## Окружение (CLI / Codex)
 
 ```bash
-# из корня репозитория
-export SCHEDULE_FUNCTIONS_URL="https://<PROJECT_REF>.functions.supabase.co"
-export SCHEDULE_PASSWORD="<APP_PASSWORD из Supabase Edge secrets>"
-
-node scripts/schedule-api.mjs login          # токен → .schedule-token
-node scripts/schedule-api.mjs get sessions --from 2026-05-24 --to 2026-05-30
+node scripts/codex-check.mjs    # диагностика: что видит shell (без секретов)
+node scripts/schedule-api.mjs check-env
+node scripts/schedule-api.mjs login
+node scripts/schedule-api.mjs get sessions --from 2026-05-26 --to 2026-05-29
 node scripts/schedule-api.mjs apply plan.json
-node scripts/schedule-api.mjs apply plan.json --swallow   # если пересечение сессий
 ```
 
-Локальный фронт: `apps/web/.env.local` — `VITE_FUNCTIONS_URL`, `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` (см. `.env.example`).
+**URL:** `SCHEDULE_FUNCTIONS_URL=https://<PROJECT_REF>.functions.supabase.co`
+
+**Auth — любой один способ:**
+
+| Способ | Где задать | Примечание |
+|--------|------------|------------|
+| `SCHEDULE_TOKEN` | Codex **Environment variables** | JWT без срока; сгенерируй локально: `login` → `cat .schedule-token` |
+| `SCHEDULE_API_KEY` | Codex env + Supabase secret `AGENT_API_KEY` | Отдельный ключ только для агента (`openssl rand -hex 32`) |
+| `SCHEDULE_PASSWORD` | Codex env | = `APP_PASSWORD` в Supabase |
+| `codex.env` | файл в корне репо | см. `codex.env.example` (в `.gitignore`) |
+
+### Codex: Secrets часто НЕ попадают в shell
+
+Если `printenv | rg SCHEDULE` пусто — добавь переменные в **Environment variables** (не только Secrets), перезапусти сессию, или положи `codex.env` в `/workspace/schedule/`.
+
+Первый шаг в задаче: `node scripts/codex-check.mjs` → затем `get` / `apply`.
+
+Локальный фронт: `apps/web/.env.local` — `VITE_FUNCTIONS_URL`, … (см. `.env.example`).
 
 Часовой пояс логов: **Asia/Ho_Chi_Minh** (UTC+7).
 
@@ -46,7 +60,7 @@ node scripts/schedule-api.mjs apply plan.json --swallow   # если перес�
 
 | Endpoint | Auth | Назначение |
 |----------|------|------------|
-| `/auth/login` | нет | `{ "password" }` → `{ "token" }` |
+| `/auth/login` | нет | `{ "password" }` или `{ "api_key" }` (если задан `AGENT_API_KEY` на сервере) → `{ "token" }` |
 | `/data` | Bearer | чтение таблицы |
 | `/manual` | Bearer | CRUD одной строки |
 | `/agent` | Bearer | пакет `actions[]` (без Gemini) |

@@ -2,44 +2,82 @@
 /**
  * CLI for schedule Edge Functions (Codex / local scripts).
  *
- * Env: SCHEDULE_FUNCTIONS_URL, SCHEDULE_PASSWORD
- * Token cache: .schedule-token (repo root, gitignored)
+ * Auth (any one):
+ *   SCHEDULE_TOKEN          — JWT from a previous login (best for Codex)
+ *   SCHEDULE_API_KEY        — agent key → POST /auth/login { api_key }
+ *   SCHEDULE_PASSWORD       — app password → POST /auth/login { password }
+ *
+ * URL: SCHEDULE_FUNCTIONS_URL (or VITE_FUNCTIONS_URL)
+ * Optional file: codex.env / .codex.env (see codex.env.example)
  */
 
 import { readFileSync, writeFileSync, existsSync } from "node:fs";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
+import { loadCodexEnv } from "./loadCodexEnv.mjs";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const TOKEN_FILE = resolve(ROOT, ".schedule-token");
 
-const BASE = (process.env.SCHEDULE_FUNCTIONS_URL || "").replace(/\/$/, "");
+function baseUrl() {
+  return (process.env.SCHEDULE_FUNCTIONS_URL || process.env.VITE_FUNCTIONS_URL || "")
+    .replace(/\/$/, "");
+}
 
 function usage() {
   console.log(`Usage:
+  node scripts/schedule-api.mjs check-env
   node scripts/schedule-api.mjs login
   node scripts/schedule-api.mjs get <resource> [--from YYYY-MM-DD] [--to YYYY-MM-DD] [--limit N]
   node scripts/schedule-api.mjs manual <op> <resource> '<json-row>'
   node scripts/schedule-api.mjs apply <file.json> [--swallow]
 
-Env: SCHEDULE_FUNCTIONS_URL, SCHEDULE_PASSWORD`);
+Auth env (one of): SCHEDULE_TOKEN | SCHEDULE_API_KEY | SCHEDULE_PASSWORD
+URL env: SCHEDULE_FUNCTIONS_URL`);
 }
 
-function loadToken() {
+function loadTokenFile() {
   if (!existsSync(TOKEN_FILE)) return null;
   return readFileSync(TOKEN_FILE, "utf8").trim() || null;
 }
 
-function saveToken(token) {
+function saveTokenFile(token) {
   writeFileSync(TOKEN_FILE, token, "utf8");
 }
 
+async function fetchToken() {
+  const fromEnv = process.env.SCHEDULE_TOKEN?.trim();
+  if (fromEnv) return fromEnv;
+
+  const cached = loadTokenFile();
+  if (cached) return cached;
+
+  const apiKey = process.env.SCHEDULE_API_KEY?.trim();
+  if (apiKey) {
+    const { token } = await api("auth/login", { api_key: apiKey }, { auth: false });
+    return token;
+  }
+
+  const password = process.env.SCHEDULE_PASSWORD?.trim();
+  if (password) {
+    const { token } = await api("auth/login", { password }, { auth: false });
+    return token;
+  }
+
+  return null;
+}
+
 async function api(endpoint, body, { auth = true } = {}) {
+  const BASE = baseUrl();
   if (!BASE) throw new Error("Set SCHEDULE_FUNCTIONS_URL");
   const headers = { "content-type": "application/json" };
   if (auth) {
-    const token = loadToken();
-    if (!token) throw new Error("No token — run: node scripts/schedule-api.mjs login");
+    const token = await fetchToken();
+    if (!token) {
+      throw new Error(
+        "No auth — set SCHEDULE_TOKEN, SCHEDULE_API_KEY, or SCHEDULE_PASSWORD (or run: login)",
+      );
+    }
     headers.authorization = `Bearer ${token}`;
   }
   const res = await fetch(`${BASE}/${endpoint}`, {
@@ -64,10 +102,13 @@ async function api(endpoint, body, { auth = true } = {}) {
 }
 
 async function login() {
-  const password = process.env.SCHEDULE_PASSWORD;
-  if (!password) throw new Error("Set SCHEDULE_PASSWORD (= APP_PASSWORD in Supabase)");
-  const { token } = await api("auth/login", { password }, { auth: false });
-  saveToken(token);
+  const token = await fetchToken();
+  if (!token) {
+    throw new Error(
+      "Set SCHEDULE_PASSWORD, SCHEDULE_API_KEY, or SCHEDULE_TOKEN before login",
+    );
+  }
+  saveTokenFile(token);
   console.log("OK — token saved to .schedule-token");
 }
 
@@ -85,10 +126,18 @@ function parseFlags(argv) {
 }
 
 async function main() {
+  loadCodexEnv();
+
   const [cmd, ...argv] = process.argv.slice(2);
   if (!cmd) {
     usage();
     process.exit(1);
+  }
+
+  if (cmd === "check-env") {
+    const { envStatus } = await import("./loadCodexEnv.mjs");
+    console.log(JSON.stringify(envStatus(), null, 2));
+    return;
   }
 
   if (cmd === "login") {
