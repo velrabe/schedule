@@ -15,6 +15,7 @@ import { readFileSync, writeFileSync, existsSync } from "node:fs";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { loadCodexEnv } from "./loadCodexEnv.mjs";
+import { httpPost } from "./httpTransport.mjs";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const TOKEN_FILE = resolve(ROOT, ".schedule-token");
@@ -46,12 +47,6 @@ function saveTokenFile(token) {
 }
 
 async function fetchToken() {
-  const fromEnv = process.env.SCHEDULE_TOKEN?.trim();
-  if (fromEnv) return fromEnv;
-
-  const cached = loadTokenFile();
-  if (cached) return cached;
-
   const apiKey = process.env.SCHEDULE_API_KEY?.trim();
   if (apiKey) {
     const { token } = await api("auth/login", { api_key: apiKey }, { auth: false });
@@ -71,8 +66,9 @@ async function api(endpoint, body, { auth = true } = {}) {
   const BASE = baseUrl();
   if (!BASE) throw new Error("Set SCHEDULE_FUNCTIONS_URL");
   const headers = { "content-type": "application/json" };
+  let token = null;
   if (auth) {
-    const token = await fetchToken();
+    token = await fetchTokenForRequest();
     if (!token) {
       throw new Error(
         "No auth — set SCHEDULE_TOKEN, SCHEDULE_API_KEY, or SCHEDULE_PASSWORD (or run: login)",
@@ -80,25 +76,16 @@ async function api(endpoint, body, { auth = true } = {}) {
     }
     headers.authorization = `Bearer ${token}`;
   }
-  const res = await fetch(`${BASE}/${endpoint}`, {
-    method: "POST",
-    headers,
-    body: body != null ? JSON.stringify(body) : undefined,
-  });
-  const text = await res.text();
-  let data;
-  try {
-    data = text ? JSON.parse(text) : null;
-  } catch {
-    data = text;
-  }
-  if (!res.ok) {
-    const err = new Error(`HTTP ${res.status}`);
-    err.status = res.status;
-    err.body = data;
-    throw err;
-  }
-  return data;
+  return await httpPost(`${BASE}/${endpoint}`, { headers, body });
+}
+
+/** Token for api(); login calls use api() with auth:false. */
+async function fetchTokenForRequest() {
+  const fromEnv = process.env.SCHEDULE_TOKEN?.trim();
+  if (fromEnv) return fromEnv;
+  const cached = loadTokenFile();
+  if (cached) return cached;
+  return await fetchToken();
 }
 
 async function login() {

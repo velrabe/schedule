@@ -59,6 +59,8 @@ URL подставится сам из `schedule.project.ref`, если `SCHEDUL
 
 Первый шаг в задаче: `node scripts/codex-check.mjs` → затем `get` / `apply`.
 
+**Codex + `fetch failed`:** в setup/maintenance добавь `export SCHEDULE_USE_CURL=1` — CLI сам ходит через `curl -4` (или авто-fallback после ошибки fetch).
+
 Локальный фронт: `apps/web/.env.local` — `VITE_FUNCTIONS_URL`, … (см. `.env.example`).
 
 Часовой пояс логов: **Asia/Ho_Chi_Minh** (UTC+7).

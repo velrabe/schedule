@@ -9,6 +9,7 @@ set -euo pipefail
 
 export SCHEDULE_FUNCTIONS_URL="${SCHEDULE_FUNCTIONS_URL:-https://YOUR-PROJECT-REF.functions.supabase.co}"
 export SCHEDULE_API_KEY="PASTE_AGENT_API_KEY"
+export SCHEDULE_USE_CURL=1
 
 # Optional fallbacks:
 # export SCHEDULE_PASSWORD="..."
