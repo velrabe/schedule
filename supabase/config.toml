@@ -39,3 +39,6 @@ verify_jwt = false
 
 [functions.manual]
 verify_jwt = false
+
+[functions.agent]
+verify_jwt = false

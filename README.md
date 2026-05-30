@@ -28,6 +28,9 @@ schedule/
 │   │   ├── auth/           # POST /auth/login → JWT
 │   │   ├── chat/           # POST /chat → calls Gemini, returns proposed actions
 │   │   ├── confirm/        # POST /confirm → writes confirmed actions to DB
+│   │   ├── manual/         # POST /manual → direct CRUD (dashboard + Codex)
+│   │   ├── data/           # POST /data → read API
+│   │   ├── agent/          # POST /agent → batch actions without Gemini
 │   │   └── _shared/        # jwt, gemini, db, rules, cors helpers
 │   └── config.toml
 ├── rules/                  # Markdown rulesets per domain (future: bundled into functions)
@@ -185,6 +188,19 @@ There is **no** reliable “unlimited free” vision API for production. All hos
 - All subsequent `fetch` to edge functions include `Authorization: Bearer <token>`.
 - Each protected edge function (`chat`, `confirm`) calls `requireAuth()` which verifies the token.
 - "Logout" = clear localStorage (token can't be revoked server-side because there's no session table; this is intentional simplicity for a one-user app).
+
+## Codex / agents (without CI or Gemini)
+
+See **[AGENTS.md](./AGENTS.md)**. Summary:
+
+- **`POST /manual`** — insert/update/delete one row (same as dashboard editors).
+- **`POST /data`** — read days, sessions, meals, finance, …
+- **`POST /agent`** — apply `actions[]` (same schema as chat → confirm, no LLM).
+- CLI: `node scripts/schedule-api.mjs login|get|manual|apply`.
+
+SQL migrations remain for large one-off imports; day-to-day logging → API.
+
+---
 
 ## How chat works
 
