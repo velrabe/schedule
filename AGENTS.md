@@ -46,9 +46,16 @@ node scripts/schedule-api.mjs apply plan.json
 | `SCHEDULE_PASSWORD` | Codex env | = `APP_PASSWORD` в Supabase |
 | `codex.env` | файл в корне репо | см. `codex.env.example` (в `.gitignore`) |
 
-### Codex: Secrets часто НЕ попадают в shell
+### Codex: Secrets / Environment variables часто НЕ попадают в shell
 
-Если `printenv | rg SCHEDULE` пусто — добавь переменные в **Environment variables** (не только Secrets), перезапусти сессию, или положи `codex.env` в `/workspace/schedule/`.
+Если `printenv | rg SCHEDULE` пусто — **это нормально для Codex**. Рабочие варианты (по надёжности):
+
+1. **Custom Setup script** (лучший): Codex → Environment → Setup script → **Custom** → вставь `scripts/codex-setup.sh`, замени `PASTE_AGENT_API_KEY` на ключ (= Supabase `AGENT_API_KEY`). **Новая сессия** после сохранения.
+2. **Файл `agent.api.key`** в корне workspace: одна строка = API key (в `.gitignore`, не коммитить).
+3. **`codex.env`** в корне (см. `codex.env.example`).
+4. Environment variables в UI Codex — только если после рестарта `codex-check` показывает `set`.
+
+URL подставится сам из `schedule.project.ref`, если `SCHEDULE_FUNCTIONS_URL` не задан.
 
 Первый шаг в задаче: `node scripts/codex-check.mjs` → затем `get` / `apply`.
 

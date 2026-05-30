@@ -13,7 +13,9 @@ const hasAuth = Boolean(
 );
 
 if (!hasUrl) {
-  console.error("\nMissing SCHEDULE_FUNCTIONS_URL — add in Codex Environment variables (not only Secrets).");
+  console.error(
+    "\nMissing SCHEDULE_FUNCTIONS_URL — add schedule.project.ref in repo, Codex Custom setup script, or codex.env.",
+  );
   process.exit(1);
 }
 if (!hasAuth) {

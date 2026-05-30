@@ -53,6 +53,37 @@ function assignIfEmpty(key, value) {
   }
 }
 
+function defaultFunctionsUrl() {
+  const ref = (
+    process.env.SCHEDULE_PROJECT_REF ||
+    readSecretFile(resolve(ROOT, "schedule.project.ref")) ||
+    ""
+  ).trim();
+  if (!ref) return null;
+  return `https://${ref}.functions.supabase.co`;
+}
+
+function scanSecretDirs() {
+  const names = [
+    ["SCHEDULE_API_KEY", "SCHEDULE_API_KEY"],
+    ["SCHEDULE_API_KEY", "AGENT_API_KEY"],
+    ["SCHEDULE_PASSWORD", "SCHEDULE_PASSWORD"],
+    ["SCHEDULE_TOKEN", "SCHEDULE_TOKEN"],
+    ["SCHEDULE_FUNCTIONS_URL", "SCHEDULE_FUNCTIONS_URL"],
+  ];
+  const dirs = [
+    process.env.CODEX_SECRETS_PATH,
+    "/run/secrets",
+    "/var/run/secrets",
+    resolve(ROOT, ".secrets"),
+  ].filter(Boolean);
+  for (const dir of dirs) {
+    for (const [envKey, fileName] of names) {
+      assignIfEmpty(envKey, readSecretFile(resolve(dir, fileName)));
+    }
+  }
+}
+
 /** Call once at CLI startup. */
 export function loadCodexEnv() {
   const extra = process.env.SCHEDULE_ENV_FILE;
@@ -62,26 +93,28 @@ export function loadCodexEnv() {
     loadEnvFile(resolve(ROOT, name));
   }
 
+  scanSecretDirs();
+
   assignIfEmpty(
     "SCHEDULE_FUNCTIONS_URL",
-    process.env.VITE_FUNCTIONS_URL || process.env.SCHEDULE_FUNCTIONS_URL,
+    process.env.VITE_FUNCTIONS_URL ||
+      process.env.SCHEDULE_FUNCTIONS_URL ||
+      defaultFunctionsUrl(),
   );
 
   assignIfEmpty(
     "SCHEDULE_PASSWORD",
-    readSecretFile("/run/secrets/SCHEDULE_PASSWORD") ||
-      readSecretFile(resolve(ROOT, ".secrets/SCHEDULE_PASSWORD")),
+    readSecretFile(resolve(ROOT, ".secrets/SCHEDULE_PASSWORD")),
   );
 
   assignIfEmpty(
     "SCHEDULE_API_KEY",
-    readSecretFile("/run/secrets/SCHEDULE_API_KEY") ||
-      readSecretFile("/run/secrets/AGENT_API_KEY"),
+    readSecretFile(resolve(ROOT, "agent.api.key")),
   );
 
   assignIfEmpty(
     "SCHEDULE_TOKEN",
-    readSecretFile("/run/secrets/SCHEDULE_TOKEN"),
+    readSecretFile(resolve(ROOT, ".schedule-token")),
   );
 }
 
@@ -99,5 +132,10 @@ export function envStatus() {
     out[k] = v ? `set (${String(v).length} chars)` : "missing";
   }
   out.codex_env = existsSync(resolve(ROOT, "codex.env")) ? "found" : "missing";
+  out.agent_api_key_file = existsSync(resolve(ROOT, "agent.api.key")) ? "found" : "missing";
+  out.schedule_project_ref = existsSync(resolve(ROOT, "schedule.project.ref"))
+    ? "found"
+    : "missing";
+  out.default_url_without_env = defaultFunctionsUrl() ? "yes" : "no";
   return out;
 }

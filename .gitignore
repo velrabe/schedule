@@ -8,6 +8,7 @@ dist/
 codex.env
 .codex.env
 .secrets/
+agent.api.key
 .env.*.local
 .vite/
 .turbo/
