@@ -100,6 +100,9 @@ export function kcalOutBreakdown(date, activities = [], sessionEvents = [], sess
   }
 
   for (const { session: s, kcal, label } of sportSessions) {
+    const envelope = sessionToSportEv(s);
+    const m = sportMetricsForEvent(envelope, activities);
+    if (m.linkedActivity?.id && activityIdsShown.has(m.linkedActivity.id)) continue;
     outRows.push({
       kind: "session",
       record: s,
