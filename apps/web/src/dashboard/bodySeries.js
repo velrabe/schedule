@@ -214,12 +214,26 @@ export function periodStats(points, valueKey) {
 }
 
 export const BODY_METRIC_TABS = [
-  { id: "weight_kg", label: "Вес", unit: "кг", decimals: 1, verifiedKey: "weight_verified" },
-  { id: "bmi", label: "BMI", unit: "", decimals: 1, verifiedKey: null },
-  { id: "bf_pct", label: "% жира", unit: "%", decimals: 1, verifiedKey: "bf_verified" },
-  { id: "muscle_mass_kg", label: "Мышцы", unit: "кг", decimals: 1, verifiedKey: "muscle_verified" },
-  { id: "bmr_kcal", label: "BMR", unit: "ккал", decimals: 0, verifiedKey: null },
-  { id: "tdee_kcal", label: "TDEE", unit: "ккал", decimals: 0, verifiedKey: null },
+  {
+    id: "weight_kg",
+    label: "Вес",
+    unit: "кг",
+    decimals: 1,
+    verifiedKey: "weight_verified",
+    yMargin: 10,
+  },
+  { id: "bmi", label: "BMI", unit: "", decimals: 1, verifiedKey: null, yMargin: 1 },
+  { id: "bf_pct", label: "% жира", unit: "%", decimals: 1, verifiedKey: "bf_verified", yMargin: 2 },
+  {
+    id: "muscle_mass_kg",
+    label: "Мышцы",
+    unit: "кг",
+    decimals: 1,
+    verifiedKey: "muscle_verified",
+    yMargin: 3,
+  },
+  { id: "bmr_kcal", label: "BMR", unit: "ккал", decimals: 0, verifiedKey: null, yMargin: 120 },
+  { id: "tdee_kcal", label: "TDEE", unit: "ккал", decimals: 0, verifiedKey: null, yMargin: 150 },
 ];
 
 export { METRIC_KEYS, ACTIVITY_WINDOW_DAYS };

@@ -1,4 +1,5 @@
 import { h } from "preact";
+import { chartYDomain } from "./insightsCharts.jsx";
 import { useCallback, useMemo, useRef, useState } from "preact/hooks";
 import htm from "htm";
 
@@ -58,6 +59,7 @@ export default function BodyTrendChart({
   decimals = 1,
   color = "var(--info)",
   targetValue = null,
+  yMargin,
 }) {
   const svgRef = useRef(null);
   const wrapRef = useRef(null);
@@ -82,17 +84,11 @@ export default function BodyTrendChart({
     const innerW = W - padL - padR;
     const innerH = H - padT - padB;
 
-    let maxV = Math.max(...vals);
-    let minV = Math.min(...vals);
+    const domainVals = [...vals];
     if (targetValue != null && Number.isFinite(targetValue)) {
-      maxV = Math.max(maxV, targetValue);
-      minV = Math.min(minV, targetValue);
+      domainVals.push(targetValue);
     }
-    const span = maxV - minV;
-    const padY = span > 0 ? span * 0.12 : Math.max(Math.abs(maxV) * 0.05, 0.5);
-    const yMax = maxV + padY;
-    const yMin = minV - padY;
-    const range = yMax - yMin || 1;
+    const { yMin, yMax, range } = chartYDomain(domainVals, { margin: yMargin });
 
     const xStep = innerW / Math.max(n - 1, 1);
     const xAt = (i) => padL + i * xStep;
@@ -104,7 +100,7 @@ export default function BodyTrendChart({
     const labelEvery = Math.max(1, Math.ceil(n / 8));
 
     return { W, H, padL, padR, padT, innerH, n, xAt, yAt, yMin, ticks, labelEvery, xStep, baseY };
-  }, [dates, values, targetValue]);
+  }, [dates, values, targetValue, yMargin]);
 
   const indexFromSvgX = useCallback(
     (svgX) => {

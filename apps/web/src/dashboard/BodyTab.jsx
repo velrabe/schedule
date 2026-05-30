@@ -309,6 +309,7 @@ export default function BodyTab({
           unit=${activeTab.unit ? ` ${activeTab.unit}` : ""}
           decimals=${activeTab.decimals}
           color="var(--info)"
+          yMargin=${activeTab.yMargin}
         />
       </div>
 
@@ -380,6 +381,7 @@ export default function BodyTab({
                   ? html`
                       <${InsightsLineChart}
                         dates=${pts.map((p) => p.date)}
+                        yMargin=${tab.yMargin}
                         series=${[
                           {
                             key: tab.id,

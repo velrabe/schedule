@@ -26,6 +26,39 @@ function fmtAxisY(v) {
   return Math.abs(n) >= 10 ? String(Math.round(n)) : n.toFixed(1);
 }
 
+/**
+ * Y-axis from data min/max plus margin. Zero is not forced unless `includeZero`.
+ */
+export function chartYDomain(
+  vals,
+  { margin, includeZero = false, floorAtZero = true, minMargin = 1 } = {},
+) {
+  const finite = vals.filter((v) => v != null && Number.isFinite(v));
+  if (!finite.length) return { yMin: 0, yMax: 1, range: 1 };
+
+  let minV = Math.min(...finite);
+  let maxV = Math.max(...finite);
+  if (includeZero) {
+    minV = Math.min(minV, 0);
+    maxV = Math.max(maxV, 0);
+  }
+  const span = maxV - minV;
+  const pad =
+    margin != null && Number.isFinite(margin)
+      ? margin
+      : span > 0
+        ? Math.max(span * 0.08, minMargin)
+        : minMargin;
+
+  let yMin = minV - pad;
+  const yMax = maxV + pad;
+  if (floorAtZero && !includeZero && minV >= 0) {
+    yMin = Math.max(0, yMin);
+  }
+  const range = yMax - yMin || 1;
+  return { yMin, yMax, range };
+}
+
 function linePath(data, xAt, yAt) {
   const parts = [];
   for (let i = 0; i < data.length; i++) {
@@ -44,7 +77,14 @@ function linePath(data, xAt, yAt) {
  * @param {{ key: string, label: string, color: string, data: (number|null)[], unit?: string, formatValue?: (v:number)=>string }[]} series
  * @param {(date: string, index: number) => string[]} [extraLines]
  */
-export function InsightsLineChart({ dates = [], series = [], extraLines, hint }) {
+export function InsightsLineChart({
+  dates = [],
+  series = [],
+  extraLines,
+  hint,
+  yMargin,
+  includeZero = false,
+}) {
   const svgRef = useRef(null);
   const wrapRef = useRef(null);
   const [hoverIdx, setHoverIdx] = useState(-1);
@@ -66,13 +106,10 @@ export function InsightsLineChart({ dates = [], series = [], extraLines, hint })
     const vals = series.flatMap((s) => s.data).filter((v) => v != null && Number.isFinite(v));
     if (!vals.length) return null;
 
-    const maxV = Math.max(...vals, 0);
-    const minV = Math.min(...vals, 0);
-    const span = maxV - minV;
-    const padY = span > 0 ? span * 0.08 : 1;
-    const yMax = maxV + padY;
-    const yMin = Math.min(minV - padY, 0);
-    const range = yMax - yMin || 1;
+    const { yMin, yMax, range } = chartYDomain(vals, {
+      margin: yMargin,
+      includeZero,
+    });
 
     const xStep = innerW / Math.max(n - 1, 1);
     const xAt = (i) => padL + i * xStep;
@@ -83,7 +120,7 @@ export function InsightsLineChart({ dates = [], series = [], extraLines, hint })
     const labelEvery = Math.max(1, Math.ceil(n / 8));
 
     return { W, H, padL, padR, padT, innerH, n, xAt, yAt, yMin, ticks, labelEvery, xStep };
-  }, [dates, series]);
+  }, [dates, series, yMargin, includeZero]);
 
   const indexFromSvgX = useCallback(
     (svgX) => {
