@@ -357,7 +357,7 @@
   display: flex;
   flex-direction: column;
   width: 100%;
-  gap: 2px;
+  gap: 6px;
   margin-top: 4px;
 }
 
@@ -372,94 +372,130 @@
   font-family: var(--mono);
 }
 
-.cal-detail-session {
+/* Shared compact session layout (calendar detail + kanban cards) */
+.session-compact-inner-wrap {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  gap: 4px;
+}
+
+.session-compact-head-wrap {
+  display: flex;
+  flex-direction: row;
+  align-items: baseline;
+  width: 100%;
+  gap: 8px;
+}
+
+.session-compact-time-wrap {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  flex: 0 0 auto;
+  gap: 4px;
+}
+
+.session-compact__sep {
+  font-size: 10px;
+  font-family: var(--mono);
+  color: var(--text-3);
+}
+
+.session-compact__time {
+  font-size: 10px;
+  font-family: var(--mono);
+  color: var(--text-2);
+}
+
+.session-compact__cat {
+  font-size: 10px;
+  font-family: var(--mono);
+  font-weight: 600;
+  color: var(--text);
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.session-compact-body-wrap {
   display: flex;
   flex-direction: row;
   flex-wrap: wrap;
   align-items: baseline;
   width: 100%;
-  padding: 6px 0;
-  border-bottom: 1px solid var(--border);
+  gap: 6px;
 }
 
-.cal-detail-session-time-wrap {
+.session-compact__proj {
+  font-size: 10px;
+  color: var(--text);
+  flex: 0 1 auto;
+  min-width: 0;
+}
+
+.session-compact__trail {
+  font-size: 10px;
+  color: var(--text-3);
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.session-compact-parts-wrap {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  gap: 3px;
+  padding: 4px 0 0 8px;
+  border-left: 2px solid var(--border);
+}
+
+.session-compact-part-wrap {
   display: flex;
   flex-direction: row;
-  align-items: center;
-  margin-right: 10px;
+  flex-wrap: wrap;
+  align-items: baseline;
+  width: 100%;
+  gap: 6px;
 }
 
-.cal-detail-session__sep {
-  margin: 0 4px;
-  font-size: 11px;
+.session-compact-part__time {
+  font-size: 9px;
   font-family: var(--mono);
   color: var(--text-3);
+  flex: 0 0 auto;
 }
 
-.cal-detail-session:last-child {
-  border-bottom: none;
-}
-
-.cal-detail-session__time {
-  font-size: 11px;
-  font-family: var(--mono);
+.session-compact-part__label {
+  font-size: 9px;
   color: var(--text-2);
+  flex: 1 1 auto;
+  min-width: 0;
 }
 
-.cal-detail-session__cat {
-  font-size: 11px;
+.session-compact-part__exp {
+  font-size: 9px;
   font-family: var(--mono);
-  color: var(--text);
-}
-
-.cal-detail-session__proj {
-  font-size: 11px;
-  color: var(--text-2);
-}
-
-.cal-detail-session__note {
-  font-size: 11px;
   color: var(--text-3);
+  flex: 0 0 auto;
 }
 
 .cal-detail-session-block-wrap {
   display: flex;
   flex-direction: column;
   width: 100%;
+  border-bottom: 1px solid var(--border);
 }
 
-.cal-detail-session-parts-wrap {
-  display: flex;
+.cal-detail-session-block-wrap:last-child {
+  border-bottom: none;
+}
+
+.record-open-row.cal-detail-session {
   flex-direction: column;
+  align-items: stretch;
   width: 100%;
-  padding: 0 0 6px 12px;
-  gap: 2px;
-}
-
-.cal-detail-session-part-wrap {
-  display: flex;
-  flex-direction: row;
-  flex-wrap: wrap;
-  align-items: baseline;
-  width: 100%;
-  gap: 8px;
-}
-
-.cal-detail-session-part__time {
-  font-size: 10px;
-  font-family: var(--mono);
-  color: var(--text-3);
-}
-
-.cal-detail-session-part__label {
-  font-size: 10px;
-  color: var(--text-2);
-}
-
-.cal-detail-session-part__exp {
-  font-size: 10px;
-  font-family: var(--mono);
-  color: var(--text-3);
+  padding: 6px 8px;
+  border-radius: 4px;
 }
 
 .events-tab-hint-wrap {
@@ -629,7 +665,7 @@
   flex-direction: column;
   width: 100%;
   padding: 6px;
-  gap: 4px;
+  gap: 6px;
   overflow-y: auto;
 }
 
@@ -649,8 +685,8 @@
   display: flex;
   flex-direction: column;
   width: 100%;
-  padding: 5px 7px;
-  gap: 1px;
+  padding: 6px 8px;
+  gap: 0;
   border-radius: 4px;
   background: var(--bg);
   border: 1px solid var(--border);
@@ -698,42 +734,29 @@
   border-left-color: #6b6bd5;
 }
 
-.kanban-card__time-wrap {
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  justify-content: space-between;
-  width: 100%;
-}
-
-.kanban-card__time {
-  font-size: 10px;
-  font-family: var(--mono);
-  color: var(--text-2);
-}
-
 .kanban-card__dur {
   font-size: 9px;
   font-family: var(--mono);
   color: var(--text-3);
+  flex: 0 0 auto;
+  margin-left: auto;
 }
 
-.kanban-card__cat {
-  font-size: 10px;
-  font-family: var(--mono);
-  font-weight: 600;
-  color: var(--text);
+.kanban-card .session-compact__time {
+  font-size: 9px;
 }
 
-.kanban-card__proj {
-  font-size: 10px;
-  color: var(--text-2);
+.kanban-card .session-compact__cat {
+  font-size: 9px;
 }
 
-.kanban-card__note {
-  font-size: 10px;
-  color: var(--text-3);
-  line-height: 1.3;
+.kanban-card .session-compact__proj,
+.kanban-card .session-compact__trail {
+  font-size: 9px;
+}
+
+.kanban-card .session-compact-parts-wrap {
+  padding-left: 6px;
 }
 
 /* button-styled card so the click target is the whole element */
@@ -1822,9 +1845,11 @@ button.kanban-card:hover {
   display: flex;
   flex-direction: column;
   width: 100%;
-  gap: 2px;
+  gap: 4px;
+  padding: 6px 8px;
   font-size: 11px;
   font-family: var(--mono);
+  border-radius: 4px;
 }
 
 .finance-tx-row--transfer .finance-tx-amount {
@@ -3161,8 +3186,6 @@ button.kanban-card:hover {
   align-items: center;
 }
 
-.record-open-row.cal-detail-session {
-  flex-direction: row;
-  flex-wrap: wrap;
-  align-items: baseline;
+.record-open-row.cal-detail-session:hover {
+  border-radius: 4px;
 }

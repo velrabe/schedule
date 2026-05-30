@@ -419,7 +419,17 @@ function App(props = {}) {
         setDays=${setDays}
         onOpenRecord=${openRecordEditor}
       />`}
-      ${tab === "kanban" && html`<${KanbanTab} days=${days} sessions=${sessions} meals=${mergedMeals} activities=${liveData?.activities || []} setSessions=${setSessions} liveMode=${Boolean(liveData)} active=${true} />`}
+      ${tab === "kanban" && html`<${KanbanTab}
+        days=${days}
+        sessions=${sessions}
+        meals=${mergedMeals}
+        activities=${liveData?.activities || []}
+        sessionEvents=${liveData?.raw?.session_events || []}
+        finance=${liveData?.finance || []}
+        setSessions=${setSessions}
+        liveMode=${Boolean(liveData)}
+        active=${true}
+      />`}
       ${tab === "nutrition" &&
       html`<${NutritionTab}
         days=${days}
@@ -2009,6 +2019,54 @@ function CalendarTab({
   `;
 }
 
+/** Compact session row: time + category, project/note, optional session_events parts. */
+function SessionCompactContent({ session: s, sessionEvents = [], finance = [], suffix = null }) {
+  const parts = childEventsForSession(s.id, sessionEvents);
+  const showParts = parts.length > 0;
+  const exp = showParts ? [] : expensesForSession(s.id, finance);
+  const trailNote = s.note || "";
+  const trailExp = !showParts && exp.length ? fmtExpensesShort(exp) : "";
+  const trail = [trailNote, trailExp].filter(Boolean).join(trailNote && trailExp ? " · " : "");
+  const hasBody = Boolean(s.project || trail);
+
+  return html`
+    <div class="session-compact-inner-wrap">
+      <div class="session-compact-head-wrap">
+        <div class="session-compact-time-wrap">
+          <span class="session-compact__time">${s.start}</span>
+          <span class="session-compact__sep">–</span>
+          <span class="session-compact__time">${s.end}</span>
+        </div>
+        <span class="session-compact__cat">${s.category}</span>
+        ${suffix}
+      </div>
+      ${hasBody && html`
+        <div class="session-compact-body-wrap">
+          ${s.project && html`<span class="session-compact__proj">${s.project}</span>`}
+          ${trail && html`<span class="session-compact__trail">${trail}</span>`}
+        </div>
+      `}
+      ${showParts && html`
+        <div class="session-compact-parts-wrap">
+          ${parts.map((p) => {
+            const t0 = String(p.start_time || "").slice(0, 5);
+            const t1 = String(p.end_time || "").slice(0, 5);
+            const pexp = expensesForSessionEvent(p.id, finance);
+            const label = p.title || p.category || p.kind || "—";
+            return html`
+              <div class="session-compact-part-wrap" key=${p.id}>
+                <span class="session-compact-part__time">${t0}–${t1}</span>
+                <span class="session-compact-part__label">${label}</span>
+                ${pexp.length ? html`<span class="session-compact-part__exp">${fmtExpensesShort(pexp)}</span>` : ""}
+              </div>
+            `;
+          })}
+        </div>
+      `}
+    </div>
+  `;
+}
+
 function CalDetailNutriColumn({ meal, activity, slotLabel, bars = [], liveMode = false, onOpenRecord }) {
   const isAct = Boolean(activity);
   const mk = meal ? Number(meal.kcal) || 0 : 0;
@@ -2224,48 +2282,21 @@ function CalendarDayDetail({
         <span class="cal-detail-section-title">сессии</span>
         <div class="cal-detail-sessions-wrap">
           ${sorted.length === 0 && html`<div class="cal-detail-empty-wrap"><span>сессии не записаны</span></div>`}
-          ${sorted.map((s) => {
-            const parts = childEventsForSession(s.id, sessionEvents);
-            const showParts = parts.length > 0;
-            const exp = showParts
-              ? []
-              : expensesForSession(s.id, finance);
-            return html`
+          ${sorted.map((s) => html`
             <div class="cal-detail-session-block-wrap" key=${s.id}>
               <${RecordOpenRow}
                 className="cal-detail-session"
                 onOpen=${onOpenRecord ? () => onOpenRecord({ kind: "session", record: s }) : null}
                 disabled=${!liveMode}
               >
-                <div class="cal-detail-session-time-wrap">
-                  <span class="cal-detail-session__time">${s.start}</span>
-                  <span class="cal-detail-session__sep">–</span>
-                  <span class="cal-detail-session__time">${s.end}</span>
-                </div>
-                <span class="cal-detail-session__cat">${s.category}</span>
-                <span class="cal-detail-session__proj">${s.project || "—"}</span>
-                <span class="cal-detail-session__note">${s.note || ""}${!showParts && exp.length ? ` · ${fmtExpensesShort(exp)}` : ""}</span>
+                <${SessionCompactContent}
+                  session=${s}
+                  sessionEvents=${sessionEvents}
+                  finance=${finance}
+                />
               </${RecordOpenRow}>
-              ${showParts && html`
-                <div class="cal-detail-session-parts-wrap">
-                  ${parts.map((p) => {
-                    const t0 = String(p.start_time || "").slice(0, 5);
-                    const t1 = String(p.end_time || "").slice(0, 5);
-                    const pexp = expensesForSessionEvent(p.id, finance);
-                    const label = p.title || p.category || p.kind || "—";
-                    return html`
-                      <div class="cal-detail-session-part-wrap" key=${p.id}>
-                        <span class="cal-detail-session-part__time">${t0}–${t1}</span>
-                        <span class="cal-detail-session-part__label">${label}</span>
-                        ${pexp.length ? html`<span class="cal-detail-session-part__exp">${fmtExpensesShort(pexp)}</span>` : ""}
-                      </div>
-                    `;
-                  })}
-                </div>
-              `}
             </div>
-          `;
-          })}
+          `)}
         </div>
       </div>
     </div>
@@ -2295,7 +2326,17 @@ const KANBAN_CATEGORIES = [
   "sleep",
 ];
 
-function KanbanTab({ days, sessions, meals = [], activities = [], setSessions, liveMode = false, active = true }) {
+function KanbanTab({
+  days,
+  sessions,
+  meals = [],
+  activities = [],
+  sessionEvents = [],
+  finance = [],
+  setSessions,
+  liveMode = false,
+  active = true,
+}) {
   const byDate = useMemo(() => {
     const map = new Map();
     for (const d of days) map.set(d.date, d);
@@ -2505,13 +2546,12 @@ function KanbanTab({ days, sessions, meals = [], activities = [], setSessions, l
                           onClick=${() => setEditing(s.id)}
                           title="нажми, чтобы изменить"
                         >
-                          <div class="kanban-card__time-wrap">
-                            <span class="kanban-card__time">${s.start}–${s.end}</span>
-                            <span class="kanban-card__dur">${s.min}m</span>
-                          </div>
-                          <span class="kanban-card__cat">${s.category}</span>
-                          ${s.project && html`<span class="kanban-card__proj">${s.project}</span>`}
-                          ${s.note && html`<span class="kanban-card__note">${s.note}</span>`}
+                          <${SessionCompactContent}
+                            session=${s}
+                            sessionEvents=${sessionEvents}
+                            finance=${finance}
+                            suffix=${html`<span class="kanban-card__dur">${s.min}m</span>`}
+                          />
                         </button>
                       `,
                 )}
