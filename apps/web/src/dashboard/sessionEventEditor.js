@@ -58,8 +58,9 @@ export function sessionEventToForm(ev, finance = [], activities = []) {
   const label = financeHumanLabel(exp) || ev.title || "";
   const base = mapSessionEventUi({ ...ev, title: label });
   const sport = sportMetricsForEvent(ev, activities);
-  const isSport = (ev.kind || "") === "sport" || (ev.category || "").startsWith("sport_") ||
-    ev.sport_type;
+  const cat = (ev.category || "").toLowerCase();
+  const isSport = (ev.kind || "") === "sport" || cat.startsWith("sport_") ||
+    cat === "walk" || cat === "walking" || ev.sport_type;
   return {
     ...base,
     title: label,

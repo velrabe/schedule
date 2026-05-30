@@ -9,8 +9,8 @@
 //   byt          — бытовые задачи (банк-пруфы, тинькоф/капитал, weekly_planning,
 //                  отчёты по личной жизни, финансы, оформление документов).
 //   sport_*      — canonical: surf 90, pickleball 90, muay_thai 60, bouldering 60,
-//                  gym 90, run 40 (variable), hike variable, swim 30, walk variable.
-//   walk, chill, food, chores, shower, transport, sleep, social — life buckets.
+//                  gym 90, run 40 (variable), hike variable, swim 30, sport_walk variable.
+//   chill, food, chores, shower, transport, sleep, social — life buckets (прогулка = sport_walk).
 
 export const SESSIONS = [
   // 2026-04-20 Mon, 0 mg — wake 10:00, sleep 02:00
@@ -27,7 +27,7 @@ export const SESSIONS = [
   { date: "2026-04-20", start: "19:30", end: "20:00", min: 30, category: "chill", project: "break", quality: null, note: "" },
   { date: "2026-04-20", start: "20:00", end: "21:00", min: 60, category: "personal", project: "portfolio", quality: null, note: "блок 3" },
   { date: "2026-04-20", start: "21:00", end: "21:30", min: 30, category: "chill", project: "break", quality: null, note: "" },
-  { date: "2026-04-20", start: "21:30", end: "23:00", min: 90, category: "walk", project: "", quality: null, note: "" },
+  { date: "2026-04-20", start: "21:30", end: "23:00", min: 90, category: "sport_walk", project: "", quality: null, note: "" },
   { date: "2026-04-20", start: "23:00", end: "00:00", min: 60, category: "sport_gym", project: "", quality: null, note: "сплит из 'прогулка+спорт'" },
   { date: "2026-04-20", start: "00:00", end: "01:00", min: 60, category: "shower", project: "shower+dinner", quality: null, note: "" },
   { date: "2026-04-20", start: "01:00", end: "02:00", min: 60, category: "chill", project: "sleep prep", quality: null, note: "перед сном" },
@@ -45,7 +45,7 @@ export const SESSIONS = [
   { date: "2026-04-21", start: "19:30", end: "21:00", min: 90, category: "personal", project: "portfolio", quality: null, note: "блок 3" },
   { date: "2026-04-21", start: "21:00", end: "21:20", min: 20, category: "personal", project: "portfolio", quality: null, note: "микро-блок" },
   { date: "2026-04-21", start: "21:20", end: "22:00", min: 40, category: "work_paid", project: "pyjama", quality: null, note: "" },
-  { date: "2026-04-21", start: "22:00", end: "23:30", min: 90, category: "walk", project: "", quality: null, note: "+ лёгкий спорт по самочувствию" },
+  { date: "2026-04-21", start: "22:00", end: "23:30", min: 90, category: "sport_walk", project: "", quality: null, note: "+ лёгкий спорт по самочувствию" },
   { date: "2026-04-21", start: "23:30", end: "00:30", min: 60, category: "food", project: "dinner", quality: null, note: "" },
   { date: "2026-04-21", start: "00:30", end: "01:30", min: 60, category: "chill", project: "", quality: null, note: "" },
   { date: "2026-04-21", start: "01:30", end: "02:00", min: 30, category: "chill", project: "sleep prep", quality: null, note: "" },
@@ -63,7 +63,7 @@ export const SESSIONS = [
   { date: "2026-04-22", start: "19:00", end: "20:30", min: 90, category: "personal", project: "portfolio", quality: null, note: "блок 2 — каркас кейса" },
   { date: "2026-04-22", start: "20:30", end: "21:00", min: 30, category: "chill", project: "break", quality: null, note: "" },
   { date: "2026-04-22", start: "21:00", end: "22:00", min: 60, category: "work_paid", project: "app", quality: null, note: "" },
-  { date: "2026-04-22", start: "22:00", end: "23:30", min: 90, category: "walk", project: "", quality: null, note: "" },
+  { date: "2026-04-22", start: "22:00", end: "23:30", min: 90, category: "sport_walk", project: "", quality: null, note: "" },
   { date: "2026-04-22", start: "23:30", end: "00:30", min: 60, category: "food", project: "dinner", quality: null, note: "" },
   { date: "2026-04-22", start: "00:30", end: "01:30", min: 60, category: "chill", project: "", quality: null, note: "" },
   { date: "2026-04-22", start: "01:30", end: "02:00", min: 30, category: "work_paid", project: "pyjama", quality: null, note: "лёгкий блок перед сном" },
@@ -81,7 +81,7 @@ export const SESSIONS = [
   { date: "2026-04-26", start: "19:20", end: "19:50", min: 30, category: "chill", project: "big break", quality: null, note: "" },
   { date: "2026-04-26", start: "19:50", end: "20:00", min: 10, category: "byt", project: "warm-up", quality: null, note: "" },
   { date: "2026-04-26", start: "20:00", end: "20:50", min: 50, category: "work_paid", project: "pyjama", quality: null, note: "" },
-  { date: "2026-04-26", start: "20:50", end: "22:30", min: 100, category: "walk", project: "", quality: null, note: "" },
+  { date: "2026-04-26", start: "20:50", end: "22:30", min: 100, category: "sport_walk", project: "", quality: null, note: "" },
   { date: "2026-04-26", start: "22:30", end: "23:30", min: 60, category: "byt", project: "portfolio_planning", quality: null, note: "планирование портфолио" },
   { date: "2026-04-26", start: "23:30", end: "02:00", min: 150, category: "chill", project: "", quality: null, note: "" },
 
@@ -105,7 +105,7 @@ export const SESSIONS = [
   { date: "2026-04-27", start: "19:50", end: "20:10", min: 20, category: "chill", project: "break", quality: null, note: "" },
   { date: "2026-04-27", start: "20:10", end: "21:10", min: 60, category: "work_paid", project: "pyjama", quality: null, note: "" },
   { date: "2026-04-27", start: "21:10", end: "21:30", min: 20, category: "chill", project: "break", quality: null, note: "" },
-  { date: "2026-04-27", start: "21:30", end: "23:00", min: 90, category: "walk", project: "", quality: null, note: "" },
+  { date: "2026-04-27", start: "21:30", end: "23:00", min: 90, category: "sport_walk", project: "", quality: null, note: "" },
   { date: "2026-04-27", start: "23:00", end: "02:00", min: 180, category: "chill", project: "", quality: null, note: "перед сном" },
 
   // 2026-04-28 Tue, 75 mg — wake 08:20, sleep 02:00
@@ -121,7 +121,7 @@ export const SESSIONS = [
   { date: "2026-04-28", start: "17:30", end: "19:00", min: 90, category: "chill", project: "break", quality: null, note: "длинная пауза" },
   { date: "2026-04-28", start: "19:00", end: "19:30", min: 30, category: "chill", project: "сборы", quality: null, note: "" },
   { date: "2026-04-28", start: "19:30", end: "20:30", min: 60, category: "sport_gym", project: "", quality: null, note: "из блока 19:00–22:30" },
-  { date: "2026-04-28", start: "20:30", end: "22:00", min: 90, category: "walk", project: "", quality: null, note: "" },
+  { date: "2026-04-28", start: "20:30", end: "22:00", min: 90, category: "sport_walk", project: "", quality: null, note: "" },
   { date: "2026-04-28", start: "22:00", end: "22:30", min: 30, category: "shower", project: "", quality: null, note: "" },
   { date: "2026-04-28", start: "22:30", end: "23:00", min: 30, category: "food", project: "dinner", quality: null, note: "" },
   { date: "2026-04-28", start: "23:00", end: "23:20", min: 20, category: "work_paid", project: "pyjama", quality: null, note: "" },
@@ -150,7 +150,7 @@ export const SESSIONS = [
   { date: "2026-04-30", start: "17:40", end: "18:40", min: 60, category: "chill", project: "break (уход)", quality: null, note: "" },
   { date: "2026-04-30", start: "18:40", end: "19:50", min: 70, category: "work_paid", project: "pyjama", quality: null, note: "" },
   { date: "2026-04-30", start: "19:50", end: "21:00", min: 70, category: "personal", project: "portfolio", quality: null, note: "" },
-  { date: "2026-04-30", start: "21:00", end: "23:00", min: 120, category: "walk", project: "", quality: null, note: "" },
+  { date: "2026-04-30", start: "21:00", end: "23:00", min: 120, category: "sport_walk", project: "", quality: null, note: "" },
   { date: "2026-04-30", start: "23:00", end: "23:40", min: 40, category: "food", project: "dinner", quality: null, note: "" },
   { date: "2026-04-30", start: "23:40", end: "00:00", min: 20, category: "chill", project: "sleep prep", quality: null, note: "" },
 
@@ -191,7 +191,7 @@ export const SESSIONS = [
   { date: "2026-05-04", start: "18:20", end: "19:50", min: 90, category: "work_paid", project: "pyjama", quality: null, note: "" },
   { date: "2026-05-04", start: "19:50", end: "20:00", min: 10, category: "chill", project: "break", quality: null, note: "" },
   { date: "2026-05-04", start: "20:00", end: "21:00", min: 60, category: "sport_gym", project: "", quality: null, note: "из 'прогулка+спорт'" },
-  { date: "2026-05-04", start: "21:00", end: "22:00", min: 60, category: "walk", project: "", quality: null, note: "" },
+  { date: "2026-05-04", start: "21:00", end: "22:00", min: 60, category: "sport_walk", project: "", quality: null, note: "" },
   { date: "2026-05-04", start: "22:00", end: "22:30", min: 30, category: "shower", project: "", quality: null, note: "" },
   { date: "2026-05-04", start: "22:30", end: "23:00", min: 30, category: "food", project: "dinner", quality: null, note: "" },
   { date: "2026-05-04", start: "23:00", end: "02:00", min: 180, category: "chill", project: "перед сном", quality: null, note: "" },
@@ -206,7 +206,7 @@ export const SESSIONS = [
   { date: "2026-05-05", start: "18:00", end: "18:30", min: 30, category: "chill", project: "wake from nap", quality: null, note: "" },
   { date: "2026-05-05", start: "18:30", end: "19:30", min: 60, category: "food", project: "lunch/dinner", quality: null, note: "" },
   { date: "2026-05-05", start: "19:30", end: "22:00", min: 150, category: "chill", project: "тупняк", quality: null, note: "" },
-  { date: "2026-05-05", start: "22:00", end: "23:30", min: 90, category: "walk", project: "", quality: null, note: "" },
+  { date: "2026-05-05", start: "22:00", end: "23:30", min: 90, category: "sport_walk", project: "", quality: null, note: "" },
   { date: "2026-05-05", start: "23:30", end: "00:00", min: 30, category: "chill", project: "break", quality: null, note: "" },
   { date: "2026-05-05", start: "00:00", end: "00:30", min: 30, category: "shower", project: "", quality: null, note: "" },
   { date: "2026-05-05", start: "00:30", end: "01:00", min: 30, category: "chill", project: "sleep prep", quality: null, note: "" },
@@ -221,7 +221,7 @@ export const SESSIONS = [
   { date: "2026-05-06", start: "15:30", end: "16:30", min: 60, category: "chill", project: "break", quality: null, note: "" },
   { date: "2026-05-06", start: "16:30", end: "20:00", min: 210, category: "work_paid", project: "pyjama", quality: null, note: "длинный блок" },
   { date: "2026-05-06", start: "20:00", end: "21:00", min: 60, category: "chill", project: "break", quality: null, note: "" },
-  { date: "2026-05-06", start: "21:00", end: "23:30", min: 150, category: "walk", project: "", quality: null, note: "" },
+  { date: "2026-05-06", start: "21:00", end: "23:30", min: 150, category: "sport_walk", project: "", quality: null, note: "" },
   { date: "2026-05-06", start: "23:30", end: "00:30", min: 60, category: "food", project: "dinner", quality: null, note: "" },
   { date: "2026-05-06", start: "00:30", end: "01:00", min: 30, category: "chill", project: "sleep prep", quality: null, note: "" },
 
@@ -272,7 +272,7 @@ export const SESSIONS = [
   { date: "2026-05-11", start: "15:00", end: "18:00", min: 180, category: "social", project: "Хойан+рынок", quality: null, note: "" },
   { date: "2026-05-11", start: "18:00", end: "19:30", min: 90, category: "transport", project: "кораблики+Дананг", quality: null, note: "" },
   { date: "2026-05-11", start: "19:30", end: "21:00", min: 90, category: "food", project: "dinner", quality: null, note: "" },
-  { date: "2026-05-11", start: "21:00", end: "22:30", min: 90, category: "walk", project: "", quality: null, note: "" },
+  { date: "2026-05-11", start: "21:00", end: "22:30", min: 90, category: "sport_walk", project: "", quality: null, note: "" },
   { date: "2026-05-11", start: "22:30", end: "23:00", min: 30, category: "shower", project: "", quality: null, note: "" },
   { date: "2026-05-11", start: "23:00", end: "00:00", min: 60, category: "food", project: "обжор", quality: null, note: "" },
   { date: "2026-05-11", start: "00:00", end: "02:00", min: 120, category: "chill", project: "", quality: null, note: "" },
@@ -283,7 +283,7 @@ export const SESSIONS = [
   { date: "2026-05-12", start: "16:00", end: "19:00", min: 180, category: "byt", project: "bank_proofs", quality: null, note: "тинькоф+капитал — разблокировка карты" },
   { date: "2026-05-12", start: "19:00", end: "19:30", min: 30, category: "food", project: "lunch", quality: null, note: "" },
   { date: "2026-05-12", start: "19:30", end: "21:00", min: 90, category: "work_paid", project: "pyjama", quality: null, note: "" },
-  { date: "2026-05-12", start: "21:00", end: "22:30", min: 90, category: "walk", project: "", quality: null, note: "" },
+  { date: "2026-05-12", start: "21:00", end: "22:30", min: 90, category: "sport_walk", project: "", quality: null, note: "" },
   { date: "2026-05-12", start: "22:30", end: "23:00", min: 30, category: "shower", project: "", quality: null, note: "" },
   { date: "2026-05-12", start: "23:00", end: "23:30", min: 30, category: "chill", project: "", quality: null, note: "" },
   { date: "2026-05-12", start: "23:30", end: "00:00", min: 30, category: "food", project: "dinner", quality: null, note: "" },
@@ -312,7 +312,7 @@ export const SESSIONS = [
   { date: "2026-05-14", start: "16:00", end: "18:00", min: 120, category: "food", project: "lunch", quality: null, note: "" },
   { date: "2026-05-14", start: "18:00", end: "20:00", min: 120, category: "work_paid", project: "app", quality: null, note: "" },
   { date: "2026-05-14", start: "20:00", end: "21:00", min: 60, category: "byt", project: "weekly planning", quality: null, note: "" },
-  { date: "2026-05-14", start: "21:00", end: "22:30", min: 90, category: "walk", project: "", quality: null, note: "" },
+  { date: "2026-05-14", start: "21:00", end: "22:30", min: 90, category: "sport_walk", project: "", quality: null, note: "" },
   { date: "2026-05-14", start: "22:30", end: "23:30", min: 60, category: "chill", project: "", quality: null, note: "" },
   { date: "2026-05-14", start: "23:30", end: "01:10", min: 100, category: "food", project: "dinner", quality: null, note: "" },
   { date: "2026-05-14", start: "01:10", end: "02:00", min: 50, category: "chill", project: "sleep prep", quality: null, note: "" },
@@ -335,7 +335,7 @@ export const SESSIONS = [
 
   // 2026-05-16 Sat, 0 mg — wake 11:00, sleep 03:00
   { date: "2026-05-16", start: "11:00", end: "13:00", min: 120, category: "chill", project: "wake+morning", quality: null, note: "" },
-  { date: "2026-05-16", start: "13:00", end: "16:00", min: 180, category: "walk", project: "магазин", quality: null, note: "" },
+  { date: "2026-05-16", start: "13:00", end: "16:00", min: 180, category: "sport_walk", project: "магазин", quality: null, note: "" },
   { date: "2026-05-16", start: "16:00", end: "18:00", min: 120, category: "chill", project: "prep for walk", quality: null, note: "" },
   { date: "2026-05-16", start: "18:00", end: "22:00", min: 240, category: "social", project: "city walk+обедо-ужин", quality: null, note: "" },
   { date: "2026-05-16", start: "22:00", end: "02:00", min: 240, category: "chill", project: "", quality: null, note: "" },
@@ -351,7 +351,7 @@ export const SESSIONS = [
   { date: "2026-05-17", start: "17:00", end: "18:00", min: 60, category: "sport_pickleball", project: "", quality: null, note: "канонический пиклбол 1h" },
   { date: "2026-05-17", start: "18:00", end: "19:30", min: 90, category: "shower", project: "shower+dinner", quality: null, note: "" },
   { date: "2026-05-17", start: "19:30", end: "20:30", min: 60, category: "food", project: "dinner", quality: null, note: "" },
-  { date: "2026-05-17", start: "20:30", end: "23:00", min: 150, category: "walk", project: "мост дракона", quality: null, note: "" },
+  { date: "2026-05-17", start: "20:30", end: "23:00", min: 150, category: "sport_walk", project: "мост дракона", quality: null, note: "" },
   { date: "2026-05-17", start: "23:00", end: "00:00", min: 60, category: "chill", project: "", quality: null, note: "" },
   { date: "2026-05-17", start: "00:00", end: "01:00", min: 60, category: "chill", project: "sleep prep", quality: null, note: "" },
 
@@ -361,7 +361,7 @@ export const SESSIONS = [
   { date: "2026-05-18", start: "12:00", end: "17:30", min: 330, category: "transport", project: "trip to airport", quality: null, note: "" },
   { date: "2026-05-18", start: "17:30", end: "20:00", min: 150, category: "chill", project: "at home", quality: null, note: "" },
   { date: "2026-05-18", start: "20:00", end: "21:30", min: 90, category: "food", project: "lunch+chill", quality: null, note: "" },
-  { date: "2026-05-18", start: "21:30", end: "23:00", min: 90, category: "walk", project: "", quality: null, note: "" },
+  { date: "2026-05-18", start: "21:30", end: "23:00", min: 90, category: "sport_walk", project: "", quality: null, note: "" },
   { date: "2026-05-18", start: "23:00", end: "23:30", min: 30, category: "shower", project: "", quality: null, note: "" },
   { date: "2026-05-18", start: "23:30", end: "00:00", min: 30, category: "food", project: "dinner", quality: null, note: "" },
 ];
@@ -434,7 +434,7 @@ export const CATEGORIES = [
   "sport_gym",
   "sport_hike",
   "sport_run",
-  "walk",
+  "sport_walk",
   "chill",
   "food",
   "chores",

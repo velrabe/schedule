@@ -758,6 +758,7 @@
 .kanban-card--sport_run,
 .kanban-card--sport_hike,
 .kanban-card--sport,
+.kanban-card--sport_walk,
 .kanban-card--walk {
   border-left-color: #2db38a;
 }
@@ -3188,6 +3189,133 @@ button.kanban-card:hover {
 
 .record-drawer-delete-btn .btn__text-wrap {
   color: #c44;
+}
+
+.drawer-nav-wrap {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.drawer-nav-crumbs-wrap {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+  width: 100%;
+  gap: 4px;
+}
+
+.drawer-nav-crumb-segment-wrap {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 4px;
+}
+
+.drawer-nav-crumb-sep {
+  font-size: 10px;
+  color: var(--text-3);
+}
+
+.drawer-nav-crumb-btn {
+  display: flex;
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+}
+
+.drawer-nav-crumb-btn__text {
+  font-size: 10px;
+  font-family: var(--mono);
+  color: var(--text-2);
+  text-decoration: underline;
+}
+
+.drawer-nav-crumb-btn--current .drawer-nav-crumb-btn__text {
+  color: var(--text);
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.drawer-nav-crumb-btn:disabled {
+  cursor: default;
+}
+
+.drawer-nav-back-wrap {
+  display: flex;
+  width: 100%;
+}
+
+.drawer-nav-back-btn {
+  padding: 4px 8px;
+}
+
+.drawer-nav-links-wrap {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  gap: 4px;
+}
+
+.drawer-nav-links-title {
+  font-size: 9px;
+  font-family: var(--mono);
+  color: var(--text-3);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.drawer-nav-links-list-wrap {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  gap: 4px;
+}
+
+.drawer-nav-link-btn {
+  display: flex;
+  margin: 0;
+  padding: 4px 8px;
+  box-sizing: border-box;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: transparent;
+  cursor: pointer;
+  width: 100%;
+  text-align: left;
+}
+
+.drawer-nav-link-btn:hover:not(:disabled) {
+  border-color: var(--accent);
+}
+
+.drawer-nav-link-btn:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+
+.drawer-nav-link-btn__text {
+  font-size: 10px;
+  color: var(--text-2);
+}
+
+.drawer-nav-link-btn--inline {
+  width: auto;
+  flex: 0 0 auto;
+  margin-left: auto;
+}
+
+.session-bundle-part-links-wrap {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  gap: 4px;
+  margin-bottom: 6px;
 }
 
 .record-open-row {

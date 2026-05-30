@@ -95,14 +95,19 @@ const SPORT_CATS = new Set([
   "sport_gym",
   "sport_hike",
   "sport_run",
+  "sport_walk",
 ]);
+
+function isSportSessionCategory(cat) {
+  return SPORT_CATS.has(cat) || cat === "walk";
+}
 
 function categoryTone(cat) {
   if (cat === "work_paid") return "success";
   if (cat === "personal" || cat === "portfolio") return "info";
   if (cat === "byt" || cat === "planning") return "info";
   if (SPORT_CATS.has(cat)) return "warning";
-  if (cat === "walk") return "warning";
+  if (cat === "sport_walk" || cat === "walk") return "warning";
   if (cat === "chill" || cat === "sleep") return "danger";
   return "neutral";
 }
@@ -151,8 +156,8 @@ function aggregateDay(date, sessions) {
   const personal_h = sum((s) => s.category === "personal" || s.category === "portfolio") / 60;
   const byt_h = sum((s) => s.category === "byt" || s.category === "planning") / 60;
   const business_h = work_paid_h + personal_h + byt_h;
-  const sport_h = sum((s) => SPORT_CATS.has(s.category)) / 60;
-  const walk_h = sum((s) => s.category === "walk") / 60;
+  const sport_h = sum((s) => isSportSessionCategory(s.category)) / 60;
+  const walk_h = sum((s) => s.category === "sport_walk" || s.category === "walk") / 60;
   const social_h = sum((s) => s.category === "social") / 60;
   const chill_h = sum((s) => s.category === "chill") / 60;
   return {
@@ -265,7 +270,7 @@ function App(props = {}) {
       return "days";
     }
   });
-  const [recordEditor, setRecordEditor] = useState(null);
+  const [editorStack, setEditorStack] = useState([]);
 
   const mergedMeals = useMemo(
     () =>
@@ -275,9 +280,9 @@ function App(props = {}) {
     [liveData, sessions],
   );
 
-  const openRecordEditor = useCallback(
+  const resolveEditorTarget = useCallback(
     (target) => {
-      if (!target?.record) return;
+      if (!target?.record) return null;
       const rec = target.record;
       if (target.kind === "meal") {
         const sess =
@@ -285,17 +290,56 @@ function App(props = {}) {
             ? sessions.find((s) => s.id === rec.session_id)
             : findFoodSessionForMeal(rec, sessions);
         if (sess && (rec._synthetic || !mealHasMacroData(rec))) {
-          setRecordEditor({ kind: "session", record: sess });
-          return;
+          return { kind: "session", record: sess };
         }
       }
-      if (!rec.id && !rec._new) return;
-      if (String(rec.id || "").startsWith("session:")) return;
-      setRecordEditor(target);
+      if (!rec.id && !rec._new) return null;
+      if (String(rec.id || "").startsWith("session:")) return null;
+      return target;
     },
     [sessions],
   );
-  const closeRecordEditor = useCallback(() => setRecordEditor(null), []);
+
+  const openRecordEditor = useCallback(
+    (target) => {
+      const resolved = resolveEditorTarget(target);
+      if (!resolved) return;
+      setEditorStack([resolved]);
+    },
+    [resolveEditorTarget],
+  );
+
+  const pushRecordEditor = useCallback(
+    (target) => {
+      const resolved = resolveEditorTarget(target);
+      if (!resolved) return;
+      setEditorStack((prev) => [...prev, resolved]);
+    },
+    [resolveEditorTarget],
+  );
+
+  const popRecordEditor = useCallback(() => {
+    setEditorStack((prev) => (prev.length <= 1 ? [] : prev.slice(0, -1)));
+  }, []);
+
+  const navigateEditorStack = useCallback((index) => {
+    setEditorStack((prev) => prev.slice(0, index + 1));
+  }, []);
+
+  const closeRecordEditor = useCallback(() => setEditorStack([]), []);
+
+  const recordEditor = editorStack.length ? editorStack[editorStack.length - 1] : null;
+
+  const drawerNavCtx = useMemo(
+    () => ({
+      sessions,
+      sessionEvents: liveData?.raw?.session_events || [],
+      meals: mergedMeals,
+      activities: liveData?.activities || [],
+      finance: liveData?.finance || [],
+    }),
+    [sessions, liveData, mergedMeals],
+  );
 
   // When liveData changes (e.g. after a chat confirm), refresh local state.
   useEffect(() => {
@@ -432,6 +476,7 @@ function App(props = {}) {
         setSessions=${setSessions}
         liveMode=${Boolean(liveData)}
         active=${true}
+        onOpenRecord=${openRecordEditor}
       />`}
       ${tab === "nutrition" &&
       html`<${NutritionTab}
@@ -467,8 +512,12 @@ function App(props = {}) {
 
       <${RecordEditDrawer}
         target=${recordEditor}
+        stack=${editorStack}
+        navCtx=${drawerNavCtx}
         onClose=${closeRecordEditor}
-        onSwitchTarget=${setRecordEditor}
+        onBack=${popRecordEditor}
+        onNavigateStack=${navigateEditorStack}
+        onSwitchTarget=${pushRecordEditor}
         liveMode=${Boolean(liveData)}
         setSessions=${setSessions}
         sessions=${sessions}
@@ -1550,7 +1599,7 @@ function InsightsTab({ days, sessions }) {
     const dayHasMorningSport = (date) =>
       sessions.some(
         (s) =>
-          s.date === date && SPORT_CATS.has(s.category) && s.start < "12:00",
+          s.date === date && isSportSessionCategory(s.category) && s.start < "12:00",
       );
     const morning = enriched.filter((d) => dayHasMorningSport(d.date));
     const noMorning = enriched.filter((d) => !dayHasMorningSport(d.date));
@@ -2321,7 +2370,7 @@ const KANBAN_CATEGORIES = [
   "sport_gym",
   "sport_run",
   "sport_hike",
-  "walk",
+  "sport_walk",
   "chill",
   "food",
   "chores",
@@ -2342,6 +2391,7 @@ function KanbanTab({
   setSessions,
   liveMode = false,
   active = true,
+  onOpenRecord,
 }) {
   const byDate = useMemo(() => {
     const map = new Map();
@@ -2396,7 +2446,6 @@ function KanbanTab({
     return map;
   }, [activities]);
 
-  const [editing, setEditing] = useState(null);
   const [adding, setAdding] = useState(null);
   const [saving, setSaving] = useState(false);
   const [copiedDate, setCopiedDate] = useState(null);
@@ -2424,38 +2473,6 @@ function KanbanTab({
       }
     },
     [byDate, sessions, sessionEvents, meals, activities, substances, finance],
-  );
-
-  const onSaveEdit = useCallback(
-    async (id, patch) => {
-      const orig = sessions.find((x) => x.id === id);
-      if (!orig) return;
-      const next = { ...orig, ...patch };
-      next.min = diffMinutes(next.start, next.end);
-      // optimistic local update
-      setSessions((prev) => prev.map((x) => (x.id === id ? next : x)));
-      setEditing(null);
-      if (!liveMode) return;
-      setSaving(true);
-      try {
-        const { updateRow, notifyDataChanged } = await import("../api/manual");
-        await updateRow("sessions", id, {
-          date: next.date,
-          start_time: next.start,
-          end_time: next.end,
-          duration_min: next.min,
-          category: next.category || null,
-          project: next.project || null,
-          notes: next.note || null,
-        });
-        notifyDataChanged();
-      } catch (e) {
-        alert(`Не удалось сохранить: ${e?.message || e}`);
-      } finally {
-        setSaving(false);
-      }
-    },
-    [sessions, setSessions, liveMode],
   );
 
   const onAddSession = useCallback(
@@ -2494,23 +2511,6 @@ function KanbanTab({
         alert(`Не удалось создать: ${e?.message || e}`);
       } finally {
         setSaving(false);
-      }
-    },
-    [setSessions, liveMode],
-  );
-
-  const onDelete = useCallback(
-    async (id) => {
-      if (!confirm("Удалить сессию?")) return;
-      setSessions((prev) => prev.filter((x) => x.id !== id));
-      setEditing(null);
-      if (!liveMode) return;
-      try {
-        const { deleteRow, notifyDataChanged } = await import("../api/manual");
-        await deleteRow("sessions", id);
-        notifyDataChanged();
-      } catch (e) {
-        alert(`Не удалось удалить: ${e?.message || e}`);
       }
     },
     [setSessions, liveMode],
@@ -2575,21 +2575,13 @@ function KanbanTab({
               `}
               <div class="kanban-col-body-wrap">
                 ${sorted.length === 0 && adding !== date && html`<div class="kanban-empty-col"><span>—</span></div>`}
-                ${sorted.map((s) =>
-                  editing === s.id
-                    ? html`<${KanbanSessionEditor}
-                        key=${`edit-${s.id}`}
-                        value=${s}
-                        onSave=${(patch) => onSaveEdit(s.id, patch)}
-                        onCancel=${() => setEditing(null)}
-                        onDelete=${() => onDelete(s.id)}
-                      />`
-                    : html`
+                ${sorted.map((s) => html`
                         <button
                           class=${`kanban-card kanban-card--${(s.category || "x").replace(/[^a-z0-9_]/gi, "_")}`}
                           key=${s.id}
-                          onClick=${() => setEditing(s.id)}
-                          title="нажми, чтобы изменить"
+                          onClick=${() => onOpenRecord?.({ kind: "session", record: s })}
+                          title="открыть в редакторе"
+                          disabled=${!onOpenRecord}
                         >
                           <${SessionCompactContent}
                             session=${s}
@@ -2598,8 +2590,7 @@ function KanbanTab({
                             suffix=${html`<span class="kanban-card__dur">${s.min}m</span>`}
                           />
                         </button>
-                      `,
-                )}
+                      `)}
                 ${adding === date && html`
                   <${KanbanSessionEditor}
                     isNew
@@ -2638,7 +2629,7 @@ function inferSessionType(category) {
   if (!category) return "chill";
   if (["work_paid", "personal", "byt"].includes(category)) return "work";
   if (category.startsWith("sport_")) return "sport";
-  if (category === "walk") return "walk";
+  if (category === "walk" || category === "sport_walk") return "sport";
   if (category === "chill") return "chill";
   if (category === "food") return "food";
   if (category === "shower" || category === "chores") return "chores";

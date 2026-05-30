@@ -45,7 +45,7 @@ function inferType(category) {
   if (!category) return "chill";
   if (["work_paid", "personal", "byt", "portfolio", "planning", "admin"].includes(category)) return "work";
   if (category.startsWith("sport_")) return "sport";
-  if (category === "walk") return "walk";
+  if (category === "walk" || category === "sport_walk") return "sport";
   if (category === "chill") return "chill";
   if (category === "food") return "food";
   if (category === "shower") return "chores";

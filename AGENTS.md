@@ -147,7 +147,7 @@ days (date PK) — wake_time, modafinil_mg (сумма из substances modafinil
   └── substances — дозы; сервер зеркалит session_event kind=substance
   └── meals.session_id → sessions.id
   └── finance_transactions.session_event_id — расход на атом
-  └── activities — параллельно sport-сессиям по времени
+  └── activities — параллельно sport-сессиям по времени (прогулка = sport_walk, не category=walk)
 events ↔ finance_planned_items (визаран и т.п.)
 ```
 

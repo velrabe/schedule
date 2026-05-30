@@ -10,9 +10,10 @@ import {
   linkedEventLabel,
   expenseFromForm,
 } from "./sessionFinance.js";
-import { findActivityForEvent, activityLinkLabel } from "./activityMetrics.js";
 import { formToSessionEventPatch, sessionEventToForm } from "./sessionEventEditor.js";
 import { withAccountOptions, isExpenseField, getRecordEditorMeta } from "./recordEditor.js";
+import DrawerNav from "./DrawerNav.jsx";
+import { getRelatedLinks } from "./recordLinks.js";
 
 const html = htm.bind(h);
 
@@ -60,7 +61,11 @@ export default function SessionBundleDrawer({
   finance = [],
   accounts = [],
   liveMode = false,
+  stack = [],
+  navCtx = {},
   onClose,
+  onBack,
+  onNavigateStack,
   onOpenRecord,
   setSessions,
 }) {
@@ -174,6 +179,17 @@ export default function SessionBundleDrawer({
         </header>
 
         <div class="record-drawer-body-wrap">
+          <${DrawerNav}
+            stack=${stack}
+            ctx=${navCtx}
+            liveMode=${liveMode}
+            onBack=${onBack}
+            onNavigateToIndex=${onNavigateStack}
+            onOpenLinked=${onOpenRecord}
+            currentKind="session"
+            currentRecord=${session}
+            excludeKinds=${["session", "session_event"]}
+          />
           <div class="record-drawer-section-wrap">
             <span class="record-drawer-section-title">оболочка (ежедневник)</span>
           </div>
@@ -192,16 +208,34 @@ export default function SessionBundleDrawer({
 
           ${parts.map((p, idx) => {
             const form = partForms[p.id] || {};
-            const linkedAct = findActivityForEvent(p, activities) ||
-              (form.activity_id ? activities.find((a) => a.id === form.activity_id) : null);
             const pexp = expensesForSessionEvent(p.id, finance);
             const label = form.title || linkedEventLabel(p, finance) || `часть ${idx + 1}`;
+            const partLinks = getRelatedLinks("session_event", p, navCtx).filter(
+              (l) => l.kind !== "session",
+            );
             return html`
               <div class="session-bundle-part-wrap" key=${p.id}>
                 <div class="session-bundle-part-head-wrap">
                   <span class="session-bundle-part-title">${label}</span>
                   ${pexp.length ? html`<span class="session-bundle-part-exp">${fmtExpensesShort(pexp)}</span>` : ""}
+                  ${onOpenRecord && html`
+                    <button type="button" class="drawer-nav-link-btn drawer-nav-link-btn--inline"
+                      onClick=${() => onOpenRecord({ kind: "session_event", record: p })}>
+                      <span class="drawer-nav-link-btn__text">редактировать →</span>
+                    </button>
+                  `}
                 </div>
+                ${partLinks.length > 0 && html`
+                  <div class="session-bundle-part-links-wrap">
+                    ${partLinks.map((l) => html`
+                      <button type="button" class="drawer-nav-link-btn" key=${l.kind + l.record.id}
+                        disabled=${!liveMode}
+                        onClick=${() => onOpenRecord({ kind: l.kind, record: l.record })}>
+                        <span class="drawer-nav-link-btn__text">${l.label} →</span>
+                      </button>
+                    `)}
+                  </div>
+                `}
                 <${FieldInput} field=${{ key: "kind", label: "kind", type: "select", options: PART_KINDS }}
                   value=${form.kind} onChange=${(k, v) => setPartField(p.id, k, v)} disabled=${!liveMode || saving} />
                 <${FieldInput} field=${{ key: "title", label: "название", type: "text" }}
@@ -219,13 +253,6 @@ export default function SessionBundleDrawer({
                     value=${form.calories_burned} onChange=${(k, v) => setPartField(p.id, k, v)} disabled=${!liveMode || saving} />
                   <${FieldInput} field=${{ key: "distance_km", label: "км", type: "number", optional: true }}
                     value=${form.distance_km} onChange=${(k, v) => setPartField(p.id, k, v)} disabled=${!liveMode || saving} />
-                  ${linkedAct && onOpenRecord && html`
-                    <div class="session-bundle-activity-link-wrap">
-                      <button type="button" class="btn btn--ghost" onClick=${() => onOpenRecord({ kind: "activity", record: linkedAct })}>
-                        <span class="btn__text-wrap">активность · ${activityLinkLabel(linkedAct)} →</span>
-                      </button>
-                    </div>
-                  `}
                 `}
                 <div class="record-drawer-section-wrap">
                   <span class="record-drawer-section-title">расход этой части</span>

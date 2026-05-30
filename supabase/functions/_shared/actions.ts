@@ -36,12 +36,34 @@ export function diffMinutesExact(start: string, end: string): number {
   return d > 0 ? d : 0;
 }
 
+/** Legacy category "walk" → canonical sport_walk (прогулка = спорт, не life-bucket). */
+export function normalizeSessionCategory(
+  category: string | null | undefined,
+  sportType?: string | null,
+): { category: string | null; sport_type: string | null } {
+  const raw = category != null ? String(category).trim() : "";
+  if (!raw) {
+    return { category: null, sport_type: sportType != null ? String(sportType) : null };
+  }
+  const c = raw.toLowerCase();
+  if (c === "walk" || c === "walking") {
+    return { category: "sport_walk", sport_type: sportType ? String(sportType) : "walk" };
+  }
+  if (c.startsWith("sport_")) {
+    const st = sportType ? String(sportType) : c.slice("sport_".length);
+    return { category: c, sport_type: st };
+  }
+  if ((sportType || "").toLowerCase() === "walk") {
+    return { category: "sport_walk", sport_type: "walk" };
+  }
+  return { category: raw, sport_type: sportType != null ? String(sportType) : null };
+}
+
 export function inferSessionType(category: string | null | undefined): string {
   if (!category) return "chill";
-  const c = category.toLowerCase();
+  const c = normalizeSessionCategory(category).category?.toLowerCase() ?? "";
   if (["work_paid", "personal", "byt", "portfolio", "planning", "admin"].includes(c)) return "work";
   if (c.startsWith("sport_")) return "sport";
-  if (c === "walk") return "walk";
   if (c === "food") return "food";
   if (c === "shower" || c === "chores") return "chores";
   if (c === "transport") return "transport";
@@ -55,12 +77,17 @@ export function normalizeSessionPayload(raw: Record<string, unknown>): Record<st
   const date = String(raw.date);
   const start_time = padTime(raw.start_time ?? raw.start) ?? "00:00:00";
   const end_time = padTime(raw.end_time ?? raw.end) ?? start_time;
-  const category = raw.category != null ? String(raw.category) : null;
+  const sportHint = raw.sport_type != null ? String(raw.sport_type) : null;
+  const { category } = normalizeSessionCategory(
+    raw.category != null ? String(raw.category) : null,
+    sportHint,
+  );
   let type = raw.type != null ? String(raw.type) : null;
   // LLM sometimes puts category slug in type field.
   if (type && ["work_paid", "personal", "byt", "portfolio", "planning"].includes(type)) {
     type = "work";
   }
+  if (type === "walk" || type === "walking") type = "sport";
   if (!type || type === "session") type = inferSessionType(category);
 
   let duration_min = Number(raw.duration_min ?? raw.min ?? raw.duration);

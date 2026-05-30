@@ -97,6 +97,7 @@ export function isSportSessionEvent(ev: {
   const cat = (ev.category || "").toLowerCase();
   if (kind === "sport") return true;
   if (cat.startsWith("sport_")) return true;
+  if (cat === "walk" || cat === "walking") return true;
   if (ev.sport_type) return true;
   return false;
 }

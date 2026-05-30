@@ -12,6 +12,7 @@ import {
   padTime,
   diffMinutes,
   inferSessionType,
+  normalizeSessionCategory,
 } from "../_shared/actions.ts";
 import {
   afterFoodSessionWrite,
@@ -101,8 +102,11 @@ function normalizeSessionUpdatePatch(raw: Record<string, unknown>): Record<strin
   if (patch.start_time && patch.end_time) {
     patch.duration_min = diffMinutes(String(patch.start_time), String(patch.end_time));
   }
-  if (patch.category != null && patch.type == null) {
-    patch.type = inferSessionType(String(patch.category));
+  if (patch.category != null) {
+    const { category } = normalizeSessionCategory(String(patch.category));
+    patch.category = category;
+    if (patch.type == null) patch.type = inferSessionType(category);
+    else if (patch.type === "walk" || patch.type === "walking") patch.type = "sport";
   }
   return patch;
 }

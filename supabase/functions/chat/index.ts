@@ -177,7 +177,7 @@ Output:
   "reply_to_user": "Закрываю «приложение» в ${nowTime} и открываю прогулку. Подтвердить?",
   "actions": [
     { "type": "close_work_session", "data": { "end_time": "${nowTime}" } },
-    { "type": "create_session", "data": { "date": "${today}", "start_time": "${nowTime}", "end_time": "${nowTime}", "type": "walk", "category": "walk" } }
+    { "type": "create_session", "data": { "date": "${today}", "start_time": "${nowTime}", "end_time": "${nowTime}", "type": "sport", "category": "sport_walk" } }
   ],
   "needs_confirmation": true
 }

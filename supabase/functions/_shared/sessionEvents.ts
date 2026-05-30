@@ -1,5 +1,11 @@
 import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
-import { padTime, diffMinutes, diffMinutesExact, inferSessionType } from "./actions.ts";
+import {
+  padTime,
+  diffMinutes,
+  diffMinutesExact,
+  inferSessionType,
+  normalizeSessionCategory,
+} from "./actions.ts";
 import { syncMealFromFoodSession, isFoodSession, type SessionRow } from "./foodMealSync.ts";
 import {
   deleteSessionExpenses,
@@ -87,7 +93,16 @@ export function normalizeSessionEventPayload(raw: Record<string, unknown>): Reco
     duration_min = diffMinutesExact(start_time, end_time);
     if (duration_min <= 0) duration_min = diffMinutes(start_time, end_time);
   }
-  const category = raw.category != null ? String(raw.category) : null;
+  const sportHint = raw.sport_type != null ? String(raw.sport_type) : null;
+  const { category, sport_type } = normalizeSessionCategory(
+    raw.category != null ? String(raw.category) : null,
+    sportHint,
+  );
+  let kindOut = kind;
+  if (category?.startsWith("sport_") && !INSTANT_KINDS.has(kindOut)) {
+    kindOut = "sport";
+  }
+  if (kindOut === "walk" || kindOut === "walking") kindOut = "sport";
   return {
     date,
     session_id: raw.session_id != null ? String(raw.session_id) : null,
@@ -95,10 +110,10 @@ export function normalizeSessionEventPayload(raw: Record<string, unknown>): Reco
     end_time,
     duration_min,
     is_instant,
-    kind,
+    kind: kindOut,
     category,
     title: raw.title != null ? String(raw.title) : raw.project != null ? String(raw.project) : null,
-    sport_type: raw.sport_type != null ? String(raw.sport_type) : null,
+    sport_type,
     distance_km: raw.distance_km != null ? Number(raw.distance_km) : null,
     calories_burned: raw.calories_burned != null ? Number(raw.calories_burned) : null,
     pace: raw.pace != null ? String(raw.pace) : null,
@@ -223,6 +238,10 @@ export async function ensureSessionEventMirror(
   const { data: s, error } = await db.from("sessions").select("*").eq("id", sessionId).single();
   if (error || !s) return null;
 
+  const { category } = normalizeSessionCategory(s.category != null ? String(s.category) : null);
+  const sessionType = inferSessionType(category);
+  const isSport = sessionType === "sport";
+  const sportType = category?.startsWith("sport_") ? category.slice("sport_".length) : null;
   const { data: ev, error: insErr } = await db
     .from("session_events")
     .insert({
@@ -231,8 +250,9 @@ export async function ensureSessionEventMirror(
       start_time: s.start_time,
       end_time: s.end_time,
       duration_min: s.duration_min,
-      kind: s.type || "other",
-      category: s.category,
+      kind: isSport ? "sport" : (s.type || "other"),
+      category: category ?? s.category,
+      sport_type: isSport ? sportType : null,
       title: s.project || s.notes,
       notes: s.notes,
       source_log_id: sourceLogId ?? s.source_log_id,
@@ -315,8 +335,13 @@ export async function executeSessionBundle(
     end_time = mm.end_time;
   }
 
-  const category = data.category != null ? String(data.category) : null;
-  const type = data.type != null ? String(data.type) : inferSessionType(category);
+  const { category } = normalizeSessionCategory(
+    data.category != null ? String(data.category) : null,
+    data.sport_type != null ? String(data.sport_type) : null,
+  );
+  let type = data.type != null ? String(data.type) : null;
+  if (type === "walk" || type === "walking") type = "sport";
+  if (!type) type = inferSessionType(category);
   const project = data.title != null
     ? String(data.title)
     : data.project != null

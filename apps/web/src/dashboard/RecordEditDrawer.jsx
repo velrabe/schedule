@@ -20,6 +20,7 @@ import {
   resolveExpenseSessionId,
 } from "./sessionFinance.js";
 import SessionBundleDrawer from "./SessionBundleDrawer.jsx";
+import DrawerNav from "./DrawerNav.jsx";
 
 const html = htm.bind(h);
 
@@ -93,7 +94,11 @@ function FieldInput({ field, value, onChange, disabled }) {
 
 export default function RecordEditDrawer({
   target,
+  stack = [],
+  navCtx = {},
   onClose,
+  onBack,
+  onNavigateStack,
   onSwitchTarget,
   liveMode = false,
   setSessions,
@@ -103,22 +108,39 @@ export default function RecordEditDrawer({
   finance = [],
   accounts = [],
 }) {
+  const current = target;
   const bundleParts = useMemo(() => {
-    if (!target || target.kind !== "session") return [];
-    return childEventsForSession(target.record.id, sessionEvents);
-  }, [target, sessionEvents]);
+    if (!current || current.kind !== "session") return [];
+    return childEventsForSession(current.record.id, sessionEvents);
+  }, [current, sessionEvents]);
 
-  if (target?.kind === "session" && bundleParts.length > 0) {
+  const ctx = useMemo(
+    () => ({
+      sessions,
+      sessionEvents,
+      meals: navCtx.meals || [],
+      activities,
+      finance,
+      ...navCtx,
+    }),
+    [sessions, sessionEvents, navCtx, activities, finance],
+  );
+
+  if (current?.kind === "session" && bundleParts.length > 0) {
     return html`
       <${SessionBundleDrawer}
-        session=${target.record}
+        session=${current.record}
         sessionEvents=${sessionEvents}
         activities=${activities}
         finance=${finance}
         accounts=${accounts}
         liveMode=${liveMode}
+        stack=${stack}
+        navCtx=${ctx}
         onClose=${onClose}
-        onOpenRecord=${(t) => (onSwitchTarget ? onSwitchTarget(t) : null)}
+        onBack=${onBack}
+        onNavigateStack=${onNavigateStack}
+        onOpenRecord=${onSwitchTarget}
         setSessions=${setSessions}
       />
     `;
@@ -128,7 +150,7 @@ export default function RecordEditDrawer({
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
-  const meta = target ? getRecordEditorMeta(target.kind) : null;
+  const meta = current ? getRecordEditorMeta(current.kind) : null;
 
   const accountIds = useMemo(
     () => accounts.filter((a) => !a.archived).map((a) => a.id),
@@ -141,104 +163,104 @@ export default function RecordEditDrawer({
   }, [meta, accountIds]);
 
   const linkedSession = useMemo(() => {
-    if (!target || target.kind !== "meal") return null;
-    return findFoodSessionForMeal(target.record, sessions);
-  }, [target, sessions]);
+    if (!current || current.kind !== "meal") return null;
+    return findFoodSessionForMeal(current.record, sessions);
+  }, [current, sessions]);
 
   const linkedExpense = useMemo(() => {
-    if (!target) return null;
-    if (target.kind === "session_event") {
-      return expensesForSessionEvent(target.record.id, finance)[0] ?? null;
+    if (!current) return null;
+    if (current.kind === "session_event") {
+      return expensesForSessionEvent(current.record.id, finance)[0] ?? null;
     }
-    const sid = resolveExpenseSessionId(target.kind, target.record, sessions);
+    const sid = resolveExpenseSessionId(current.kind, current.record, sessions);
     return expenseForSession(sid, finance);
-  }, [target, finance, sessions]);
+  }, [current, finance, sessions]);
 
   useEffect(() => {
-    if (target) {
-      setForm(recordToForm(target.kind, target.record, linkedExpense, linkedSession, finance, activities));
-    }
-    else setForm({});
-  }, [target?.kind, target?.record?.id, linkedExpense?.id, linkedSession?.id, linkedSession?.start, activities]);
+    if (current) {
+      setForm(recordToForm(current.kind, current.record, linkedExpense, linkedSession, finance, activities));
+    } else setForm({});
+  }, [current?.kind, current?.record?.id, linkedExpense?.id, linkedSession?.id, linkedSession?.start, activities, finance]);
 
   useEffect(() => {
-    if (!target) return;
+    if (!current) return;
     const prev = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     return () => {
       document.body.style.overflow = prev;
     };
-  }, [Boolean(target)]);
+  }, [Boolean(current)]);
 
   useEffect(() => {
-    if (!target) return;
+    if (!current) return;
     const onKey = (e) => {
       if (e.key === "Escape") onClose();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [target, onClose]);
+  }, [current, onClose]);
 
   const setField = useCallback((key, value) => {
     setForm((prev) => ({ ...prev, [key]: value }));
   }, []);
 
-  const isNew = Boolean(target?.record?._new);
+  const isNew = Boolean(current?.record?._new);
 
   const onSave = async () => {
-    if (!target || !meta || !liveMode) return;
-    if (target.record._synthetic) {
+    if (!current || !meta || !liveMode) return;
+    if (current.record._synthetic) {
       alert("Сначала сохраните сессию еды — откройте её из списка сессий.");
       return;
     }
     setSaving(true);
     try {
-      const patch = formToDbPatch(target.kind, form);
-      if (target.kind === "meal" && linkedSession?.id) {
+      const patch = formToDbPatch(current.kind, form);
+      if (current.kind === "meal" && linkedSession?.id) {
         patch.session_id = linkedSession.id;
       }
       const supportsExpense =
-        target.kind === "session" || target.kind === "meal" || target.kind === "session_event";
+        current.kind === "session" || current.kind === "meal" || current.kind === "session_event";
       let expensePayload = undefined;
       if (supportsExpense) {
         const parsed = expenseFromForm(form);
         if (parsed) {
           expensePayload = { ...parsed };
-          if (target.kind === "meal" && form.name) {
+          if (current.kind === "meal" && form.name) {
             expensePayload.merchant = expensePayload.merchant || form.name;
           }
-          if (target.kind === "session" && form.project) {
+          if (current.kind === "session" && form.project) {
             expensePayload.merchant = expensePayload.merchant || form.project;
           }
         } else if (linkedExpense) {
           expensePayload = null;
         }
       }
-      const expenseSessionId = resolveExpenseSessionId(target.kind, target.record, sessions);
+      const expenseSessionId = resolveExpenseSessionId(current.kind, current.record, sessions);
       const extra = {
         expense: expensePayload,
         expense_session_id: expenseSessionId || undefined,
       };
 
-      if (target.kind === "session" && setSessions && !isNew) {
+      if (current.kind === "session" && setSessions && !isNew) {
         const ui = formToSessionUi(form);
         setSessions((prev) =>
-          prev.map((s) => (s.id === target.record.id ? { ...s, ...ui } : s)),
+          prev.map((s) => (s.id === current.record.id ? { ...s, ...ui } : s)),
         );
       }
 
       if (isNew) {
         const { insertRow, notifyDataChanged } = await import("../api/manual");
         const row = { ...patch };
-        if (target.record.id && !String(target.record.id).startsWith("plan:")) {
-          row.id = target.record.id;
+        if (current.record.id && !String(current.record.id).startsWith("plan:")) {
+          row.id = current.record.id;
         }
         await insertRow(meta.resource, row);
         notifyDataChanged();
       } else {
-        await manualPatch(meta.resource, target.record.id, patch, extra);
+        await manualPatch(meta.resource, current.record.id, patch, extra);
       }
-      onClose();
+      if (stack.length > 1) onBack();
+      else onClose();
     } catch (e) {
       const msg = e?.message || String(e);
       if (msg === "Failed to fetch") {
@@ -256,17 +278,18 @@ export default function RecordEditDrawer({
   };
 
   const onDelete = async () => {
-    if (!target || !meta || !liveMode) return;
+    if (!current || !meta || !liveMode) return;
     if (!confirm("Удалить запись?")) return;
     setDeleting(true);
     try {
       const { deleteRow, notifyDataChanged } = await import("../api/manual");
-      await deleteRow(meta.resource, target.record.id);
-      if (target.kind === "session" && setSessions) {
-        setSessions((prev) => prev.filter((s) => s.id !== target.record.id));
+      await deleteRow(meta.resource, current.record.id);
+      if (current.kind === "session" && setSessions) {
+        setSessions((prev) => prev.filter((s) => s.id !== current.record.id));
       }
       notifyDataChanged();
-      onClose();
+      if (stack.length > 1) onBack();
+      else onClose();
     } catch (e) {
       const msg = e?.message || String(e);
       if (msg === "Failed to fetch") {
@@ -281,9 +304,9 @@ export default function RecordEditDrawer({
     }
   };
 
-  if (!target || !meta) return null;
+  if (!current || !meta) return null;
 
-  const subtitle = isNew ? "новая запись" : meta.subtitle(target.record);
+  const subtitle = isNew ? "новая запись" : meta.subtitle(current.record);
   const busy = saving || deleting;
   const stopInside = (e) => e.stopPropagation();
   const mainFields = fields.filter((f) => !isExpenseField(f));
@@ -315,6 +338,17 @@ export default function RecordEditDrawer({
         </header>
 
         <div class="record-drawer-body-wrap">
+          <${DrawerNav}
+            stack=${stack}
+            ctx=${ctx}
+            liveMode=${liveMode}
+            onBack=${onBack}
+            onNavigateToIndex=${onNavigateStack}
+            onOpenLinked=${onSwitchTarget}
+            currentKind=${current.kind}
+            currentRecord=${current.record}
+            excludeKinds=${[]}
+          />
           <div class="record-drawer-fields-wrap">
             ${mainFields.map(
               (field) => html`

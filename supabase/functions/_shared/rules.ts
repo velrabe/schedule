@@ -28,7 +28,7 @@ const DATA_MODEL = `
    - Parent session times = min(start) … max(end) of children (rollup).
 2. **Single simple block** (прогулка 40 мин без детализации) → create_session still OK; server mirrors one session_event.
 3. **Food:** parent session type=food → meals 1:1. Price on the **food session_event** (expense in bundle or create_finance_transaction with session_event_id).
-4. **Sport:** session_event kind=sport + optional activities row (Apple Health). Server links by date + time inside event window (activity_id). **Device metrics win:** activities.calories_burned / distance_km / pace (parse notes "distance 4.74 km", "total 130 kcal") → copy to session_event. Do not duplicate conflicting kcal on event if activity exists — one source: activities for apple_health.
+4. **Sport:** session_event kind=sport + category sport_<type> (прогулка → sport_walk, sport_type=walk). Optional activities row (Apple Health). Server links by date + time inside event window (activity_id). Legacy category=walk / type=walk normalized to sport on write. **Device metrics win:** activities.calories_burned / distance_km / pace → copy to session_event. Do not duplicate conflicting kcal on event if activity exists — one source: activities for apple_health.
 5. **Finance fact:** txn_type expense|income|transfer. **Past/fact** MUST have account. Prefer session_event_id over bare session_id when cost is for one atomic part (taxi vs gym fee).
    - **One human label:** finance_transactions.notes = what user said ("такси к барберу"). session_events.title mirrors notes (server sync). merchant = brand/payee only ("Grab"), not the diary title.
    - Do not put "Grab к барберу" in event title if notes already say "такси к барберу".
@@ -87,7 +87,8 @@ const GLOBAL = `
 AUTO-ALLOW (chat needs_confirmation=false only):
 - create_substance (modafinil, caffeine, alcohol, weed)
 - create_body_metric (weight, hr, hrv, etc.)
-- create_session for simple walk / chill / shower / chores / transport with no project
+- create_session for simple chill / shower / chores / transport with no project
+- прогулка / погулял / ходьба (сессия) → category=sport_walk, type=sport (NOT category=walk)
 - create_session for work with explicit start_time AND project (just opens a tracker, easy to close)
 - create_work_session_open with explicit project
 - close_work_session
@@ -174,7 +175,7 @@ Map ru→type:
 - "зал", "спортзал", "качалка", "силовая" → gym
 - "пробежка", "бег", "побегать" → run
 - "хайк", "трекинг", "поход" → hike
-- "ходьба", "пешком", "шаги", "погулял пешком" → walk
+- "ходьба", "пешком", "прогулка", "погулял", "шаги" (как сессия) → sport_walk / sport_type=walk
 - "плавание", "поплавал", "бассейн" → swim
 - "стрельба из лука", "лук", "стрелы" → archery
 - "теннис" → tennis
@@ -188,7 +189,7 @@ AND optionally an activities row when calories_burned or extra metadata is provi
 
 MOVE — дневное движение вне тренировок (логируется в конце дня, НЕ сессия):
 - If user says "набегал шагов", "за день нашагал", "ходьба за день", "просто ходьба бытовая", "движение за день", "move за день" → activities table with type=move, source=move (legacy: type=walking + source=base_move still accepted).
-- If user says "пошёл прогуляться", "вечерняя прогулка", "часик погулял" → session with type=walk, category=walk (this is a session, not move).
+- If user says "пошёл прогуляться", "вечерняя прогулка", "часик погулял" → create_session { type=sport, category=sport_walk, sport_type=walk } + optional activities (kcal). NOT category=walk (deprecated).
 `;
 
 const NUTRITION = `
