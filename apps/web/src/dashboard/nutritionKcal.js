@@ -1,7 +1,7 @@
 /** kcal out: activities + sport session_events + sport sessions (deduped). */
 
 import { activityTypeLabel } from "./nutriViz.jsx";
-import { isSportSessionEvent, sportMetricsForEvent } from "./activityMetrics.js";
+import { findActivityForEvent, isSportSessionEvent, sportMetricsForEvent } from "./activityMetrics.js";
 
 function trimTime(t) {
   if (!t) return "";
@@ -15,6 +15,13 @@ export function isSportSessionCategory(cat) {
 }
 
 /** Sport envelope for activity overlap when there is no session_event row yet. */
+/** Same activity row already listed (by id or time/type overlap). */
+function eventDuplicatesListedActivity(ev, activities, activityIdsShown) {
+  if (ev.activity_id && activityIdsShown.has(ev.activity_id)) return true;
+  const linked = findActivityForEvent(ev, activities);
+  return Boolean(linked?.id && activityIdsShown.has(linked.id));
+}
+
 export function sessionToSportEv(session) {
   const start = trimTime(session.start_time || session.start);
   const end = trimTime(session.end_time || session.end);
@@ -101,8 +108,7 @@ export function kcalOutBreakdown(date, activities = [], sessionEvents = [], sess
 
   for (const { session: s, kcal, label } of sportSessions) {
     const envelope = sessionToSportEv(s);
-    const m = sportMetricsForEvent(envelope, activities);
-    if (m.linkedActivity?.id && activityIdsShown.has(m.linkedActivity.id)) continue;
+    if (eventDuplicatesListedActivity(envelope, activities, activityIdsShown)) continue;
     outRows.push({
       kind: "session",
       record: s,
@@ -112,7 +118,7 @@ export function kcalOutBreakdown(date, activities = [], sessionEvents = [], sess
   }
 
   for (const ev of sportEvents) {
-    if (ev.activity_id && activityIdsShown.has(ev.activity_id)) continue;
+    if (eventDuplicatesListedActivity(ev, activities, activityIdsShown)) continue;
     const m = sportMetricsForEvent(ev, activities);
     const k = Number(ev.calories_burned) || Number(m.calories_burned) || 0;
     outRows.push({
