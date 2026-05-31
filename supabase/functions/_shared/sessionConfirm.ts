@@ -271,6 +271,8 @@ export async function executeSessionActions(
       allUpdated.push(s);
       writtenSessions.push(s);
       await ensureSessionEventMirror(db, s.id, sourceLogId);
+      const { extractScoobyFromSession } = await import("./substanceEventSync.ts");
+      await extractScoobyFromSession(db, s.id);
     }
 
     await syncMealsForSessions(db, writtenSessions.filter((s) => isFoodSession(s)), sourceLogId);

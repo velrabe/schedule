@@ -303,6 +303,9 @@ export async function afterSessionEventWrite(
     await db.from("session_events").update({ session_id: null }).eq("id", eventId);
     await rollupSessionEnvelope(db, parentId);
   }
+
+  const { extractScoobyMentionFromEvent } = await import("./substanceEventSync.ts");
+  await extractScoobyMentionFromEvent(db, eventId);
 }
 
 export async function deleteSessionEventTree(
@@ -403,6 +406,9 @@ export async function executeSessionBundle(
   if (isFoodSession(session as SessionRow)) {
     await syncMealFromFoodSession(db, session as SessionRow, sourceLogId);
   }
+
+  const { extractScoobyFromSession } = await import("./substanceEventSync.ts");
+  await extractScoobyFromSession(db, sessionId);
 
   return { session_id: sessionId, event_ids: eventIds };
 }

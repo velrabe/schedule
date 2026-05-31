@@ -342,6 +342,7 @@ Scooby (name=scooby):
 - "второй скуби за день" → second row same date, different time — never bump amount on an old row
 - Do not log scooby without time (infer from "сейчас" = now if user just took it)
 - **NEVER** put scooby in create_session_bundle events[] or as a child of chill/work — it is a parallel instant marker (session_id=null on mirrored session_event). User opens it in drawer as kind=substance, not inside «чилл».
+- **NEVER** write «скуби» / scooby in session project, title, or notes («тупняк, скуби») — only create_substance; server extracts text mentions but agents must not rely on it.
 
 Caffeine:
 - "кофе", "эспрессо", "латте", "капучино", "американо", "чашку кофе" → name=caffeine, amount=1, unit=cup

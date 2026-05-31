@@ -73,6 +73,151 @@ function defaultAmountUnit(name: string): { amount: number | null; unit: string 
   return { amount: null, unit: null };
 }
 
+const SCOOBY_TEXT_RE = /scooby|скуби|scubi/i;
+const STRIP_SCOOBY_RE = /,?\s*(scooby|скуби|scubi)\s*,?/gi;
+
+export function textMentionsScooby(text: string | null | undefined): boolean {
+  return SCOOBY_TEXT_RE.test(String(text || ""));
+}
+
+export function stripScoobyFromText(text: string | null | undefined): string | null {
+  if (text == null || text === "") return text ?? null;
+  const cleaned = String(text)
+    .replace(STRIP_SCOOBY_RE, ",")
+    .replace(/\s*,\s*,\s*/g, ", ")
+    .replace(/^[\s,]+|[\s,]+$/g, "")
+    .trim();
+  return cleaned || null;
+}
+
+async function scoobyDoseExists(
+  db: SupabaseClient,
+  date: string,
+  time: string,
+): Promise<boolean> {
+  const at = padTime(time);
+  const { data } = await db
+    .from("substances")
+    .select("id")
+    .eq("date", date)
+    .eq("name", SUBSTANCE_SCOOBY)
+    .eq("time", at)
+    .maybeSingle();
+  return Boolean(data?.id);
+}
+
+/** Agent often writes «тупняк, скуби» into session project instead of create_substance. */
+export async function extractScoobyFromSession(
+  db: SupabaseClient,
+  sessionId: string,
+): Promise<void> {
+  const { data: sess, error } = await db.from("sessions").select("*").eq("id", sessionId).single();
+  if (error || !sess) return;
+
+  const s = sess as {
+    id: string;
+    date: string;
+    start_time: string;
+    project: string | null;
+    notes: string | null;
+    source_log_id?: string | null;
+  };
+
+  const blob = [s.project, s.notes].filter(Boolean).join(" ");
+  if (!textMentionsScooby(blob)) return;
+
+  if (!(await scoobyDoseExists(db, s.date, s.start_time))) {
+    const { data: sub, error: insErr } = await db
+      .from("substances")
+      .insert({
+        date: s.date,
+        time: padTime(s.start_time),
+        name: SUBSTANCE_SCOOBY,
+        amount: 1,
+        unit: "session",
+        notes: null,
+        source_log_id: s.source_log_id ?? null,
+      })
+      .select("id")
+      .single();
+    if (insErr) throw insErr;
+    await afterSubstanceWrite(db, String(sub.id));
+  }
+
+  const newProject = stripScoobyFromText(s.project);
+  const newNotes = stripScoobyFromText(s.notes);
+  if (newProject !== s.project || newNotes !== s.notes) {
+    await db.from("sessions").update({ project: newProject, notes: newNotes }).eq("id", sessionId);
+  }
+
+  const { data: events } = await db.from("session_events").select("id, title, notes").eq(
+    "session_id",
+    sessionId,
+  );
+  for (const ev of events || []) {
+    const title = stripScoobyFromText((ev as { title: string | null }).title);
+    const notes = stripScoobyFromText((ev as { notes: string | null }).notes);
+    if (title !== (ev as { title: string | null }).title || notes !== (ev as { notes: string | null }).notes) {
+      await db.from("session_events").update({ title, notes }).eq("id", String(ev.id));
+    }
+  }
+}
+
+/** Extract scooby named in a session_event title (e.g. chill part «тупняк, скуби»). */
+export async function extractScoobyMentionFromEvent(
+  db: SupabaseClient,
+  eventId: string,
+): Promise<void> {
+  const { data, error } = await db.from("session_events").select("*").eq("id", eventId).single();
+  if (error || !data) return;
+
+  const row = data as {
+    id: string;
+    date: string;
+    start_time: string;
+    title: string | null;
+    notes: string | null;
+    substance_id: string | null;
+    session_id: string | null;
+    kind: string;
+    source_log_id?: string | null;
+  };
+
+  if (row.substance_id || row.kind === "substance") return;
+
+  const blob = [row.title, row.notes].filter(Boolean).join(" ");
+  if (!textMentionsScooby(blob)) {
+    if (row.session_id) await extractScoobyFromSession(db, String(row.session_id));
+    return;
+  }
+
+  if (!(await scoobyDoseExists(db, row.date, row.start_time))) {
+    const { data: sub, error: insErr } = await db
+      .from("substances")
+      .insert({
+        date: row.date,
+        time: padTime(row.start_time),
+        name: SUBSTANCE_SCOOBY,
+        amount: 1,
+        unit: "session",
+        notes: null,
+        source_log_id: row.source_log_id ?? null,
+      })
+      .select("id")
+      .single();
+    if (insErr) throw insErr;
+    await afterSubstanceWrite(db, String(sub.id));
+  }
+
+  const newTitle = stripScoobyFromText(row.title);
+  const newNotes = stripScoobyFromText(row.notes);
+  if (newTitle !== row.title || newNotes !== row.notes) {
+    await db.from("session_events").update({ title: newTitle, notes: newNotes }).eq("id", eventId);
+  }
+
+  if (row.session_id) await extractScoobyFromSession(db, String(row.session_id));
+}
+
 /**
  * Agent sometimes logs scooby/moda as kind=substance inside a session bundle.
  * Promote to substances row + detach mirrored event (drawer kind=substance).

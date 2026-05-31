@@ -229,10 +229,14 @@ export async function afterFoodSessionWrite(
   const { ensureSessionEventMirror } = await import("./sessionEvents.ts");
   if (!isFoodSession(session)) {
     await ensureSessionEventMirror(db, sessionId, sourceLogId);
+    const { extractScoobyFromSession } = await import("./substanceEventSync.ts");
+    await extractScoobyFromSession(db, sessionId);
     return;
   }
   await syncMealFromFoodSession(db, session, sourceLogId);
   await ensureSessionEventMirror(db, sessionId, sourceLogId);
+  const { extractScoobyFromSession } = await import("./substanceEventSync.ts");
+  await extractScoobyFromSession(db, sessionId);
 }
 
 export async function afterMealWrite(
