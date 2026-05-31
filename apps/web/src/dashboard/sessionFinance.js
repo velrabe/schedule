@@ -20,7 +20,7 @@ export function expensesForSessionEvent(eventId, finance = []) {
 export function childEventsForSession(sessionId, sessionEvents = []) {
   if (!sessionId) return [];
   return sessionEvents
-    .filter((e) => e.session_id === sessionId)
+    .filter((e) => e.session_id === sessionId && !e.substance_id)
     .sort((a, b) => String(a.start_time || "").localeCompare(String(b.start_time || "")));
 }
 

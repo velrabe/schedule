@@ -129,6 +129,31 @@ const KIND_META = {
       { key: "notes", label: "заметки", type: "textarea" },
     ],
   },
+  substance: {
+    resource: "substances",
+    title: "Субстанция",
+    subtitle: (r) => {
+      const t = r.time ? String(r.time).slice(0, 5) : "";
+      const amt =
+        r.amount != null && Number.isFinite(Number(r.amount))
+          ? ` ${r.amount}${r.unit ? r.unit : ""}`
+          : "";
+      return [r.name || "substance", amt, t].filter(Boolean).join(" · ");
+    },
+    fields: [
+      { key: "date", label: "дата", type: "date" },
+      { key: "time", label: "время", type: "time" },
+      {
+        key: "name",
+        label: "name",
+        type: "select",
+        options: ["moda", "scooby", "caffeine", "alcohol", "weed"],
+      },
+      { key: "amount", label: "количество", type: "number", optional: true },
+      { key: "unit", label: "ед.", type: "text", optional: true },
+      { key: "notes", label: "заметки", type: "textarea", optional: true },
+    ],
+  },
   body_metric: {
     resource: "body_metrics",
     title: "Метрика тела",
@@ -351,6 +376,15 @@ export function recordToForm(
         source_type: record.source_type || "estimated",
         notes: record.notes || "",
       };
+    case "substance":
+      return {
+        date: record.date || "",
+        time: trimTime(record.time),
+        name: record.name || "",
+        amount: record.amount ?? "",
+        unit: record.unit || "",
+        notes: record.notes || "",
+      };
     default:
       return {};
   }
@@ -437,6 +471,15 @@ export function formToDbPatch(kind, form) {
         value: numOrNull(form.value) ?? 0,
         unit: strOrNull(form.unit),
         source_type: form.source_type || "estimated",
+        notes: strOrNull(form.notes),
+      };
+    case "substance":
+      return {
+        date: form.date,
+        time: strOrNull(form.time),
+        name: form.name || "",
+        amount: numOrNull(form.amount),
+        unit: strOrNull(form.unit),
         notes: strOrNull(form.notes),
       };
     default:

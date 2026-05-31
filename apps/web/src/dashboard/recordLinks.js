@@ -46,6 +46,10 @@ export function targetLabel(kind, record, ctx = {}) {
   if (kind === "activity") {
     return `активность · ${activityLinkLabel(record)}`;
   }
+  if (kind === "substance") {
+    const t = record.time ? trimTime(record.time) : "";
+    return [record.name, t].filter(Boolean).join(" · ") || "substance";
+  }
   if (kind === "event") return record.detail || record.kind || "event";
   return record.id || kind;
 }
@@ -60,6 +64,7 @@ export function getRelatedLinks(kind, record, ctx = {}) {
     sessionEvents = [],
     meals = [],
     activities = [],
+    substances = [],
     finance = [],
   } = ctx;
   const links = [];
@@ -166,9 +171,32 @@ export function getRelatedLinks(kind, record, ctx = {}) {
     }
   }
 
+  if (kind === "substance" && record) {
+    const ev = sessionEvents.find((e) => e.substance_id === record.id);
+    if (ev) {
+      push({
+        kind: "session_event",
+        record: ev,
+        label: `ивент · ${linkedEventLabel(ev, finance)}`,
+      });
+    }
+  }
+
+  if (kind === "session_event" && record?.substance_id) {
+    const sub = substances.find((s) => s.id === record.substance_id);
+    if (sub) {
+      push({
+        kind: "substance",
+        record: sub,
+        label: `доза · ${sub.name || "substance"}`,
+      });
+    }
+  }
+
   if (kind === "session" && record) {
     const parts = childEventsForSession(record.id, sessionEvents);
     for (const p of parts.slice(0, 6)) {
+      if (p.substance_id) continue;
       push({
         kind: "session_event",
         record: p,

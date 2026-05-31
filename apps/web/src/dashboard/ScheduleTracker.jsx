@@ -34,6 +34,12 @@ import {
   fmtExpensesShort,
   linkedEventLabel,
 } from "./sessionFinance.js";
+import {
+  standaloneSubstanceEventsForDate,
+  mergeTimelineItems,
+  substanceEventLabel,
+  substanceEventOpenTarget,
+} from "./substanceTimeline.js";
 import { formatKanbanDayCopy, copyTextToClipboard } from "./kanbanDayCopy.js";
 import FinanceTab from "./FinanceTab.jsx";
 import InsightsTab from "./InsightsTab.jsx";
@@ -283,10 +289,16 @@ function App(props = {}) {
     [liveData, sessions],
   );
 
+  const substances = liveData?.raw?.substances || [];
+
   const resolveEditorTarget = useCallback(
     (target) => {
       if (!target?.record) return null;
       const rec = target.record;
+      if (target.kind === "session_event" && rec.substance_id) {
+        const sub = substances.find((s) => s.id === rec.substance_id);
+        if (sub) return { kind: "substance", record: sub };
+      }
       if (target.kind === "meal") {
         const sess =
           rec.session_id && sessions.find((s) => s.id === rec.session_id)
@@ -300,7 +312,7 @@ function App(props = {}) {
       if (String(rec.id || "").startsWith("session:")) return null;
       return target;
     },
-    [sessions],
+    [sessions, substances],
   );
 
   const openRecordEditor = useCallback(
@@ -339,9 +351,10 @@ function App(props = {}) {
       sessionEvents: liveData?.raw?.session_events || [],
       meals: mergedMeals,
       activities: liveData?.activities || [],
+      substances,
       finance: liveData?.finance || [],
     }),
-    [sessions, liveData, mergedMeals],
+    [sessions, liveData, mergedMeals, substances],
   );
 
   // When liveData changes (e.g. after a chat confirm), refresh local state.
@@ -470,6 +483,7 @@ function App(props = {}) {
         finance=${liveData?.finance || []}
         activities=${liveData?.activities || []}
         sessionEvents=${liveData?.raw?.session_events || []}
+        substances=${substances}
         liveMode=${Boolean(liveData)}
         setSessions=${setSessions}
         setDays=${setDays}
@@ -1600,6 +1614,7 @@ function CalendarTab({
   finance = [],
   activities = [],
   sessionEvents = [],
+  substances = [],
   liveMode = false,
   setSessions,
   setDays,
@@ -1749,6 +1764,7 @@ function CalendarTab({
             finance=${finance}
             activitiesList=${activitiesByDate.get(selected) || []}
             sessionEvents=${sessionEvents}
+            substances=${substances}
             liveMode=${liveMode}
             setSessions=${setSessions}
             setDays=${setDays}
@@ -1757,6 +1773,33 @@ function CalendarTab({
         </div>
       `}
     </div>
+  `;
+}
+
+/** Standalone substance dose (parallel to sessions, not inside bundle). */
+function SubstanceInstantCard({ event, finance = [], onClick, disabled }) {
+  const t0 = String(event.start_time || "").slice(0, 5);
+  const label = substanceEventLabel(event, finance);
+  return html`
+    <button
+      type="button"
+      class="kanban-card kanban-card--substance"
+      onClick=${onClick}
+      disabled=${disabled}
+      title=${label}
+    >
+      <div class="session-compact-inner-wrap session-compact-inner-wrap--compact">
+        <div class="session-compact-head-wrap">
+          <div class="session-compact-time-wrap">
+            <span class="session-compact__time">${t0}</span>
+          </div>
+          <span class="session-compact__cat">substance</span>
+        </div>
+        <div class="session-compact-body-wrap">
+          <span class="session-compact__proj u-truncate-1">${label}</span>
+        </div>
+      </div>
+    </button>
   `;
 }
 
@@ -1869,6 +1912,7 @@ function CalendarDayDetail({
   finance = [],
   activitiesList = [],
   sessionEvents = [],
+  substances = [],
   liveMode = false,
   setSessions,
   setDays,
@@ -1887,6 +1931,19 @@ function CalendarDayDetail({
       (a, b) => wakeRelativeMin(a.start, day.wake || "00:00") - wakeRelativeMin(b.start, day.wake || "00:00"),
     );
   }, [sessions, day]);
+
+  const orphanSubstances = useMemo(
+    () => standaloneSubstanceEventsForDate(date, sessionEvents),
+    [date, sessionEvents],
+  );
+
+  const timeline = useMemo(() => {
+    const sortKey = (item) => {
+      const start = item.start ?? String(item.start_time || "").slice(0, 5);
+      return wakeRelativeMin(start, day?.wake || "00:00");
+    };
+    return mergeTimelineItems(sorted, orphanSubstances, sortKey);
+  }, [sorted, orphanSubstances, day]);
 
   const kcalIn = meals.reduce((a, m) => a + (Number(m.kcal) || 0), 0);
   const kcalOut = dayKcalOut(date, activitiesList, sessionEvents, sessions);
@@ -2027,22 +2084,48 @@ function CalendarDayDetail({
       <div class="cal-detail-section-wrap cal-detail-section-wrap--sessions">
         <span class="cal-detail-section-title">сессии</span>
         <div class="cal-detail-sessions-wrap">
-          ${sorted.length === 0 && html`<div class="cal-detail-empty-wrap"><span>сессии не записаны</span></div>`}
-          ${sorted.map((s) => html`
-            <div class="cal-detail-session-block-wrap" key=${s.id}>
-              <${RecordOpenRow}
-                className="cal-detail-session"
-                onOpen=${onOpenRecord ? () => onOpenRecord({ kind: "session", record: s }) : null}
-                disabled=${!liveMode}
-              >
-                <${SessionCompactContent}
-                  session=${s}
-                  sessionEvents=${sessionEvents}
-                  finance=${finance}
-                />
-              </${RecordOpenRow}>
-            </div>
-          `)}
+          ${timeline.length === 0 && html`<div class="cal-detail-empty-wrap"><span>сессии не записаны</span></div>`}
+          ${timeline.map((item) =>
+            item.type === "substance_event"
+              ? html`
+                  <div class="cal-detail-session-block-wrap cal-detail-session-block-wrap--substance" key=${item.id}>
+                    <${RecordOpenRow}
+                      className="cal-detail-session cal-detail-session--substance"
+                      onOpen=${onOpenRecord
+                        ? () => onOpenRecord(substanceEventOpenTarget(item.data, substances))
+                        : null}
+                      disabled=${!liveMode}
+                    >
+                      <div class="session-compact-inner-wrap">
+                        <div class="session-compact-head-wrap">
+                          <div class="session-compact-time-wrap">
+                            <span class="session-compact__time">${String(item.data.start_time || "").slice(0, 5)}</span>
+                          </div>
+                          <span class="session-compact__cat">substance</span>
+                        </div>
+                        <div class="session-compact-body-wrap">
+                          <span class="session-compact__proj">${substanceEventLabel(item.data, finance)}</span>
+                        </div>
+                      </div>
+                    </${RecordOpenRow}>
+                  </div>
+                `
+              : html`
+                  <div class="cal-detail-session-block-wrap" key=${item.id}>
+                    <${RecordOpenRow}
+                      className="cal-detail-session"
+                      onOpen=${onOpenRecord ? () => onOpenRecord({ kind: "session", record: item.data }) : null}
+                      disabled=${!liveMode}
+                    >
+                      <${SessionCompactContent}
+                        session=${item.data}
+                        sessionEvents=${sessionEvents}
+                        finance=${finance}
+                      />
+                    </${RecordOpenRow}>
+                  </div>
+                `,
+          )}
         </div>
       </div>
     </div>
@@ -2222,6 +2305,12 @@ function KanbanTab({
                 (a, b) => wakeRelativeMin(a.start, day.wake || "00:00") - wakeRelativeMin(b.start, day.wake || "00:00"),
               )
             : [...list].sort((a, b) => a.start.localeCompare(b.start));
+          const orphanSubstances = standaloneSubstanceEventsForDate(date, sessionEvents);
+          const sortKey = (item) => {
+            const start = item.start ?? String(item.start_time || "").slice(0, 5);
+            return wakeRelativeMin(start, day?.wake || "00:00");
+          };
+          const timeline = mergeTimelineItems(sorted, orphanSubstances, sortKey);
           const isToday = date === today;
           const isFuture = date > today;
           const colMeals = mealsByDate.get(date) || [];
@@ -2266,24 +2355,39 @@ function KanbanTab({
                 </div>
               `}
               <div class="kanban-col-body-wrap">
-                ${sorted.length === 0 && adding !== date && html`<div class="kanban-empty-col"><span>—</span></div>`}
-                ${sorted.map((s) => html`
+                ${timeline.length === 0 && adding !== date && html`<div class="kanban-empty-col"><span>—</span></div>`}
+                ${timeline.map((item) =>
+                  item.type === "substance_event"
+                    ? html`
+                        <${SubstanceInstantCard}
+                          key=${item.id}
+                          event=${item.data}
+                          finance=${finance}
+                          disabled=${!onOpenRecord}
+                          onClick=${() =>
+                            onOpenRecord?.(substanceEventOpenTarget(item.data, substances))}
+                        />
+                      `
+                    : html`
                         <button
-                          class=${`kanban-card kanban-card--${(s.category || "x").replace(/[^a-z0-9_]/gi, "_")}`}
-                          key=${s.id}
-                          onClick=${() => onOpenRecord?.({ kind: "session", record: s })}
-                          title=${[s.project, s.note, s.category].filter(Boolean).join(" · ") || "открыть сессию"}
+                          class=${`kanban-card kanban-card--${(item.data.category || "x").replace(/[^a-z0-9_]/gi, "_")}`}
+                          key=${item.id}
+                          onClick=${() => onOpenRecord?.({ kind: "session", record: item.data })}
+                          title=${[item.data.project, item.data.note, item.data.category]
+                            .filter(Boolean)
+                            .join(" · ") || "открыть сессию"}
                           disabled=${!onOpenRecord}
                         >
                           <${SessionCompactContent}
-                            session=${s}
+                            session=${item.data}
                             sessionEvents=${sessionEvents}
                             finance=${finance}
                             compact=${true}
-                            suffix=${html`<span class="kanban-card__dur">${s.min}m</span>`}
+                            suffix=${html`<span class="kanban-card__dur">${item.data.min}m</span>`}
                           />
                         </button>
-                      `)}
+                      `,
+                )}
                 ${adding === date && html`
                   <${KanbanSessionEditor}
                     isNew

@@ -291,6 +291,18 @@ export async function afterSessionEventWrite(
   if (isSportSessionEvent(row)) {
     await afterSportSessionEventWrite(db, eventId);
   }
+
+  if (row.kind === "substance" && !row.substance_id) {
+    const { promoteBundledSubstanceEvent } = await import("./substanceEventSync.ts");
+    await promoteBundledSubstanceEvent(db, eventId);
+    return;
+  }
+
+  if (row.substance_id && row.session_id) {
+    const parentId = String(row.session_id);
+    await db.from("session_events").update({ session_id: null }).eq("id", eventId);
+    await rollupSessionEnvelope(db, parentId);
+  }
 }
 
 export async function deleteSessionEventTree(

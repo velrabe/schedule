@@ -249,7 +249,7 @@ events ↔ finance_planned_items (визаран и т.п.)
 | name | Как говорит пользователь | Запись |
 |------|--------------------------|--------|
 | `moda` | модаф, 75 мг мода, без мода | `{ name:"moda", amount, unit:"mg", time }` → сумма в `days.modafinil_mg` |
-| `scooby` | скуби, был скуби, +1 скуби, перед обедом скуби | `{ name:"scooby", amount:1, unit:"session", time }` — **каждый приём = новая строка** |
+| `scooby` | скуби, был скуби, +1 скуби, перед обедом скуби | `{ name:"scooby", amount:1, unit:"session", time }` — **каждый приём = новая строка**; **не** класть в `events[]` сессии chill/work |
 | `caffeine` | кофе, эспрессо | `amount:1`, `unit:cup`, `time` |
 | `alcohol` | вино, пиво | `time` |
 | `weed` | покурил | `unit:session`, `time` |
