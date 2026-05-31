@@ -139,7 +139,7 @@ export default function InsightsTab({
               const d = enriched[i];
               if (!d) return [];
               const lines = [`${d.dow || "—"} · ${d.day_type || "—"}`];
-              if (d.modafinil_mg > 0) lines.push(`Модафинил: ${d.modafinil_mg} мг`);
+              if (d.modafinil_mg > 0) lines.push(`Moda: ${d.modafinil_mg} мг`);
               return lines;
             }}
           />

@@ -8,6 +8,7 @@ import { admin } from "../_shared/db.ts";
 import {
   normalizeDayPatch,
   normalizeMealPayload,
+  normalizeSubstancePayload,
   normalizeSessionPayload,
   padTime,
   diffMinutes,
@@ -80,6 +81,9 @@ function normalizeManualRow(
   }
   if (resource === "activities" && row.time != null) {
     return { ...row, time: padTime(row.time) };
+  }
+  if (resource === "substances" && (op === "insert" || op === "upsert" || op === "update")) {
+    return normalizeSubstancePayload(row);
   }
   return row;
 }

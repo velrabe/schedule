@@ -31,9 +31,10 @@ export function summarizeAction(a: Action): string {
 
   switch (type) {
     case "create_substance": {
-      const name = String(d.name ?? "вещество");
+      const name = String(d.name ?? "вещество").replace(/^modafinil$/i, "moda");
       const amt = d.amount != null ? ` ${d.amount}${d.unit ? ` ${d.unit}` : ""}` : "";
-      return `${name}${amt}${date ? ` · ${date}` : ""}`;
+      const at = d.time ? ` · ${trimTime(d.time)}` : "";
+      return `${name}${amt}${at}${date ? ` · ${date}` : ""}`;
     }
     case "update_day": {
       const parts: string[] = [];

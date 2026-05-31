@@ -209,7 +209,7 @@ node scripts/schedule-api.mjs manual update meals '{"id":"<uuid>","kcal":500,"pr
 | `create_meal` | макросы (обычно после food-сессии) |
 | `create_activity` | спорт (run, cycling, …) |
 | `create_finance_transaction` | расход/доход/transfer |
-| `create_substance` | мода, кофе, … |
+| `create_substance` | **moda** (мг), **scooby** (+1/session + **time**), caffeine, alcohol, weed |
 | `create_body_metric` | вес, пульс, … |
 | `create_event` | событие (visa, planning, …) |
 | `create_planner_event` | календарь |
@@ -232,17 +232,34 @@ node scripts/schedule-api.mjs manual update meals '{"id":"<uuid>","kcal":500,"pr
 ## Связки (обязательно понимать)
 
 ```
-days (date PK) — wake_time, modafinil_mg (сумма из substances modafinil)
+days (date PK) — wake_time, modafinil_mg (сумма mg из substances name=moda)
   └── sessions — оболочка в ежедневнике
   └── session_events — атомы; is_instant=true → только start_time (wake, substance)
-  └── substances — дозы; сервер зеркалит session_event kind=substance
+  └── substances — дозы (`moda`, `scooby`, caffeine, …); сервер зеркалит instant session_event; **время обязательно** для анализа частоты
   └── meals.session_id → sessions.id
   └── finance_transactions.session_event_id — расход на атом
   └── activities — параллельно sport-сессиям по времени (прогулка = sport_walk, не category=walk)
 events ↔ finance_planned_items (визаран и т.п.)
 ```
 
-**Instant:** проснулся / модаф / кофе → `create_substance` или `kind=wake|substance` с `instant:true`, без end_time+5мин.
+**Instant:** проснулся / moda / scooby / кофе → `create_substance` с **`time`** (или `kind=wake|substance`, `instant:true`).
+
+### Субстанции (имена в БД)
+
+| name | Как говорит пользователь | Запись |
+|------|--------------------------|--------|
+| `moda` | модаф, 75 мг мода, без мода | `{ name:"moda", amount, unit:"mg", time }` → сумма в `days.modafinil_mg` |
+| `scooby` | скуби, был скуби, +1 скуби, перед обедом скуби | `{ name:"scooby", amount:1, unit:"session", time }` — **каждый приём = новая строка** |
+| `caffeine` | кофе, эспрессо | `amount:1`, `unit:cup`, `time` |
+| `alcohol` | вино, пиво | `time` |
+| `weed` | покурил | `unit:session`, `time` |
+
+Никогда `name=modafinil` — только **`moda`**. Для scooby не увеличивай старую строку — добавь новую с новым `time`.
+
+```bash
+node scripts/schedule-api.mjs manual insert substances '{"date":"2026-05-31","time":"14:45","name":"scooby","amount":1,"unit":"session"}'
+node scripts/schedule-api.mjs manual insert substances '{"date":"2026-05-31","time":"11:00","name":"moda","amount":75,"unit":"mg"}'
+```
 
 **Sport + Apple Health:** `activities` (cycling 11:21, notes с distance/kcal) ↔ `session_events` через `activity_id`; при save/link метрики с устройства переносятся на ивент (106 kcal, 4.74 km), не дублировать 130 вручную если есть activity.
 

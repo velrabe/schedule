@@ -28,7 +28,7 @@ function formatSubstanceShort(s) {
   const unit = (s.unit || "").trim();
   if (amt != null && Number.isFinite(Number(amt))) {
     const n = Number(amt);
-    if (n === 0 && name === "modafinil") return "без модафа";
+    if (n === 0 && (name === "moda" || name === "modafinil")) return "без мода";
     return unit ? `${name} ${n}${unit}` : `${name} ${n}`;
   }
   return name;
@@ -38,7 +38,7 @@ function substancesForDate(date, substances = [], day) {
   const rows = substances.filter((s) => s.date === date);
   const parts = rows.map(formatSubstanceShort);
   if (!parts.length && day?.modafinil_mg > 0) {
-    parts.push(`modafinil ${day.modafinil_mg}mg`);
+    parts.push(`moda ${day.modafinil_mg}mg`);
   }
   return parts.join(", ");
 }

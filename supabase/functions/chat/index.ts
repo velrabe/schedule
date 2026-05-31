@@ -146,7 +146,7 @@ Output:
 {
   "reply_to_user": "Записал: модафинил 75 мг.",
   "actions": [
-    { "type": "create_substance", "data": { "date": "${today}", "name": "modafinil", "amount": 75, "unit": "mg" } }
+    { "type": "create_substance", "data": { "date": "${today}", "time": "09:00", "name": "moda", "amount": 75, "unit": "mg" } }
   ],
   "needs_confirmation": false
 }

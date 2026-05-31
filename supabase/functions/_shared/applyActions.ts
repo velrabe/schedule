@@ -4,6 +4,7 @@ import {
   normalizeActionType,
   normalizeDayPatch,
   normalizeMealPayload,
+  normalizeSubstancePayload,
   padTime,
 } from "./actions.ts";
 import {
@@ -118,9 +119,10 @@ async function executeOne(
       return data;
     }
     case "create_substance": {
+      const row = normalizeSubstancePayload(d);
       const { data, error } = await db
         .from("substances")
-        .insert({ ...d, ...logRef })
+        .insert({ ...row, ...logRef })
         .select()
         .single();
       if (error) throw error;

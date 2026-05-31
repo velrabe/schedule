@@ -8,10 +8,10 @@ const DATA_MODEL = `
 
 | Entity | Table | Role |
 |--------|-------|------|
-| Day meta | days | wake/sleep, modafinil, mood, day_type |
+| Day meta | days | wake/sleep, modafinil_mg (from moda rows), mood, day_type |
 | Diary block | sessions | **one line in the daily schedule** ("болдеринг", "работа app", "завтрак") — envelope times roll up from children |
 | Atomic part | session_events | taxi, gym, snack, wake, substance, … — **building block**; optional session_id parent; each may have its own expense |
-| Substance dose | substances | modafinil, caffeine, alcohol, weed — **fact row**; server mirrors instant session_event (kind=substance) |
+| Substance dose | substances | moda, scooby, caffeine, alcohol, weed — **fact row**; server mirrors instant session_event (kind=substance); **time required** for frequency analysis |
 | Nutrition row | meals | KBJU + name; 1:1 with a food session (session_id) |
 | Sport aggregate | activities | optional extra row (distance, kcal burned, source) parallel to sport **session_event** / session |
 | Money FACT | finance_transactions | happened: expense / income / transfer; link **session_event_id** (one txn per event); session_id kept for rollups |
@@ -59,7 +59,7 @@ const DATA_MODEL = `
 
 ## Instant vs duration (session_events)
 
-- **Instant** (проснулся, модаф, кофе, покурил): one timestamp only — start_time required; omit end_time OR instant:true OR kind wake|substance. Server sets end_time=start_time, duration_min=0, is_instant=true. **Never** invent 5-minute windows for wake/substance.
+- **Instant** (проснулся, moda, scooby, кофе, покурил): one timestamp only — start_time required; omit end_time OR instant:true OR kind wake|substance. Server sets end_time=start_time, duration_min=0, is_instant=true. **Never** invent 5-minute windows for wake/substance.
 - **Duration** (зал 90 мин, работа, сон-блок): start_time + end_time (or duration_min > 0).
 - **Substances:** always create_substance { date, time?, name, amount?, unit? } — writes substances + auto instant session_event (kind=substance). Optionally group in morning create_session_bundle with wake instant event + separate create_substance actions.
 - **Wake:** update_day { wake_time } for day header AND instant session_event kind=wake at that time (in bundle or create_session_event). Do not use duration for wake.
@@ -85,7 +85,7 @@ const GLOBAL = `
 - Chat: never write without user confirm UNLESS AUTO-ALLOW below. Agent/manual: user already delegated write — still follow DATA MODEL linking.
 
 AUTO-ALLOW (chat needs_confirmation=false only):
-- create_substance (modafinil, caffeine, alcohol, weed)
+- create_substance (moda, scooby, caffeine, alcohol, weed)
 - create_body_metric (weight, hr, hrv, etc.)
 - create_session for simple chill / shower / chores / transport with no project
 - прогулка / погулял / ходьба (сессия) → category=sport_walk, type=sport (NOT category=walk)
@@ -324,11 +324,23 @@ Auto-allow without confirmation.
 
 const SUBSTANCES = `
 # substances (table substances + mirrored instant session_event kind=substance)
-Always use create_substance — NOT a fake 5-min session. Server links session_event and syncs days.modafinil_mg from modafinil rows.
+Always use create_substance — NOT a fake 5-min session. Server mirrors instant session_event (kind=substance, is_instant=true).
+**Always set time** (HH:MM or HH:MM:SS) when user states it or you can infer from meal/session context — needed for frequency & effect analysis.
 
-Modafinil:
-- "75 мг модафа", "100 мг модафинила", "50 модф" → create_substance { name=modafinil, amount=NN, unit=mg, time=now or stated }
-- "без модафа", "сегодня без" → create_substance { name=modafinil, amount=0, unit=mg }
+Canonical names (substances.name / session_events.category):
+- moda — modafinil (days.modafinil_mg = sum of moda rows in mg for that date)
+- scooby — discrete doses (+1 per intake)
+- caffeine, alcohol, weed — as below
+
+Moda (name=moda, never modafinil):
+- "75 мг модафа", "100 мг мода", "50 модф" → create_substance { name=moda, amount=NN, unit=mg, time=now or stated }
+- "без мода", "сегодня без мода" → create_substance { name=moda, amount=0, unit=mg, time=now or stated }
+
+Scooby (name=scooby):
+- "скуби", "scooby", "был скуби", "ещё скуби", "+1 скуби" → **one new row per intake**: create_substance { name=scooby, amount=1, unit=session, time=REQUIRED }
+- "перед обедом был скуби" → time = shortly before lunch (e.g. 10–20 min before lunch session start_time from context); if lunch unknown, ask once OR use stated clock time
+- "второй скуби за день" → second row same date, different time — never bump amount on an old row
+- Do not log scooby without time (infer from "сейчас" = now if user just took it)
 
 Caffeine:
 - "кофе", "эспрессо", "латте", "капучино", "американо", "чашку кофе" → name=caffeine, amount=1, unit=cup
@@ -342,7 +354,7 @@ Alcohol:
 Weed:
 - "покурил", "затянулся", "косячок", "вид", "трава", "weed" → name=weed, amount=null, unit=session (NO doses; just session marker, micro-doses)
 
-Nothing else — don't try to track nicotine, kratom, vapes etc.
+Only moda, scooby, caffeine, alcohol, weed — don't track nicotine, kratom, vapes etc.
 
 Auto-allow without confirmation.
 `;

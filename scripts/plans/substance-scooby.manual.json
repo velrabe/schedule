@@ -1,0 +1,14 @@
+[
+  {
+    "op": "insert",
+    "resource": "substances",
+    "row": {
+      "date": "2026-05-31",
+      "time": "14:45",
+      "name": "scooby",
+      "amount": 1,
+      "unit": "session",
+      "notes": "перед обедом"
+    }
+  }
+]

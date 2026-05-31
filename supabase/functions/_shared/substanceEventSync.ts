@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
 import { padTime } from "./actions.ts";
 import { normalizeSessionEventPayload } from "./sessionEvents.ts";
+import { isModaSubstance, SUBSTANCE_MODA } from "./substanceNames.ts";
 
 type SubstanceRow = {
   id: string;
@@ -18,7 +19,7 @@ function substanceTitle(sub: SubstanceRow): string {
   const unit = sub.unit || "";
   if (amt != null && Number.isFinite(Number(amt))) {
     const n = Number(amt);
-    if (n === 0 && name === "modafinil") return "без модафинила";
+    if (n === 0 && isModaSubstance(name)) return "без мода";
     return unit ? `${name} ${n}${unit}` : `${name} ${n}`;
   }
   return name;
@@ -33,7 +34,7 @@ async function syncDayModafinilMg(
     .from("substances")
     .select("id, amount")
     .eq("date", date)
-    .eq("name", "modafinil");
+    .in("name", [SUBSTANCE_MODA, "modafinil"]);
   if (error) throw error;
   const total = (rows || [])
     .filter((r) => String(r.id) !== excludeSubstanceId)
@@ -79,7 +80,7 @@ export async function afterSubstanceWrite(db: SupabaseClient, substanceId: strin
     if (insErr) throw insErr;
   }
 
-  if (row.name === "modafinil") await syncDayModafinilMg(db, row.date);
+  if (isModaSubstance(row.name)) await syncDayModafinilMg(db, row.date);
 }
 
 export async function beforeSubstanceDelete(db: SupabaseClient, substanceId: string): Promise<void> {
@@ -96,7 +97,7 @@ export async function beforeSubstanceDelete(db: SupabaseClient, substanceId: str
     }
   }
   const { data: sub } = await db.from("substances").select("date, name").eq("id", substanceId).maybeSingle();
-  if (sub?.name === "modafinil" && sub.date) {
+  if (sub?.name && isModaSubstance(sub.name) && sub.date) {
     await syncDayModafinilMg(db, String(sub.date), substanceId);
   }
 }

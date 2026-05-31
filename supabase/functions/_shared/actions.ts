@@ -1,5 +1,7 @@
 // Normalize LLM action types + payloads before DB writes.
 
+import { SUBSTANCE_MODA, SUBSTANCE_SCOOBY } from "./substanceNames.ts";
+
 export function normalizeActionType(type: string): string {
   return type.trim().toLowerCase().replace(/-/g, "_");
 }
@@ -107,6 +109,32 @@ export function normalizeSessionPayload(raw: Record<string, unknown>): Record<st
     quality: raw.quality != null ? Number(raw.quality) : null,
     notes: raw.notes != null ? String(raw.notes) : raw.note != null ? String(raw.note) : null,
   };
+}
+
+const SUBSTANCE_ALIASES: Record<string, string> = {
+  modafinil: SUBSTANCE_MODA,
+  modaf: SUBSTANCE_MODA,
+  модафинил: SUBSTANCE_MODA,
+  модаф: SUBSTANCE_MODA,
+  scooby: SUBSTANCE_SCOOBY,
+  скуби: SUBSTANCE_SCOOBY,
+  scubi: SUBSTANCE_SCOOBY,
+};
+
+export function normalizeSubstancePayload(raw: Record<string, unknown>): Record<string, unknown> {
+  const rawName = String(raw.name ?? "").trim().toLowerCase();
+  const name = SUBSTANCE_ALIASES[rawName] ?? (raw.name != null ? String(raw.name).trim() : "");
+  const out: Record<string, unknown> = {
+    date: String(raw.date),
+    name,
+    amount: raw.amount != null ? Number(raw.amount) : null,
+    unit: raw.unit != null ? String(raw.unit) : null,
+    notes: raw.notes != null ? String(raw.notes) : null,
+  };
+  if (raw.time != null && String(raw.time).trim() !== "") {
+    out.time = padTime(raw.time);
+  }
+  return out;
 }
 
 export function normalizeMealPayload(raw: Record<string, unknown>): Record<string, unknown> {
