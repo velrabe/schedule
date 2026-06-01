@@ -48,6 +48,11 @@ import {
   partDurationMin,
   sessionDurationMin,
 } from "./sessionDisplay.js";
+import {
+  standaloneSubstanceEventsForDate,
+  mergeTimelineItems,
+  substanceEventOpenTarget,
+} from "./substanceTimeline.js";
 import { formatKanbanDayCopy, copyTextToClipboard } from "./kanbanDayCopy.js";
 import FinanceTab from "./FinanceTab.jsx";
 import InsightsTab from "./InsightsTab.jsx";
