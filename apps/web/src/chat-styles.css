@@ -943,6 +943,22 @@
   min-width: 0;
 }
 
+.record-drawer-attach-wrap {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  margin-top: 8px;
+  gap: 0;
+}
+
+.record-drawer-attach-actions-wrap {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  width: 100%;
+  gap: 8px;
+}
+
 .session-bundle-part-fields-wrap {
   display: flex;
   flex-direction: column;

@@ -19,7 +19,11 @@ import { getRelatedLinks } from "./recordLinks.js";
 import {
   findMealForEvent,
   findLinkedExpenseForEvent,
+  findLinkedSubstancesForEvent,
   isMealPhaseFoodEvent,
+  isFoodLikeEvent,
+  isFoodOrderLikeEvent,
+  substanceLinkLabel,
 } from "./sessionEventLinks.js";
 
 /** @typedef {'hidden' | 'add_button' | 'readonly'} ExpenseUiMode */
@@ -76,9 +80,13 @@ export function sessionEventDrawerPolicy(ev, ctx = {}) {
   const linkCtx = { meals, sessionEvents, finance, activities, sessions: ctx.sessions || [] };
   const meal = findMealForEvent(ev, linkCtx);
   const expenseTxn = findLinkedExpenseForEvent(ev, linkCtx);
+  const linkedSubstances = findLinkedSubstancesForEvent(ev, {
+    substances,
+    sessionEvents,
+  });
   const substance = ev.substance_id
     ? substances.find((s) => s.id === ev.substance_id)
-    : null;
+    : linkedSubstances[0] || null;
   const activity =
     (ev.activity_id && activities.find((a) => a.id === ev.activity_id)) ||
     (isSportSessionEvent(ev) ? findActivityForEvent(ev, activities) : null);
@@ -110,22 +118,25 @@ export function sessionEventDrawerPolicy(ev, ctx = {}) {
     pushMealRow(readonlyRows, meal);
   }
 
-  if (substance) {
+  if (ev.kind === "substance" || ev.substance_id) {
     expenseMode = expenseMode === "add_button" ? "hidden" : expenseMode;
     hideFields.add("title");
     hideFields.add("kind");
+  }
+
+  for (const sub of linkedSubstances) {
     const amt =
-      substance.amount != null && Number.isFinite(Number(substance.amount))
-        ? `${substance.amount}${substance.unit ? ` ${substance.unit}` : ""}`
+      sub.amount != null && Number.isFinite(Number(sub.amount))
+        ? `${sub.amount}${sub.unit ? ` ${sub.unit}` : ""}`
         : "";
     readonlyRows.push({
-      key: "substance",
-      label: "substance",
-      value: [substance.name, amt].filter(Boolean).join(" · "),
-      detail: String(substance.time || "").slice(0, 5),
+      key: `substance-${sub.id}`,
+      label: "субстанция",
+      value: substanceLinkLabel(sub),
+      detail: [amt, String(sub.time || "").slice(0, 5)].filter(Boolean).join(" · "),
       linkKind: "substance",
-      linkRecord: substance,
-      linkLabel: substance.name || "substance",
+      linkRecord: sub,
+      linkLabel: sub.name || "substance",
     });
   }
 
@@ -159,6 +170,11 @@ export function sessionEventDrawerPolicy(ev, ctx = {}) {
   }
 
   const canEditExpenseInline = expenseMode === "add_button";
+  const canAddSubstance = ev.kind !== "substance" && !ev.substance_id;
+  const canAddMeal =
+    !meal &&
+    !ev.meal_id &&
+    (isFoodLikeEvent(ev) || isFoodOrderLikeEvent(ev));
 
   return {
     expenseMode,
@@ -167,9 +183,12 @@ export function sessionEventDrawerPolicy(ev, ctx = {}) {
     readonlyRows,
     links,
     canEditExpenseInline,
+    canAddSubstance,
+    canAddMeal,
     instant,
     meal,
     substance,
+    linkedSubstances,
     activity,
   };
 }

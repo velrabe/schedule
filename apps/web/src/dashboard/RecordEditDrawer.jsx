@@ -32,6 +32,14 @@ import DrawerSubstancesList from "./DrawerSubstancesList.jsx";
 import { substancesForSessionPhase } from "./substanceSession.js";
 import { sessionBreadcrumbLabel } from "./drawerNavigation.js";
 import { mapSessionEventForDrawer, sessionEventDisplayLabel } from "./recordDisplay.js";
+import {
+  defaultSubstanceAttachForm,
+  defaultMealAttachForm,
+  attachSubstanceToAtom,
+  attachMealToAtom,
+  SUBSTANCE_ATTACH_FIELDS,
+  MEAL_ATTACH_FIELDS,
+} from "./atomAttach.js";
 
 const html = htm.bind(h);
 
@@ -164,6 +172,11 @@ export default function RecordEditDrawer({
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [expenseExpanded, setExpenseExpanded] = useState(false);
+  const [substanceExpanded, setSubstanceExpanded] = useState(false);
+  const [mealExpanded, setMealExpanded] = useState(false);
+  const [substanceAttachForm, setSubstanceAttachForm] = useState({});
+  const [mealAttachForm, setMealAttachForm] = useState({});
+  const [attachBusy, setAttachBusy] = useState(false);
 
   const meta = current ? getRecordEditorMeta(current.kind) : null;
 
@@ -212,11 +225,51 @@ export default function RecordEditDrawer({
       );
       if (current.kind === "session_event") {
         setExpenseExpanded(false);
+        setSubstanceExpanded(false);
+        setMealExpanded(false);
+        setSubstanceAttachForm(defaultSubstanceAttachForm(current.record));
+        setMealAttachForm(defaultMealAttachForm(current.record));
       } else {
         setExpenseExpanded(Boolean(linkedExpense));
+        setSubstanceExpanded(false);
+        setMealExpanded(false);
       }
     } else setForm({});
   }, [current?.kind, current?.record?.id, linkedExpense?.id, linkedSession?.id, linkedSession?.start, activities, finance, ctx, sessionEvents]);
+
+  const setSubstanceAttachField = useCallback((key, value) => {
+    setSubstanceAttachForm((prev) => ({ ...prev, [key]: value }));
+  }, []);
+
+  const setMealAttachField = useCallback((key, value) => {
+    setMealAttachForm((prev) => ({ ...prev, [key]: value }));
+  }, []);
+
+  const onAttachSubstance = async () => {
+    if (!current?.record?.id || !liveMode) return;
+    setAttachBusy(true);
+    try {
+      await attachSubstanceToAtom(current.record.id, substanceAttachForm);
+      setSubstanceExpanded(false);
+    } catch (e) {
+      alert(e?.message || String(e));
+    } finally {
+      setAttachBusy(false);
+    }
+  };
+
+  const onAttachMeal = async () => {
+    if (!current?.record?.id || !liveMode) return;
+    setAttachBusy(true);
+    try {
+      await attachMealToAtom(current.record, mealAttachForm);
+      setMealExpanded(false);
+    } catch (e) {
+      alert(e?.message || String(e));
+    } finally {
+      setAttachBusy(false);
+    }
+  };
 
   useEffect(() => {
     if (!current) return;
@@ -370,7 +423,7 @@ export default function RecordEditDrawer({
   if (!current || !meta) return null;
 
   const subtitle = drawerSubtitle;
-  const busy = saving || deleting;
+  const busy = saving || deleting || attachBusy;
   const stopInside = (e) => e.stopPropagation();
   let mainFields = fields.filter((f) => !isExpenseField(f));
   if (current?.kind === "session_event") {
@@ -446,6 +499,76 @@ export default function RecordEditDrawer({
                 />
               `,
             )}
+            ${current?.kind === "session_event" && eventPolicy?.canAddSubstance && !substanceExpanded && html`
+              <button type="button" class="btn btn--ghost btn--block session-bundle-add-expense-btn"
+                disabled=${!liveMode || busy} onClick=${() => setSubstanceExpanded(true)}>
+                <span class="btn__text-wrap">добавить субстанцию</span>
+              </button>
+            `}
+            ${current?.kind === "session_event" && eventPolicy?.canAddSubstance && substanceExpanded && html`
+              <div class="record-drawer-attach-wrap">
+                <div class="record-drawer-section-wrap">
+                  <span class="record-drawer-section-title">субстанция · доза</span>
+                  <span class="record-drawer-section-hint">привязка к этому атому · отдельная строка substances</span>
+                </div>
+                ${SUBSTANCE_ATTACH_FIELDS.map(
+                  (field) => html`
+                    <${FieldInput}
+                      key=${`sub-attach-${field.key}`}
+                      field=${field}
+                      value=${substanceAttachForm[field.key]}
+                      onChange=${setSubstanceAttachField}
+                      disabled=${!liveMode || busy}
+                    />
+                  `,
+                )}
+                <div class="record-drawer-attach-actions-wrap">
+                  <button type="button" class="btn btn--primary btn--sm" disabled=${!liveMode || busy}
+                    onClick=${onAttachSubstance}>
+                    <span class="btn__text-wrap">сохранить дозу</span>
+                  </button>
+                  <button type="button" class="btn btn--ghost btn--sm" disabled=${busy}
+                    onClick=${() => setSubstanceExpanded(false)}>
+                    <span class="btn__text-wrap">отмена</span>
+                  </button>
+                </div>
+              </div>
+            `}
+            ${current?.kind === "session_event" && eventPolicy?.canAddMeal && !mealExpanded && html`
+              <button type="button" class="btn btn--ghost btn--block session-bundle-add-expense-btn"
+                disabled=${!liveMode || busy} onClick=${() => setMealExpanded(true)}>
+                <span class="btn__text-wrap">добавить приём пищи</span>
+              </button>
+            `}
+            ${current?.kind === "session_event" && eventPolicy?.canAddMeal && mealExpanded && html`
+              <div class="record-drawer-attach-wrap">
+                <div class="record-drawer-section-wrap">
+                  <span class="record-drawer-section-title">приём пищи + расход</span>
+                  <span class="record-drawer-section-hint">meal в БД + meal_id на атом · расход на этот же атом</span>
+                </div>
+                ${MEAL_ATTACH_FIELDS.map(
+                  (field) => html`
+                    <${FieldInput}
+                      key=${`meal-attach-${field.key}`}
+                      field=${field}
+                      value=${mealAttachForm[field.key]}
+                      onChange=${setMealAttachField}
+                      disabled=${!liveMode || busy}
+                    />
+                  `,
+                )}
+                <div class="record-drawer-attach-actions-wrap">
+                  <button type="button" class="btn btn--primary btn--sm" disabled=${!liveMode || busy}
+                    onClick=${onAttachMeal}>
+                    <span class="btn__text-wrap">сохранить приём</span>
+                  </button>
+                  <button type="button" class="btn btn--ghost btn--sm" disabled=${busy}
+                    onClick=${() => setMealExpanded(false)}>
+                    <span class="btn__text-wrap">отмена</span>
+                  </button>
+                </div>
+              </div>
+            `}
             ${showExpenseAddButton && html`
               <button type="button" class="btn btn--ghost btn--block session-bundle-add-expense-btn"
                 disabled=${!liveMode || busy} onClick=${() => setExpenseExpanded(true)}>

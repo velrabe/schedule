@@ -5,6 +5,8 @@
 
 import { mealHasMacroData } from "./mergeNutrition.js";
 import { isSportSessionEvent } from "./activityMetrics.js";
+import { parseAtomLinkFromNotes } from "./atomAttach.js";
+import { substanceRowLabel } from "./calendarDayDetail.js";
 import {
   expensesForSession,
   expensesForSessionEvent,
@@ -68,6 +70,12 @@ function eventsShareMealPhase(a, b) {
 export function findMealForEvent(ev, ctx = {}) {
   const { meals = [], sessionEvents = [] } = ctx;
   if (!ev) return null;
+
+  const byAtomNote = meals.find(
+    (m) => m.date === ev.date && parseAtomLinkFromNotes(m.notes) === ev.id,
+  );
+  if (byAtomNote) return byAtomNote;
+
   if (isFoodOrderLikeEvent(ev) && !ev.meal_id) return null;
 
   if (ev.meal_id) {
@@ -109,6 +117,52 @@ export function findMealForEvent(ev, ctx = {}) {
     return da - db;
   });
   return pool[0];
+}
+
+/**
+ * Substances linked to this atom: explicit atom:note, same-time dose, or substance_id on event.
+ */
+export function findLinkedSubstancesForEvent(ev, ctx = {}) {
+  const { substances = [], sessionEvents = [] } = ctx;
+  if (!ev?.id) return [];
+  const seen = new Set();
+  const out = [];
+
+  const add = (row) => {
+    if (!row?.id || seen.has(row.id)) return;
+    seen.add(row.id);
+    out.push(row);
+  };
+
+  if (ev.substance_id) {
+    add(substances.find((s) => s.id === ev.substance_id));
+  }
+
+  for (const s of substances) {
+    if (s.date !== ev.date) continue;
+    if (parseAtomLinkFromNotes(s.notes) === ev.id) add(s);
+  }
+
+  const start = timeToMin(ev.start_time || ev.start);
+  let end = timeToMin(ev.end_time || ev.end);
+  if (end <= start) end = start + Math.max(eventDurationMin(ev), 5);
+
+  for (const s of substances) {
+    if (s.date !== ev.date || !s.time) continue;
+    const t = timeToMin(s.time);
+    if (t >= start - 10 && t <= end + 10) add(s);
+  }
+
+  for (const e of sessionEvents) {
+    if (e.id === ev.id || e.session_id !== ev.session_id || !e.substance_id) continue;
+    add(substances.find((s) => s.id === e.substance_id));
+  }
+
+  return out.sort((a, b) => String(a.time || "").localeCompare(String(b.time || "")));
+}
+
+export function substanceLinkLabel(sub) {
+  return substanceRowLabel(sub);
 }
 
 function collectSessionExpenses(sessionId, finance, sessionEvents) {
