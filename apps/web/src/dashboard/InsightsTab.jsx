@@ -72,7 +72,7 @@ export default function InsightsTab({
           value=${kpis.avgSleep != null ? `${fmt(kpis.avgSleep)}ч` : "—"}
         />
         <${KpiPill} label="спорт/день" value=${`${fmt(kpis.avgSport)}ч`} />
-        <${KpiPill} label="мод" value=${`${kpis.modPct}%`} sub="дней с дозой" />
+        <${KpiPill} label="мод" value=${`${kpis.modPct}%`} sub="дней с moda" />
         <${KpiPill}
           label="burnout"
           value=${String(kpis.burnoutCount)}

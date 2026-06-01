@@ -13,7 +13,7 @@ export default function DrawerSubstancesList({
   rows = [],
   onOpenRecord,
   liveMode = false,
-  emptyText = "нет доз в этом интервале",
+  emptyText = "нет записей в этом интервале",
 }) {
   return html`
     <section class="drawer-substances-section-wrap">
@@ -40,7 +40,7 @@ export default function DrawerSubstancesList({
                 disabled=${!liveMode}
                 onClick=${() => onOpenRecord({ kind: "substance", record: sub })}
               >
-                <span class="drawer-nav-link-btn__text">доза →</span>
+                <span class="drawer-nav-link-btn__text">→</span>
               </button>
             `}
           </div>

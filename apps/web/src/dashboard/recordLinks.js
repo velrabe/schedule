@@ -190,7 +190,7 @@ export function getRelatedLinks(kind, record, ctx = {}) {
       push({
         kind: "substance",
         record: sub,
-        label: `доза · ${sub.name || "substance"}`,
+        label: substanceRowLabel(sub),
       });
     }
   }
@@ -203,7 +203,7 @@ export function getRelatedLinks(kind, record, ctx = {}) {
       push({
         kind: "substance",
         record: sub,
-        label: `доза ${t ? t + " · " : ""}${substanceRowLabel(sub)}`,
+        label: t ? `${substanceRowLabel(sub)} · ${t}` : substanceRowLabel(sub),
       });
     }
     const parts = childEventsForSession(record.id, sessionEvents);

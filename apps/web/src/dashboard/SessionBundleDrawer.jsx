@@ -20,7 +20,7 @@ import {
 } from "./drawerFieldPolicy.js";
 import { DrawerLinkedBlock } from "./DrawerLinkedBlock.jsx";
 import DrawerSubstancesList from "./DrawerSubstancesList.jsx";
-import { substancesForSessionPhase, substancesForDate } from "./substanceSession.js";
+import { substancesForSessionPhase } from "./substanceSession.js";
 
 const html = htm.bind(h);
 
@@ -233,11 +233,6 @@ export default function SessionBundleDrawer({
     [session, navCtx.substances, sessionEvents],
   );
 
-  const daySubstances = useMemo(
-    () => substancesForDate(session.date, navCtx.substances || []),
-    [session.date, navCtx.substances],
-  );
-
   useEffect(() => {
     const next = {};
     for (const p of parts) {
@@ -400,24 +395,13 @@ export default function SessionBundleDrawer({
           </section>
 
           <${DrawerSubstancesList}
-            title="дозы в этой фазе"
-            hint=${`substances · по времени ${envelopeSpan}`}
+            title="субстанции в фазе"
+            hint=${`в интервале ${envelopeSpan}`}
             rows=${phaseSubstances}
             onOpenRecord=${onOpenRecord}
             liveMode=${liveMode}
-            emptyText="в интервале фазы нет записей substances"
+            emptyText="в этой фазе нет substances"
           />
-
-          ${daySubstances.length > 0 && html`
-            <${DrawerSubstancesList}
-              title=${`субстанции · ${session.date}`}
-              hint=${`${daySubstances.length} за день · таблица substances`}
-              rows=${daySubstances}
-              onOpenRecord=${onOpenRecord}
-              liveMode=${liveMode}
-              emptyText="нет"
-            />
-          `}
         </div>
 
         <footer class="record-drawer-footer-wrap">

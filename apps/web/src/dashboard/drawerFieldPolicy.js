@@ -113,7 +113,7 @@ export function sessionEventDrawerPolicy(ev, ctx = {}) {
         : "";
     readonlyRows.push({
       key: "substance",
-      label: "доза",
+      label: "substance",
       value: [substance.name, amt].filter(Boolean).join(" · "),
       detail: String(substance.time || "").slice(0, 5),
       linkKind: "substance",
