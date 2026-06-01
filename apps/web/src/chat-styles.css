@@ -375,6 +375,20 @@
   color: var(--text);
 }
 
+.cal-detail-hours-row-wrap--breakdown {
+  padding-left: 8px;
+}
+
+.cal-detail-hours-row-wrap--breakdown .cal-detail-hours-row__label {
+  font-size: 9px;
+  color: var(--text-3);
+}
+
+.cal-detail-hours-row__sub {
+  font-size: 9px;
+  color: var(--text-3);
+}
+
 .cal-detail-insight-row-wrap {
   display: flex;
   width: 100%;

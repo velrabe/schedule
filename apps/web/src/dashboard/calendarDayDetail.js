@@ -1,7 +1,7 @@
 /** Calendar day detail: column data + auto insights. */
 
 import { aggregateDay, dayHasMorningSport } from "./insightsCompute.js";
-import { focusBlockInsightLines } from "./sessionDisplay.js";
+import { focusWorkInsightLine } from "./sessionDisplay.js";
 import { fmtExpenseShort, financeHumanLabel } from "./sessionFinance.js";
 import { isSportSessionCategory } from "./nutritionKcal.js";
 
@@ -40,6 +40,47 @@ function fmtH(h) {
   return `${h.toFixed(h % 1 === 0 ? 0 : 1)}h`;
 }
 
+/** kcal vs daily target (not in−out surplus). */
+export function kcalGoalLines(kcalIn, kcalOut, kcalTarget) {
+  const lines = [];
+  const kin = Math.round(kcalIn);
+  const target = Math.round(kcalTarget);
+  if (kin <= 0 && kcalOut <= 0) return lines;
+
+  const pct = target > 0 ? Math.round((kin / target) * 100) : 0;
+  lines.push({
+    key: "kcal",
+    label: `ккал ${kin} / ${target} (${pct}% цели)`,
+    hint: kcalOut > 0 ? `сожжено ${Math.round(kcalOut)}` : null,
+  });
+
+  const vsGoal = kin - target;
+  if (vsGoal < -50) {
+    lines.push({
+      key: "kcal_gap",
+      label: `недобор ${Math.abs(vsGoal)} до цели`,
+      tone: "ok",
+    });
+  } else if (vsGoal > 50) {
+    lines.push({
+      key: "kcal_over",
+      label: `перебор +${vsGoal} над целью`,
+      tone: "warn",
+    });
+  }
+
+  if (kcalOut > 0 && kin > 0) {
+    const net = kin - Math.round(kcalOut);
+    lines.push({
+      key: "kcal_net",
+      label: `нетто in−out ${net >= 0 ? "+" : ""}${net}`,
+      hint: null,
+    });
+  }
+
+  return lines;
+}
+
 /** Short automatic notes for the day insights column. */
 export function buildCalendarDayInsights({
   date,
@@ -54,32 +95,11 @@ export function buildCalendarDayInsights({
 }) {
   const lines = [];
   const agg = aggregateDay(date, sessions);
-  const balance = kcalIn - kcalOut;
 
-  if (kcalIn > 0 || kcalOut > 0) {
-    const pct = kcalTarget > 0 ? Math.round((kcalIn / kcalTarget) * 100) : 0;
-    lines.push({
-      key: "kcal",
-      label: `ккал in ${Math.round(kcalIn)} (${pct}% цели)`,
-      hint: kcalOut > 0 ? `out ${Math.round(kcalOut)}` : null,
-    });
-    if (balance !== 0) {
-      lines.push({
-        key: "balance",
-        label: balance > 0 ? `профицит +${Math.round(balance)}` : `дефицит ${Math.round(balance)}`,
-        tone: balance > 0 ? "warn" : "ok",
-      });
-    }
-  }
+  lines.push(...kcalGoalLines(kcalIn, kcalOut, kcalTarget));
 
-  const bh = fmtH(agg.business_h);
-  if (bh) {
-    const parts = [];
-    if (agg.work_paid_h > 0) parts.push(`paid ${fmtH(agg.work_paid_h)}`);
-    if (agg.personal_h > 0) parts.push(`personal ${fmtH(agg.personal_h)}`);
-    if (agg.byt_h > 0) parts.push(`byt ${fmtH(agg.byt_h)}`);
-    lines.push({ key: "work", label: `работа ${bh}`, hint: parts.join(" · ") || null });
-  }
+  const focusLine = focusWorkInsightLine(date, sessions);
+  if (focusLine) lines.push(focusLine);
 
   const sh = fmtH(agg.sport_h);
   if (sh) lines.push({ key: "sport", label: `спорт ${sh}` });
@@ -102,10 +122,6 @@ export function buildCalendarDayInsights({
 
   if (day?.day_type === "burnout") {
     lines.push({ key: "burnout", label: "тип дня: burnout", tone: "warn" });
-  }
-
-  for (const fb of focusBlockInsightLines(date, sessions)) {
-    lines.push(fb);
   }
 
   const sportSessions = sessions.filter(

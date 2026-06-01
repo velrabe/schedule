@@ -84,13 +84,45 @@ export function focusBlocksForDate(date, sessions = []) {
   return blocks;
 }
 
-export function focusBlockInsightLines(date, sessions = []) {
-  return focusBlocksForDate(date, sessions)
-    .filter((b) => b.min >= 45)
-    .map((b, i) => ({
-      key: `focus-${i}`,
-      label: `фокус ${b.start}–${b.end} · ${b.project}`,
-      hint: fmtSessionDuration(b.min),
-      tone: b.min >= 120 ? "ok" : undefined,
-    }));
+/** Rows for «часы» block — no duplicate работа + work_paid when only paid work. */
+export function businessHourRows(agg) {
+  const paid = Number(agg?.work_paid_h) || 0;
+  const personal = Number(agg?.personal_h) || 0;
+  const byt = Number(agg?.byt_h) || 0;
+  const business = Number(agg?.business_h) || 0;
+  if (business <= 0) return [];
+
+  const kinds = [paid > 0, personal > 0, byt > 0].filter(Boolean).length;
+  if (kinds <= 1) {
+    if (paid > 0) return [{ label: "работа", sub: "paid", h: paid }];
+    if (personal > 0) return [{ label: "работа", sub: "personal", h: personal }];
+    if (byt > 0) return [{ label: "работа", sub: "byt", h: byt }];
+    return [{ label: "работа", h: business }];
+  }
+
+  return [
+    { label: "работа", h: business, total: true },
+    ...(paid > 0 ? [{ label: "work_paid", h: paid, breakdown: true }] : []),
+    ...(personal > 0 ? [{ label: "personal", h: personal, breakdown: true }] : []),
+    ...(byt > 0 ? [{ label: "byt", h: byt, breakdown: true }] : []),
+  ];
+}
+
+/** One insight line: total focus (work) time for the day, not per block. */
+export function focusWorkInsightLine(date, sessions = []) {
+  const blocks = focusBlocksForDate(date, sessions);
+  if (!blocks.length) return null;
+  const totalMin = blocks.reduce((a, b) => a + b.min, 0);
+  if (totalMin < 15) return null;
+  const projects = [...new Set(blocks.map((b) => b.project))];
+  const hint =
+    projects.length === 1
+      ? projects[0]
+      : projects.slice(0, 2).join(", ") + (projects.length > 2 ? "…" : "");
+  return {
+    key: "focus_total",
+    label: `фокус ${fmtSessionDuration(totalMin)}`,
+    hint,
+    tone: totalMin >= 120 ? "ok" : undefined,
+  };
 }

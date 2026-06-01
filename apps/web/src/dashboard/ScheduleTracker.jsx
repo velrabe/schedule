@@ -42,6 +42,7 @@ import {
   substancesForDate,
 } from "./calendarDayDetail.js";
 import {
+  businessHourRows,
   fmtSessionDuration,
   isRedundantMirrorPart,
   partDurationMin,
@@ -1962,7 +1963,8 @@ function CalendarDayDetail({
 
   const kcalIn = meals.reduce((a, m) => a + (Number(m.kcal) || 0), 0);
   const kcalOut = dayKcalOut(date, activitiesList, sessionEvents, sessions);
-  const balance = kcalIn - kcalOut;
+  const kcalTarget = NUTRITION_TARGET.kcal;
+  const gapToGoal = kcalTarget - kcalIn;
   const macros = meals.reduce(
     (acc, m) => ({
       p: acc.p + (Number(m.protein_g) || 0),
@@ -2101,8 +2103,13 @@ function CalendarDayDetail({
             ${hasNutrition && html`
               <div class="cal-detail-nutri-summary-wrap cal-detail-nutri-summary-wrap--col">
                 <div class="cal-detail-nutri-summary-head-wrap">
-                  <span class=${`cal-detail-balance ${balance > NUTRITION_TARGET.kcal ? "cal-detail-balance--over" : ""}`}>
-                    баланс ${Math.round(balance)} / ${NUTRITION_TARGET.kcal}
+                  <span class=${`cal-detail-balance ${kcalIn > kcalTarget ? "cal-detail-balance--over" : ""}`}>
+                    ${Math.round(kcalIn)} / ${kcalTarget} ккал
+                    ${gapToGoal > 50
+                      ? ` · осталось ${Math.round(gapToGoal)}`
+                      : gapToGoal < -50
+                        ? ` · перебор +${Math.round(-gapToGoal)}`
+                        : ""}
                   </span>
                 </div>
                 <${NutriMicroBars}
@@ -2211,30 +2218,17 @@ function CalendarDayDetail({
             <div class="cal-detail-subsection-wrap">
               <span class="cal-detail-subsection-title">часы</span>
               <div class="cal-detail-hours-wrap">
-                ${dayAgg.business_h > 0 && html`
-                  <div class="cal-detail-hours-row-wrap">
-                    <span class="cal-detail-hours-row__label">работа</span>
-                    <span class="cal-detail-hours-row__val">${fmtHours(dayAgg.business_h * 60)}h</span>
+                ${businessHourRows(dayAgg).map((row) => html`
+                  <div
+                    class=${`cal-detail-hours-row-wrap ${row.breakdown ? "cal-detail-hours-row-wrap--breakdown" : ""}`}
+                    key=${row.label + (row.sub || "")}
+                  >
+                    <span class="cal-detail-hours-row__label">
+                      ${row.label}${row.sub ? html`<span class="cal-detail-hours-row__sub"> · ${row.sub}</span>` : ""}
+                    </span>
+                    <span class="cal-detail-hours-row__val">${fmtHours(row.h * 60)}h</span>
                   </div>
-                `}
-                ${dayAgg.work_paid_h > 0 && html`
-                  <div class="cal-detail-hours-row-wrap">
-                    <span class="cal-detail-hours-row__label">work_paid</span>
-                    <span class="cal-detail-hours-row__val">${fmtHours(dayAgg.work_paid_h * 60)}h</span>
-                  </div>
-                `}
-                ${dayAgg.personal_h > 0 && html`
-                  <div class="cal-detail-hours-row-wrap">
-                    <span class="cal-detail-hours-row__label">personal</span>
-                    <span class="cal-detail-hours-row__val">${fmtHours(dayAgg.personal_h * 60)}h</span>
-                  </div>
-                `}
-                ${dayAgg.byt_h > 0 && html`
-                  <div class="cal-detail-hours-row-wrap">
-                    <span class="cal-detail-hours-row__label">byt</span>
-                    <span class="cal-detail-hours-row__val">${fmtHours(dayAgg.byt_h * 60)}h</span>
-                  </div>
-                `}
+                `)}
                 ${dayAgg.sport_h > 0 && html`
                   <div class="cal-detail-hours-row-wrap">
                     <span class="cal-detail-hours-row__label">спорт</span>
