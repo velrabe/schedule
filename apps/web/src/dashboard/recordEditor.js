@@ -273,6 +273,7 @@ export function recordToForm(
   finance = [],
   activities = [],
   meals = [],
+  sessionEvents = [],
 ) {
   if (!record) return {};
   const expense = expenseToFormFields(linkedExpense);
@@ -341,6 +342,7 @@ export function recordToForm(
           linkedExpense ? [linkedExpense] : finance,
           meals,
           activities,
+          sessionEvents,
         ),
         _session_id: record.session_id,
       };

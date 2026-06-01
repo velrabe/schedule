@@ -27,24 +27,36 @@ export default function DrawerSubstancesList({
             <span class="drawer-substances-empty">${emptyText}</span>
           </div>
         `}
-        ${rows.map((sub) => html`
-          <div class="drawer-substances-row-wrap" key=${sub.id}>
-            <div class="drawer-substances-row-main-wrap">
-              <span class="drawer-substances-row-time">${String(sub.time || "").slice(0, 5) || "—"}</span>
-              <span class="drawer-substances-row-label">${substanceRowLabel(sub)}</span>
-            </div>
-            ${onOpenRecord && html`
-              <button
-                type="button"
-                class="drawer-nav-link-btn drawer-nav-link-btn--source"
-                disabled=${!liveMode}
-                onClick=${() => onOpenRecord({ kind: "substance", record: sub })}
-              >
-                <span class="drawer-nav-link-btn__text">→</span>
-              </button>
-            `}
-          </div>
-        `)}
+        ${rows.map((sub) => {
+          const time = String(sub.time || "").slice(0, 5) || "—";
+          const label = substanceRowLabel(sub);
+          const canOpen = Boolean(onOpenRecord && liveMode);
+          if (!onOpenRecord) {
+            return html`
+              <div class="drawer-substances-row-wrap" key=${sub.id}>
+                <span class="drawer-substances-row-main-wrap">
+                  <span class="drawer-substances-row-time">${time}</span>
+                  <span class="drawer-substances-row-label">${label}</span>
+                </span>
+              </div>
+            `;
+          }
+          return html`
+            <button
+              type="button"
+              class="drawer-substances-row-wrap drawer-substances-row-wrap--link"
+              key=${sub.id}
+              disabled=${!canOpen}
+              onClick=${() => onOpenRecord({ kind: "substance", record: sub })}
+            >
+              <span class="drawer-substances-row-main-wrap">
+                <span class="drawer-substances-row-time">${time}</span>
+                <span class="drawer-substances-row-label">${label}</span>
+              </span>
+              <span class="drawer-substances-row-arrow">→</span>
+            </button>
+          `;
+        })}
       </div>
     </section>
   `;

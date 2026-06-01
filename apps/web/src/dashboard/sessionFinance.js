@@ -1,6 +1,7 @@
 /** Helpers for session-linked expenses in the UI. */
 
 import { findFoodSessionForMeal } from "./mergeNutrition.js";
+import { findMealForEvent } from "./sessionEventLinks.js";
 
 export function expensesForSession(sessionId, finance = []) {
   if (!sessionId) return [];
@@ -54,8 +55,10 @@ function shortenTitle(title, max = 72) {
 }
 
 /** Short label for UI (breadcrumbs, bundle parts) — prefer meal.name / title, not Grab notes dump. */
-export function linkedEventLabel(event, finance = [], meals = []) {
+export function linkedEventLabel(event, finance = [], meals = [], sessionEvents = []) {
   if (!event) return "—";
+  const linkedMeal = findMealForEvent(event, { meals, sessionEvents });
+  if (linkedMeal?.name) return String(linkedMeal.name).trim();
   if (event.meal_id) {
     const meal = meals.find((m) => m.id === event.meal_id);
     if (meal?.name) return String(meal.name).trim();

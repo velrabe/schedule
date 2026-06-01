@@ -11,7 +11,8 @@ import {
 } from "./sessionFinance.js";
 import { financeTxnLabel, financeTxnShortMeta } from "./financeDisplay.js";
 import { getRecordEditorMeta } from "./recordEditor.js";
-import { substancesForSessionPhase, substanceRowLabel } from "./substanceSession.js";
+import { substanceRowLabel } from "./substanceSession.js";
+import { findMealForEvent } from "./sessionEventLinks.js";
 import { mapSessionEventForDrawer, sessionEventDisplayLabel } from "./recordDisplay.js";
 import { mapSessionForDrawer, sessionBreadcrumbLabel } from "./drawerNavigation.js";
 import { fmtExpenseShort } from "./sessionFinance.js";
@@ -104,10 +105,10 @@ export function getRelatedLinks(kind, record, ctx = {}) {
       });
     }
     }
-    if (record.meal_id) {
-      const meal = meals.find((m) => m.id === record.meal_id);
-      if (meal) push({ kind: "meal", record: meal, label: meal.name || "meal" });
-    }
+    const meal =
+      findMealForEvent(record, { meals, sessionEvents }) ||
+      (record.meal_id ? meals.find((m) => m.id === record.meal_id) : null);
+    if (meal) push({ kind: "meal", record: meal, label: meal.name || "meal" });
   }
 
   if (kind === "finance" && record) {
@@ -193,16 +194,6 @@ export function getRelatedLinks(kind, record, ctx = {}) {
   }
 
   if (kind === "session" && record) {
-    const sess = mapSessionForDrawer(record);
-    const phaseSubs = substancesForSessionPhase(sess, substances, sessionEvents);
-    for (const sub of phaseSubs) {
-      const t = sub.time ? trimTime(sub.time) : "";
-      push({
-        kind: "substance",
-        record: sub,
-        label: t ? `${substanceRowLabel(sub)} · ${t}` : substanceRowLabel(sub),
-      });
-    }
     const parts = childEventsForSession(record.id, sessionEvents);
     for (const p of parts.slice(0, 6)) {
       if (p.substance_id) continue;

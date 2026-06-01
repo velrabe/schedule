@@ -3,9 +3,7 @@
  * Avoids duplicate expense or metric overrides (meal, finance, activity, substance).
  */
 
-import { findFoodSessionForMeal } from "./mergeNutrition.js";
 import {
-  expensesForSession,
   expensesForSessionEvent,
   expenseFromForm,
   fmtExpensesShort,
@@ -18,21 +16,66 @@ import {
   activityLinkLabel,
 } from "./activityMetrics.js";
 import { getRelatedLinks } from "./recordLinks.js";
+import {
+  findMealForEvent,
+  findLinkedExpenseForEvent,
+  isMealPhaseFoodEvent,
+} from "./sessionEventLinks.js";
 
 /** @typedef {'hidden' | 'add_button' | 'readonly'} ExpenseUiMode */
 
+function pushExpenseRow(readonlyRows, txn) {
+  if (!txn) return;
+  if (readonlyRows.some((r) => r.key === "expense" || r.key === "meal-expense")) return;
+  readonlyRows.push({
+    key: "expense",
+    label: "расход",
+    value: fmtExpensesShort([txn]),
+    detail: [txn.account, txn.category].filter(Boolean).join(" · "),
+    linkKind: "finance",
+    linkRecord: txn,
+    linkLabel: financeHumanLabel(txn) || "операция",
+  });
+}
+
+function pushMealRow(readonlyRows, meal) {
+  if (!meal || readonlyRows.some((r) => r.key === "meal")) return;
+  const macro = [
+    meal.kcal != null && `${meal.kcal} ккал`,
+    meal.protein_g != null && `Б ${meal.protein_g}г`,
+    meal.carbs_g != null && `У ${meal.carbs_g}г`,
+    meal.fat_g != null && `Ж ${meal.fat_g}г`,
+  ].filter(Boolean);
+  readonlyRows.push({
+    key: "meal",
+    label: "приём пищи",
+    value: meal.name || "meal",
+    detail: macro.join(" · "),
+    linkKind: "meal",
+    linkRecord: meal,
+    linkLabel: meal.name || "meal",
+  });
+}
+
 /**
  * @param {object} ev session_event row
- * @param {{ meals?: object[], activities?: object[], substances?: object[], finance?: object[], sessions?: object[] }} ctx
+ * @param {{ meals?: object[], activities?: object[], substances?: object[], finance?: object[], sessions?: object[], sessionEvents?: object[] }} ctx
  */
 export function sessionEventDrawerPolicy(ev, ctx = {}) {
-  const { meals = [], activities = [], substances = [], finance = [], sessions = [] } = ctx;
+  const {
+    meals = [],
+    activities = [],
+    substances = [],
+    finance = [],
+    sessionEvents = [],
+  } = ctx;
   const hideFields = new Set();
   const readonlyRows = [];
   const links = getRelatedLinks("session_event", ev, ctx).filter((l) => l.kind !== "session");
 
-  const txnOnEvent = expensesForSessionEvent(ev.id, finance)[0] || null;
-  const meal = ev.meal_id ? meals.find((m) => m.id === ev.meal_id) : null;
+  const linkCtx = { meals, sessionEvents, finance, activities, sessions: ctx.sessions || [] };
+  const meal = findMealForEvent(ev, linkCtx);
+  const expenseTxn = findLinkedExpenseForEvent(ev, linkCtx);
   const substance = ev.substance_id
     ? substances.find((s) => s.id === ev.substance_id)
     : null;
@@ -41,66 +84,30 @@ export function sessionEventDrawerPolicy(ev, ctx = {}) {
     (isSportSessionEvent(ev) ? findActivityForEvent(ev, activities) : null);
 
   let expenseMode = /** @type {ExpenseUiMode} */ ("add_button");
-  let expenseTxn = null;
 
-  if (txnOnEvent) {
+  if (expenseTxn) {
     expenseMode = "readonly";
-    expenseTxn = txnOnEvent;
     hideFields.add("expense_amount");
     hideFields.add("expense_currency");
     hideFields.add("expense_account");
     hideFields.add("expense_category");
     hideFields.add("expense_merchant");
     hideFields.add("expense_notes");
-    readonlyRows.push({
-      key: "expense",
-      label: "расход",
-      value: fmtExpensesShort([txnOnEvent]),
-      detail: [txnOnEvent.account, txnOnEvent.category].filter(Boolean).join(" · "),
-      linkKind: "finance",
-      linkRecord: txnOnEvent,
-      linkLabel: financeHumanLabel(txnOnEvent) || "операция",
-    });
-  } else if (meal) {
-    expenseMode = "hidden";
-    hideFields.add("expense_amount");
-    hideFields.add("expense_currency");
-    hideFields.add("expense_account");
-    hideFields.add("expense_category");
-    hideFields.add("expense_merchant");
-    hideFields.add("expense_notes");
+    pushExpenseRow(readonlyRows, expenseTxn);
+  }
 
-    const sess =
-      (meal.session_id && sessions.find((s) => s.id === meal.session_id)) ||
-      findFoodSessionForMeal(meal, sessions);
-    const mealTxns = sess ? expensesForSession(sess.id, finance) : [];
-    if (mealTxns.length) {
-      readonlyRows.push({
-        key: "meal-expense",
-        label: "расход (приём пищи)",
-        value: fmtExpensesShort(mealTxns),
-        linkKind: "finance",
-        linkRecord: mealTxns[0],
-        linkLabel: financeHumanLabel(mealTxns[0]) || "операция",
-      });
+  if (meal && (ev.meal_id || isMealPhaseFoodEvent(ev))) {
+    if (!expenseTxn) {
+      expenseMode = "hidden";
+      hideFields.add("expense_amount");
+      hideFields.add("expense_currency");
+      hideFields.add("expense_account");
+      hideFields.add("expense_category");
+      hideFields.add("expense_merchant");
+      hideFields.add("expense_notes");
     }
-
     hideFields.add("title");
-    const macro = [
-      meal.kcal != null && `${meal.kcal} ккал`,
-      meal.protein_g != null && `Б ${meal.protein_g}г`,
-      meal.carbs_g != null && `У ${meal.carbs_g}г`,
-      meal.fat_g != null && `Ж ${meal.fat_g}г`,
-    ].filter(Boolean);
-    readonlyRows.push({
-      key: "meal",
-      label: "приём пищи",
-      value: meal.name || "meal",
-      detail: macro.join(" · "),
-      linkKind: "meal",
-      linkRecord: meal,
-      linkLabel: meal.name || "meal",
-    });
+    pushMealRow(readonlyRows, meal);
   }
 
   if (substance) {
@@ -146,7 +153,7 @@ export function sessionEventDrawerPolicy(ev, ctx = {}) {
 
   const instant =
     Boolean(ev.is_instant) || ev.kind === "wake" || ev.kind === "substance";
-  if (ev.kind === "wake" || instant && ev.kind === "wake") {
+  if (ev.kind === "wake" || (instant && ev.kind === "wake")) {
     hideFields.add("kind");
     hideFields.add("end");
   }
@@ -185,6 +192,7 @@ export function stripExpenseFormFields(form) {
 
 export function shouldSendExpensePatch(policy, form, eventId, finance, expenseExpanded) {
   if (!policy.canEditExpenseInline) return undefined;
+  if (policy.expenseTxn) return null;
   if (!expenseExpanded) return undefined;
   const parsed = expenseFromForm(form);
   if (parsed) return parsed;

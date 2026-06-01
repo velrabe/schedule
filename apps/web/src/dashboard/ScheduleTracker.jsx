@@ -24,6 +24,10 @@ import {
   mealCountForNutrition,
   findFoodSessionForMeal,
   mealHasMacroData,
+  mealsForNutritionDay,
+  displayMealName,
+  normalizeMealSlot,
+  MEAL_SLOT_LABEL_RU,
 } from "./mergeNutrition.js";
 import {
   childEventsForSession,
@@ -489,6 +493,7 @@ function App(props = {}) {
         days=${days}
         sessions=${sessions}
         meals=${mergedMeals}
+        rawMeals=${liveData?.meals || []}
         finance=${liveData?.finance || []}
         activities=${liveData?.activities || []}
         sessionEvents=${liveData?.raw?.session_events || []}
@@ -515,7 +520,7 @@ function App(props = {}) {
       html`<${NutritionTab}
         days=${days}
         sessions=${sessions}
-        meals=${mergedMeals}
+        rawMeals=${liveData?.meals || []}
         finance=${liveData?.finance || []}
         activities=${liveData?.activities || []}
         sessionEvents=${liveData?.raw?.session_events || []}
@@ -1606,20 +1611,13 @@ function DateStripControls({ canLoadPast, canLoadFuture, onToday }) {
 
 const NUTRITION_TARGET = { kcal: 1800, carbs: 180, protein: 116, fat: 64 };
 
-const MEAL_SLOT_RU = {
-  breakfast: "завтрак",
-  lunch: "обед",
-  dinner: "ужин",
-  snack: "снек",
-};
-
-
 // ---------------- calendar view ----------------
 
 function CalendarTab({
   days,
   sessions,
   meals = [],
+  rawMeals = [],
   finance = [],
   activities = [],
   sessionEvents = [],
@@ -1644,14 +1642,14 @@ function CalendarTab({
     return map;
   }, [sessions]);
 
-  const mealsByDate = useMemo(() => {
+  const rawMealsByDate = useMemo(() => {
     const map = new Map();
-    for (const m of meals) {
+    for (const m of rawMeals) {
       if (!map.has(m.date)) map.set(m.date, []);
       map.get(m.date).push(m);
     }
     return map;
-  }, [meals]);
+  }, [rawMeals]);
 
   const activitiesByDate = useMemo(() => {
     const map = new Map();
@@ -1696,7 +1694,7 @@ function CalendarTab({
   };
 
   const kcalInOf = (date) =>
-    (mealsByDate.get(date) || []).reduce((a, m) => a + (m.kcal || 0), 0);
+    (rawMealsByDate.get(date) || []).reduce((a, m) => a + (Number(m.kcal) || 0), 0);
   const kcalOutOf = (date) =>
     dayKcalOut(date, activitiesByDate.get(date) || [], sessionEvents, sessions);
 
@@ -1769,7 +1767,7 @@ function CalendarTab({
             date=${selected}
             day=${byDate.get(selected)}
             sessions=${sessionsByDate.get(selected) || []}
-            meals=${mealsByDate.get(selected) || []}
+            rawMeals=${rawMeals}
             finance=${finance}
             activitiesList=${activitiesByDate.get(selected) || []}
             sessionEvents=${sessionEvents}
@@ -1904,7 +1902,7 @@ function CalDetailNutriColumn({ meal, activity, slotLabel, liveMode = false, onO
         <span class=${`cal-detail-col-slot ${isAct ? "cal-detail-col-slot--act" : ""}`}>${slotLabel}</span>
       </div>
       <div class="cal-detail-col-name-wrap">
-        <span class="cal-detail-col-name">${meal ? meal.name : activityDetailLabel(activity)}</span>
+        <span class="cal-detail-col-name">${meal ? displayMealName(meal) : activityDetailLabel(activity)}</span>
       </div>
       <div class="cal-detail-col-kcal-wrap">
         <span class=${`cal-detail-col-kcal ${isAct ? "cal-detail-col-kcal--burn" : ""}`}>
@@ -1936,7 +1934,7 @@ function CalendarDayDetail({
   date,
   day,
   sessions,
-  meals = [],
+  rawMeals = [],
   finance = [],
   activitiesList = [],
   sessionEvents = [],
@@ -1946,7 +1944,14 @@ function CalendarDayDetail({
   setDays,
   onOpenRecord,
 }) {
-  const sortedMeals = useMemo(() => meals, [meals]);
+  const mealSlots = useMemo(
+    () => mealsForNutritionDay(date, sessions, rawMeals),
+    [date, sessions, rawMeals],
+  );
+  const mealsWithData = useMemo(
+    () => mealSlots.map((s) => s.meal).filter(Boolean),
+    [mealSlots],
+  );
 
   const sortedActs = useMemo(
     () => [...activitiesList].sort((a, b) => String(a.time || "").localeCompare(String(b.time || ""))),
@@ -1964,12 +1969,12 @@ function CalendarDayDetail({
   const dayFinanceExpenses = useMemo(() => dayExpenses(date, finance), [date, finance]);
   const dayAgg = useMemo(() => aggregateDay(date, sessions), [date, sessions]);
 
-  const kcalIn = meals.reduce((a, m) => a + (Number(m.kcal) || 0), 0);
+  const kcalIn = mealsWithData.reduce((a, m) => a + (Number(m.kcal) || 0), 0);
   const kcalOut = dayKcalOut(date, activitiesList, sessionEvents, sessions);
   const kcalTarget = NUTRITION_TARGET.kcal;
   const kcalNet = kcalIn - kcalOut;
   const gapToGoal = kcalTarget - kcalNet;
-  const macros = meals.reduce(
+  const macros = mealsWithData.reduce(
     (acc, m) => ({
       p: acc.p + (Number(m.protein_g) || 0),
       f: acc.f + (Number(m.fat_g) || 0),
@@ -1978,7 +1983,8 @@ function CalendarDayDetail({
     { p: 0, f: 0, c: 0 },
   );
 
-  const hasNutrition = kcalIn > 0 || kcalOut > 0 || meals.length > 0 || activitiesList.length > 0;
+  const hasNutrition =
+    kcalIn > 0 || kcalOut > 0 || mealsWithData.length > 0 || activitiesList.length > 0;
   const hasBodyCol = hasNutrition || dayFinanceExpenses.length > 0;
 
   const overlapPairs = useMemo(
@@ -1992,14 +1998,14 @@ function CalendarDayDetail({
         date,
         day,
         sessions,
-        meals,
+        meals: mealsWithData,
         activities: activitiesList,
         substances,
         kcalIn,
         kcalOut,
         kcalTarget: NUTRITION_TARGET.kcal,
       }),
-    [date, day, sessions, meals, activitiesList, substances, kcalIn, kcalOut],
+    [date, day, sessions, mealsWithData, activitiesList, substances, kcalIn, kcalOut],
   );
 
   const patchDay = useCallback(
@@ -2138,15 +2144,15 @@ function CalendarDayDetail({
             ${(sortedMeals.length > 0 || sortedActs.length > 0) && html`
               <div class="cal-detail-section-wrap cal-detail-section-wrap--cols cal-detail-section-wrap--in-col">
                 <div class="cal-detail-nutri-blocks-wrap">
-                  ${sortedMeals.length > 0 && html`
+                  ${html`
                     <div class="cal-detail-columns-wrap cal-detail-columns-wrap--meals">
-                      ${sortedMeals.map((m) => html`
+                      ${mealSlots.map(({ slot, meal }) => html`
                         <${CalDetailNutriColumn}
-                          key=${m.id}
-                          meal=${m}
+                          key=${slot}
+                          meal=${meal}
                           liveMode=${liveMode}
                           onOpenRecord=${onOpenRecord}
-                          slotLabel=${MEAL_SLOT_RU[m.slot] || m.slot || "еда"}
+                          slotLabel=${MEAL_SLOT_LABEL_RU[slot] || slot}
                         />
                       `)}
                     </div>
@@ -2658,7 +2664,7 @@ function KanbanSessionEditor({ value, isNew = false, onSave, onCancel, onDelete 
 function NutritionTab({
   days,
   sessions = [],
-  meals = [],
+  rawMeals = [],
   finance = [],
   activities = [],
   sessionEvents = [],
@@ -2669,7 +2675,7 @@ function NutritionTab({
   const knownDates = useMemo(() => {
     const set = new Set();
     for (const d of days) set.add(d.date);
-    for (const m of meals) set.add(m.date);
+    for (const m of rawMeals) set.add(m.date);
     for (const a of activities) set.add(a.date);
     for (const ev of sessionEvents) if (ev.date) set.add(ev.date);
     for (const s of sessions) {
@@ -2678,7 +2684,7 @@ function NutritionTab({
       }
     }
     return [...set];
-  }, [days, meals, activities, sessionEvents, sessions]);
+  }, [days, rawMeals, activities, sessionEvents, sessions]);
 
   const {
     today,
@@ -2692,15 +2698,6 @@ function NutritionTab({
     canLoadFuture,
     scrollToToday,
   } = useDateStrip(knownDates, { active });
-
-  const mealsByDate = useMemo(() => {
-    const map = new Map();
-    for (const m of meals) {
-      if (!map.has(m.date)) map.set(m.date, []);
-      map.get(m.date).push(m);
-    }
-    return map;
-  }, [meals]);
 
   const actsByDate = useMemo(() => {
     const map = new Map();
@@ -2721,7 +2718,9 @@ function NutritionTab({
       <div class="nutri-scroll-wrap date-strip-scroll" ref=${scrollRef} onScroll=${onScroll}>
         <div class="date-strip-sentinel date-strip-sentinel--past" ref=${pastSentinelRef}></div>
         ${visibleDates.map((date) => {
-          const dayMeals = mealsByDate.get(date) || [];
+          const dayMeals = mealsForNutritionDay(date, sessions, rawMeals)
+            .map((s) => s.meal)
+            .filter(Boolean);
           const dayActs = actsByDate.get(date) || [];
           const outBreak = kcalOutBreakdown(date, dayActs, sessionEvents, sessions);
           const kcalIn = dayMeals.reduce((a, m) => a + (Number(m.kcal) || 0), 0);
@@ -2756,8 +2755,8 @@ function NutritionTab({
                     onOpen=${onOpenRecord ? () => onOpenRecord({ kind: "meal", record: m }) : null}
                     disabled=${!liveMode}
                   >
-                    <span class="nutri-meal-slot">${m.slot || "—"}</span>
-                    <span class="nutri-meal-name">${m.name}</span>
+                    <span class="nutri-meal-slot">${MEAL_SLOT_LABEL_RU[normalizeMealSlot(m)] || m.slot || "—"}</span>
+                    <span class="nutri-meal-name">${displayMealName(m)}</span>
                     <span class="nutri-meal-kcal">${m.kcal != null ? `${Math.round(Number(m.kcal))}` : "—"}</span>
                     <span class="nutri-meal-macro">
                       ${m.carbs_g != null ? `C${Math.round(Number(m.carbs_g))}` : ""}

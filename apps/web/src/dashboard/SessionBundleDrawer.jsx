@@ -1,23 +1,11 @@
 import { h, Fragment } from "preact";
-import { useState, useEffect, useCallback, useMemo } from "preact/hooks";
+import { useState, useCallback, useMemo } from "preact/hooks";
 import htm from "htm";
 import { ApiError } from "../api/client.ts";
 import { manualPatch } from "./manualSave.js";
-import {
-  childEventsForSession,
-  fmtExpensesShort,
-  expensesForSessionEvent,
-} from "./sessionFinance.js";
-import { formToSessionEventPatch, sessionEventToForm } from "./sessionEventEditor.js";
-import { withAccountOptions, isExpenseField, getRecordEditorMeta } from "./recordEditor.js";
-import DrawerNav from "./DrawerNav.jsx";
-import { isSportSessionEvent } from "./activityMetrics.js";
-import {
-  sessionEventDrawerPolicy,
-  stripExpenseFormFields,
-  shouldSendExpensePatch,
-  applySessionEventPolicyToPatch,
-} from "./drawerFieldPolicy.js";
+import { childEventsForSession, fmtExpensesShort, linkedEventLabel } from "./sessionFinance.js";
+import { sessionEventDrawerPolicy } from "./drawerFieldPolicy.js";
+import { sessionEventTimeSpan } from "./recordDisplay.js";
 import { DrawerLinkedBlock } from "./DrawerLinkedBlock.jsx";
 import DrawerSubstancesList from "./DrawerSubstancesList.jsx";
 import { substancesForSessionPhase } from "./substanceSession.js";
@@ -59,112 +47,55 @@ function FieldInput({ field, value, onChange, disabled }) {
   `;
 }
 
-const PART_KINDS = ["other", "wake", "substance", "chores", "transport", "sport", "food", "work", "chill", "reminder"];
+function BundlePartStaticRow({ label, value }) {
+  if (value == null || value === "") return null;
+  return html`
+    <div class="session-bundle-part-static-row-wrap">
+      <span class="session-bundle-part-static-label">${label}</span>
+      <span class="session-bundle-part-static-value">${value}</span>
+    </div>
+  `;
+}
 
-function BundlePartCard({
-  part,
-  idx,
-  form,
-  policy,
-  finance,
-  expenseExpanded,
-  onToggleExpense,
-  expenseFields,
-  liveMode,
-  saving,
-  onOpenRecord,
-  setPartField,
-}) {
-  const pexp = expensesForSessionEvent(part.id, finance);
-  const label =
+/** Read-only preview; edit via «атом →» (session_event drawer). */
+function BundlePartCard({ part, idx, policy, finance, meals, sessionEvents, liveMode, onOpenRecord }) {
+  const title =
     policy.readonlyRows.find((r) => r.key === "meal")?.value ||
-    form.title ||
+    linkedEventLabel(part, finance, meals, sessionEvents) ||
     part.title ||
+    part.kind ||
     `атом ${idx + 1}`;
-
-  const showKind = !policy.hideFields.has("kind");
-  const showTitle = !policy.hideFields.has("title");
-  const showEnd = !policy.hideFields.has("end");
-  const showSport =
-    (isSportSessionEvent(part) || form.kind === "sport") &&
-    !policy.hideFields.has("sport_type");
+  const pexp = policy.expenseTxn ? [policy.expenseTxn] : [];
 
   return html`
     <article class="session-bundle-part-card-wrap">
       <header class="session-bundle-part-card-head-wrap">
         <span class="session-bundle-part-card-index">${idx + 1}</span>
         <div class="session-bundle-part-card-title-wrap">
-          <span class="session-bundle-part-title">${label}</span>
+          <span class="session-bundle-part-title">${title}</span>
           ${pexp.length ? html`<span class="session-bundle-part-exp">${fmtExpensesShort(pexp)}</span>` : ""}
         </div>
         ${onOpenRecord && html`
           <button type="button" class="drawer-nav-link-btn drawer-nav-link-btn--inline"
+            disabled=${!liveMode}
             onClick=${() => onOpenRecord({ kind: "session_event", record: part })}>
             <span class="drawer-nav-link-btn__text">атом →</span>
           </button>
         `}
       </header>
 
+      <div class="session-bundle-part-static-wrap">
+        <${BundlePartStaticRow} label="kind" value=${part.kind || "—"} />
+        <${BundlePartStaticRow} label="время" value=${sessionEventTimeSpan(part)} />
+        <${BundlePartStaticRow} label="название" value=${part.title || title} />
+        <${BundlePartStaticRow} label="category" value=${part.category} />
+      </div>
+
       <${DrawerLinkedBlock}
         rows=${policy.readonlyRows}
         onOpenRecord=${onOpenRecord}
         liveMode=${liveMode}
       />
-
-      <div class="session-bundle-part-fields-wrap">
-        ${showKind && html`
-          <${FieldInput} field=${{ key: "kind", label: "kind", type: "select", options: PART_KINDS }}
-            value=${form.kind} onChange=${(k, v) => setPartField(part.id, k, v)} disabled=${!liveMode || saving} />
-        `}
-        ${showTitle && html`
-          <${FieldInput} field=${{ key: "title", label: "название", type: "text" }}
-            value=${form.title} onChange=${(k, v) => setPartField(part.id, k, v)} disabled=${!liveMode || saving} />
-        `}
-        <div class="session-bundle-part-times-wrap">
-          <${FieldInput} field=${{ key: "start", label: "начало", type: "time" }}
-            value=${form.start} onChange=${(k, v) => setPartField(part.id, k, v)} disabled=${!liveMode || saving} />
-          ${showEnd && html`
-            <${FieldInput} field=${{ key: "end", label: "конец", type: "time" }}
-              value=${form.end} onChange=${(k, v) => setPartField(part.id, k, v)} disabled=${!liveMode || saving} />
-          `}
-        </div>
-        ${showSport && html`
-          <${FieldInput} field=${{ key: "sport_type", label: "sport_type", type: "text" }}
-            value=${form.sport_type} onChange=${(k, v) => setPartField(part.id, k, v)} disabled=${!liveMode || saving} />
-          <${FieldInput} field=${{ key: "calories_burned", label: "ккал (ивент)", type: "number" }}
-            value=${form.calories_burned} onChange=${(k, v) => setPartField(part.id, k, v)} disabled=${!liveMode || saving} />
-          <${FieldInput} field=${{ key: "distance_km", label: "км", type: "number", optional: true }}
-            value=${form.distance_km} onChange=${(k, v) => setPartField(part.id, k, v)} disabled=${!liveMode || saving} />
-        `}
-      </div>
-
-      ${policy.canEditExpenseInline && html`
-        <div class="session-bundle-part-expense-edit-wrap">
-          ${!expenseExpanded && html`
-            <button type="button" class="btn btn--ghost btn--block session-bundle-add-expense-btn"
-              disabled=${!liveMode || saving} onClick=${onToggleExpense}>
-              <span class="btn__text-wrap">добавить расход</span>
-            </button>
-          `}
-          ${expenseExpanded && html`
-            <div class="session-bundle-expense-fields-wrap">
-              <div class="record-drawer-section-wrap">
-                <span class="record-drawer-section-title">расход этой части</span>
-              </div>
-              ${expenseFields.map(
-                (field) => html`
-                  <${FieldInput} key=${part.id + field.key} field=${field} value=${form[field.key]}
-                    onChange=${(k, v) => setPartField(part.id, k, v)} disabled=${!liveMode || saving} />
-                `,
-              )}
-              <button type="button" class="btn btn--ghost btn--sm"
-                disabled=${!liveMode || saving} onClick=${onToggleExpense}>
-                <span class="btn__text-wrap">скрыть</span>
-              </button>
-            </div>
-          `}
-        </div>
-      `}
     </article>
   `;
 }
@@ -174,9 +105,7 @@ export default function SessionBundleDrawer({
   sessionEvents = [],
   activities = [],
   finance = [],
-  accounts = [],
   liveMode = false,
-  stack = [],
   navCtx = {},
   onClose,
   onBack,
@@ -207,20 +136,7 @@ export default function SessionBundleDrawer({
     project: session.project || "",
     note: session.note || "",
   });
-  const [partForms, setPartForms] = useState({});
-  const [expenseExpanded, setExpenseExpanded] = useState({});
   const [saving, setSaving] = useState(false);
-
-  const accountIds = useMemo(
-    () => accounts.filter((a) => !a.archived).map((a) => a.id),
-    [accounts],
-  );
-
-  const eventMeta = getRecordEditorMeta("session_event");
-  const expenseFields = useMemo(() => {
-    if (!eventMeta) return [];
-    return withAccountOptions(eventMeta.fields, accountIds).filter((f) => isExpenseField(f));
-  }, [eventMeta, accountIds]);
 
   const partPolicies = useMemo(() => {
     const m = {};
@@ -232,35 +148,6 @@ export default function SessionBundleDrawer({
     () => substancesForSessionPhase(session, navCtx.substances || [], sessionEvents),
     [session, navCtx.substances, sessionEvents],
   );
-
-  useEffect(() => {
-    const next = {};
-    for (const p of parts) {
-      const policy = sessionEventDrawerPolicy(p, ctx);
-      let f = sessionEventToForm(p, finance, navCtx.meals || [], activities);
-      if (!policy.canEditExpenseInline) f = stripExpenseFormFields(f);
-      next[p.id] = f;
-    }
-    setPartForms(next);
-    setExpenseExpanded((prev) => {
-      const merged = { ...prev };
-      for (const p of parts) {
-        if (merged[p.id] === undefined) merged[p.id] = false;
-      }
-      return merged;
-    });
-  }, [parts, finance, activities, ctx]);
-
-  const setPartField = useCallback((partId, key, value) => {
-    setPartForms((prev) => ({
-      ...prev,
-      [partId]: { ...prev[partId], [key]: value },
-    }));
-  }, []);
-
-  const toggleExpense = useCallback((partId) => {
-    setExpenseExpanded((prev) => ({ ...prev, [partId]: !prev[partId] }));
-  }, []);
 
   const envelopeSpan = useMemo(() => {
     if (!parts.length) return `${session.start}–${session.end}`;
@@ -294,22 +181,6 @@ export default function SessionBundleDrawer({
         );
       }
 
-      for (const p of parts) {
-        const form = partForms[p.id];
-        if (!form) continue;
-        const policy = partPolicies[p.id] || sessionEventDrawerPolicy(p, ctx);
-        let patch = formToSessionEventPatch(form, session.id);
-        patch = applySessionEventPolicyToPatch(patch, policy);
-        const expensePayload = shouldSendExpensePatch(
-          policy,
-          form,
-          p.id,
-          finance,
-          Boolean(expenseExpanded[p.id]),
-        );
-        await manualPatch("session_events", p.id, patch, { expense: expensePayload });
-      }
-
       const { notifyDataChanged } = await import("../api/manual");
       notifyDataChanged();
       onClose();
@@ -335,20 +206,6 @@ export default function SessionBundleDrawer({
         </header>
 
         <div class="record-drawer-body-wrap">
-          ${stack.length > 1 && html`
-            <${DrawerNav}
-              stack=${stack}
-              ctx=${navCtx}
-              liveMode=${liveMode}
-              onBack=${onBack}
-              onNavigateToIndex=${onNavigateStack}
-              onOpenLinked=${onOpenRecord}
-              currentKind="session"
-              currentRecord=${session}
-              excludeKinds=${["session", "session_event", "substance", "meal", "finance", "activity"]}
-            />
-          `}
-
           <section class="session-bundle-envelope-card-wrap">
             <div class="record-drawer-section-wrap record-drawer-section-wrap--card">
               <span class="record-drawer-section-title">оболочка · ежедневник</span>
@@ -369,27 +226,22 @@ export default function SessionBundleDrawer({
           <section class="session-bundle-parts-section-wrap">
             <div class="record-drawer-section-wrap record-drawer-section-wrap--card">
               <span class="record-drawer-section-title">атомы внутри фазы</span>
-              <span class="record-drawer-section-hint">${parts.length} шт. · время и связи</span>
+              <span class="record-drawer-section-hint">${parts.length} шт. · только просмотр · правка в атоме</span>
             </div>
             <div class="session-bundle-parts-list-wrap">
               ${parts.map((p, idx) => {
                 const policy = partPolicies[p.id] || sessionEventDrawerPolicy(p, ctx);
-                const form = partForms[p.id] || {};
                 return html`
                   <${BundlePartCard}
                     key=${p.id}
                     part=${p}
                     idx=${idx}
-                    form=${form}
                     policy=${policy}
                     finance=${finance}
-                    expenseExpanded=${Boolean(expenseExpanded[p.id])}
-                    onToggleExpense=${() => toggleExpense(p.id)}
-                    expenseFields=${expenseFields}
+                    meals=${navCtx.meals || []}
+                    sessionEvents=${sessionEvents}
                     liveMode=${liveMode}
-                    saving=${saving}
                     onOpenRecord=${onOpenRecord}
-                    setPartField=${setPartField}
                   />
                 `;
               })}
@@ -409,7 +261,7 @@ export default function SessionBundleDrawer({
         <footer class="record-drawer-footer-wrap">
           ${liveMode && html`
             <button type="button" class="btn btn--primary" disabled=${saving} onClick=${onSave}>
-              <span class="btn__text-wrap">${saving ? "сохранение…" : "сохранить всё"}</span>
+              <span class="btn__text-wrap">${saving ? "сохранение…" : "сохранить оболочку"}</span>
             </button>
           `}
           <button type="button" class="btn btn--ghost" onClick=${onClose}>закрыть</button>

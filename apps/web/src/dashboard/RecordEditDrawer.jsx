@@ -152,11 +152,8 @@ export default function RecordEditDrawer({
         finance=${finance}
         accounts=${accounts}
         liveMode=${liveMode}
-        stack=${stack}
         navCtx=${ctx}
         onClose=${onClose}
-        onBack=${onBack}
-        onNavigateStack=${onNavigateStack}
         onOpenRecord=${onSwitchTarget}
         setSessions=${setSessions}
       />
@@ -210,6 +207,7 @@ export default function RecordEditDrawer({
           finance,
           activities,
           ctx.meals || [],
+          sessionEvents,
         ),
       );
       if (current.kind === "session_event") {
@@ -218,7 +216,7 @@ export default function RecordEditDrawer({
         setExpenseExpanded(Boolean(linkedExpense));
       }
     } else setForm({});
-  }, [current?.kind, current?.record?.id, linkedExpense?.id, linkedSession?.id, linkedSession?.start, activities, finance, ctx]);
+  }, [current?.kind, current?.record?.id, linkedExpense?.id, linkedSession?.id, linkedSession?.start, activities, finance, ctx, sessionEvents]);
 
   useEffect(() => {
     if (!current) return;

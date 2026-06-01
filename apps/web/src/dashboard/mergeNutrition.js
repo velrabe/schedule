@@ -1,4 +1,13 @@
-/** Merge food sessions ↔ meals for nutrition UI (sessions are source of truth). */
+/** Merge food sessions ↔ meals for nutrition UI. Display: meals.slot + meals.name (not session titles). */
+
+export const MEAL_SLOTS_ORDER = ["breakfast", "lunch", "dinner", "snack"];
+
+export const MEAL_SLOT_LABEL_RU = {
+  breakfast: "завтрак",
+  lunch: "обед",
+  dinner: "ужин",
+  snack: "перекус",
+};
 
 export function isFoodSession(s) {
   const c = (s.category || "").toLowerCase();
@@ -26,6 +35,63 @@ export function inferMealSlotFromSession(s) {
 }
 
 const SLOT_ORDER = { breakfast: 0, lunch: 1, dinner: 2, snack: 3 };
+
+/** Canonical slot for a meal row (DB `meals.slot` wins over time heuristic). */
+export function normalizeMealSlot(meal) {
+  const s = String(meal?.slot || "").toLowerCase();
+  if (MEAL_SLOTS_ORDER.includes(s)) return s;
+  const t = trimTime(meal?.time);
+  const h = Number(t.split(":")[0]) || 12;
+  if (h >= 5 && h < 11) return "breakfast";
+  if (h >= 11 && h < 16) return "lunch";
+  if (h >= 17 && h < 22) return "dinner";
+  return "snack";
+}
+
+/** Title in nutrition columns — never phase/session envelope names when meal.name exists. */
+export function displayMealName(meal) {
+  if (!meal) return "—";
+  const name = String(meal.name || "").trim();
+  if (!name) return "—";
+  if (!meal._synthetic) return name;
+  if (mealHasMacroData(meal)) return name;
+  if (name.length > 56 || /\+|чилл|chill|routine|фаза|пробуждение/i.test(name)) return "—";
+  return name;
+}
+
+function mealPickScore(m) {
+  let s = 0;
+  if (mealHasMacroData(m)) s += 100;
+  if (String(m.name || "").trim()) s += 10;
+  if (!m._synthetic) s += 5;
+  return s;
+}
+
+/**
+ * Four fixed slots per day; each filled from meals with matching `slot` (or time fallback).
+ * @returns {{ slot: string, meal: object | null }[]}
+ */
+export function buildDayMealSlots(mealsForDate = []) {
+  const bucket = Object.fromEntries(MEAL_SLOTS_ORDER.map((slot) => [slot, null]));
+  for (const m of mealsForDate) {
+    if (m._synthetic && !mealHasMacroData(m)) continue;
+    const slot = normalizeMealSlot(m);
+    const cur = bucket[slot];
+    if (!cur || mealPickScore(m) > mealPickScore(cur)) bucket[slot] = m;
+  }
+  return MEAL_SLOTS_ORDER.map((slot) => ({ slot, meal: bucket[slot] }));
+}
+
+/** Enrich DB meals for a calendar day (no synthetic session cards). */
+export function mealsForNutritionDay(date, sessions = [], mealsRaw = []) {
+  const sessionById = new Map(sessions.map((s) => [s.id, s]));
+  const dayRaw = mealsRaw.filter((m) => m.date === date);
+  const enriched = dayRaw.map((m) => {
+    const sess = m.session_id && sessionById.get(m.session_id);
+    return sess && isFoodSession(sess) ? enrichMealFromSession(m, sess) : m;
+  });
+  return buildDayMealSlots(enriched);
+}
 
 export function sortMeals(meals) {
   return [...meals].sort((a, b) => {
@@ -81,14 +147,18 @@ export function findFoodSessionForMeal(meal, sessions = []) {
 /** Overlay session schedule onto a meal row for display/edit. */
 export function enrichMealFromSession(meal, session) {
   if (!session || !isFoodSession(session)) return meal;
+  const keepName = String(meal.name || "").trim();
   return {
     ...meal,
-    session_id: session.id,
-    date: session.date,
-    time: trimTime(session.start),
-    slot: inferMealSlotFromSession(session),
-    name: (session.project || session.note || meal.name || "еда").trim() || "еда",
-    notes: session.note ?? meal.notes ?? null,
+    session_id: meal.session_id || session.id,
+    date: meal.date || session.date,
+    time: meal.time || trimTime(session.start_time || session.start),
+    slot:
+      meal.slot && MEAL_SLOTS_ORDER.includes(String(meal.slot).toLowerCase())
+        ? meal.slot
+        : inferMealSlotFromSession(session),
+    name: keepName || (session.project || session.note || "еда").trim() || "еда",
+    notes: meal.notes ?? session.note ?? null,
   };
 }
 
@@ -144,14 +214,14 @@ export function mergeMealsWithFoodSessions(sessions = [], meals = []) {
       continue;
     }
 
-    out.push(syntheticMealFromSession(s));
+    // No synthetic cards: nutrition UI uses meals.slot + meals.name only.
   }
 
-  return sortMeals(out);
+  return sortMeals(out.filter((m) => !m._synthetic || mealHasMacroData(m)));
 }
 
 export function mealCountForNutrition(sessions = [], meals = []) {
-  return mergeMealsWithFoodSessions(sessions, meals).length;
+  return meals.filter((m) => mealHasMacroData(m) || String(m.name || "").trim()).length;
 }
 
 export function mealHasMacroData(meal) {
