@@ -45,6 +45,7 @@ import {
   businessHourRows,
   fmtSessionDuration,
   findSessionOverlapPairs,
+  sessionOverlapLabel,
   isRedundantMirrorPart,
   partDurationMin,
   sessionDurationMin,
@@ -1788,7 +1789,6 @@ function CalendarTab({
 /** Kanban: one diary session per row — no session_events list, no substance rows. */
 function KanbanSessionCard({ session: s, onClick, disabled }) {
   const title = (s.project || "").trim() || (s.category || "").replace(/_/g, " ") || "—";
-  const showCat = Boolean(s.project && s.category);
   const dur = fmtSessionDuration(sessionDurationMin(s));
 
   return html`
@@ -1800,20 +1800,16 @@ function KanbanSessionCard({ session: s, onClick, disabled }) {
       title=${[s.start, s.end, s.category, s.project, s.note].filter(Boolean).join(" · ")}
     >
       <div class="kanban-card-inner-wrap">
-        <div class="kanban-card-row-wrap kanban-card-row-wrap--head">
+        <div class="kanban-card-title-wrap">
+          <span class="kanban-card__title">${title}</span>
+        </div>
+        <div class="kanban-card-row-wrap kanban-card-row-wrap--meta">
           <div class="kanban-card-time-wrap">
             <span class="kanban-card__time">${s.start}–${s.end}</span>
           </div>
           <div class="kanban-card-dur-wrap">
             <span class="kanban-card__dur">${dur}</span>
           </div>
-        </div>
-        <div class="kanban-card-row-wrap kanban-card-row-wrap--title">
-          <div class="kanban-card-title-wrap">
-            <span class="kanban-card__title">${title}</span>
-          </div>
-          ${showCat &&
-          html`<div class="kanban-card-cat-wrap"><span class="kanban-card__cat">${s.category}</span></div>`}
         </div>
       </div>
     </button>
@@ -1986,7 +1982,10 @@ function CalendarDayDetail({
   const hasNutrition = kcalIn > 0 || kcalOut > 0 || meals.length > 0 || activitiesList.length > 0;
   const hasBodyCol = hasNutrition || dayFinanceExpenses.length > 0;
 
-  const overlapPairs = useMemo(() => findSessionOverlapPairs(sessions), [sessions]);
+  const overlapPairs = useMemo(
+    () => findSessionOverlapPairs(sessions, day?.wake || "06:00"),
+    [sessions, day],
+  );
 
   const insightLines = useMemo(
     () =>
@@ -2084,7 +2083,7 @@ function CalendarDayDetail({
                 <span class="cal-detail-overlap__text">
                   пересечение: ${overlapPairs
                     .slice(0, 2)
-                    .map(([a, b]) => `${a.project || a.category} ${a.start}–${a.end} / ${b.project || b.category} ${b.start}–${b.end}`)
+                    .map(([a, b]) => `${sessionOverlapLabel(a)} ${a.start}–${a.end} / ${sessionOverlapLabel(b)} ${b.start}–${b.end}`)
                     .join(" · ")}
                 </span>
               </div>

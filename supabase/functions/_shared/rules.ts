@@ -44,23 +44,38 @@ const DATA_MODEL = `
 
 ## Session granularity (diary vs atoms)
 
-- **Diary shows sessions only** — do NOT create 3 diary rows for one outing.
-- **Atoms are session_events** — user story "такси, зал 90 мин, такси" → create_session_bundle with 3 events, NOT 3 sessions.
-- User blob "с 8 до 15 серф и кофе" → one session "surf day" OR sport session + separate food sessions as needed; inside sport session use events for coffee vs surf 90min vs walk if user gave detail.
+- **Diary row = фаза дня** (непересекающийся блок времени). **session_events** = атомы внутри фазы с реальными start/end.
+- **Таймлайн не рвётся:** sessions одного дня **НЕ пересекаются**. Если обед во время работы — это **event** внутри work-фазы, НЕ отдельная food-сессия на те же часы.
+- Prefer **create_session_bundle** per phase: project = название фазы ("пробуждение и завтрак", "работа заказ обед", "обед чилл скуби"), events[] = все атомы фазы.
+- Один простой атом без фазы → create_session OK (отбой instant, короткий chill).
 - Prefer update_session / update session_events over delete+recreate when shifting times.
-- Overlaps between **sessions**: chain update_session; swallow_ok on agent API.
+- Overlaps between sessions: fix by merge into phase bundle or shift times — never leave overlapping diary rows.
 
-## Focus / cognitive load (work blocks — critical for analytics)
+## Day phases (главная модель — read this)
 
-- **One diary row per focus block**, NOT one session per tiny event. The UI analyzes merged work_paid/personal/byt spans (peaks of concentration).
-- **Same project, gap ≤20 min** → ONE session from first start to last end (e.g. "приложение" 11:15–14:30), NOT three sessions 11:15–12:15, 12:15–13:05 chill, 13:05–14:30 unless user explicitly logged a break as separate diary line.
-- **Inside a focus block** use create_session_bundle or one session + session_events[]:
-  - parent: work_paid/personal, project="приложение" (or stated project), envelope = full focus window
-  - events[]: real atoms only when user gave detail — coffee 5m, micro-break, taxi, NOT a duplicate mirror of the whole block
-- **Chill/food between work** that user names as break → separate session (short), but do NOT split work into hourly slices by default.
-- **"начал работу" / open tracker** → create_work_session_open; **"перерыв" / "обед"** → close_work_session then food/chill session; **resume same project** → new focus session OR extend via update_session if same block continues.
-- **Bad pattern (never):** 10:00–10:10 work + 10:15–11:15 work + 11:15–12:15 work for one continuous "приложение" day — merge to 10:00–12:15 (or one bundle with internal events if user listed coffee inside).
-- Food, sport, transport, substances stay **separate diary sessions** (or instant markers parallel to timeline).
+User mental model: day = ordered **phases**, each phase = one session envelope + N events inside.
+
+**DO:**
+- Утро: `9:05–11:15` session "пробуждение и завтрак" → events: wake 9:05, кофе+заказ 9:30, app 10:00–10:10, завтрак 10:15–…
+- Работа с перерывом: `11:15` one event session "приложение" OR short phase if only one atom.
+- Перерыв: `12:15–13:05` session "перерыв, скуби" (chill) + create_substance scooby at 12:15.
+- Смешанная фаза: `14:30–15:30` "перекус, скуби, кофе, растяжка" → events: перекус, scooby instant, кофе, sport_stretch.
+- Работа+заказ еды: `15:30–17:30` "работа, заказ обед" → events: приложение, заказ обед 16:40–16:45, приложение 16:50 — **no separate food session 16:47–18:00**.
+- Социальная фаза: `17:30–19:00` "обед, чилл, скуби" → events: обед (kind=food, meal macros), chill, scooby; category=food or chill by dominant time.
+- Отбой: `01:00` instant sleep event — отдельная короткая session или event + update_day sleep_time.
+
+**DON'T:**
+- Parallel overlapping sessions (work 15:30–17:30 AND food 16:47–18:00) — breaks the timeline.
+- One create_session per 10-minute work slice when user described a **phase**.
+- Duplicate mirror event copying whole phase times as single child (server may mirror; agent should add real atoms in events[]).
+
+**Food / meals:**
+- **Dedicated meal phase** (завтрак / обед / ужин block) → food session OR bundle with kind=food event + create_meal for macros.
+- **Snack/lunch order during work** → kind=food or chore event **inside** work phase bundle, expense on that event; optional create_meal linked via session_id of work session only if macros given — do NOT spawn overlapping food session.
+
+**Substances:** create_substance (scooby/moda/caffeine) for analytics + optional mention in phase event title; parallel instant session_event from server is OK (session_id=null).
+
+**Categories:** phase session category = dominant activity (work_paid, chill, food, sport_*, chores). Mixed phases use best-fit + descriptive project string.
 
 ## actions[].data fields
 
@@ -209,7 +224,9 @@ const NUTRITION = `
 Daily targets (default; LLM may read from days.kcal_target if user overrides):
 - kcal=1800, carbs=180g, protein=116g, fat=64g
 
-Food blocks (завтрак/обед/ужин/снек) → create_session with type=food, category=food. Put slot hint in project or notes ("завтрак", "обед", "breakfast", "snack"). Server auto-creates a linked meals row (one meal per food session). Multiple food sessions per day are OK (e.g. two snacks at different times).
+Food **phase** (завтрак / обед / ужин как отдельный блок дня) → create_session_bundle or create_session type=food, category=food, project="завтрак"|"обед"|…. Server auto-creates meals row when food session exists. Multiple meal **phases** per day OK if they do not overlap other sessions.
+
+Food **during work** (заказ обед, перекус в Grab) → session_event inside work phase (kind=food/chores), NOT a second overlapping food session. create_meal only when macros provided; link to the food event or parent session per server sync.
 
 If user also gives macros (kcal, protein_g, …) in the same message → add create_meal with the same date/time/slot/name and macros (links to session automatically), OR update_session + create_meal — prefer create_session first, then create_meal with matching slot/time.
 

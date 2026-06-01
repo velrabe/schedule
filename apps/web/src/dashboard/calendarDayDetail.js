@@ -1,7 +1,11 @@
 /** Calendar day detail: column data + auto insights. */
 
 import { aggregateDay, dayHasMorningSport } from "./insightsCompute.js";
-import { findSessionOverlapPairs, focusWorkInsightLine } from "./sessionDisplay.js";
+import {
+  findSessionOverlapPairs,
+  focusWorkInsightLine,
+  sessionOverlapLabel,
+} from "./sessionDisplay.js";
 import { fmtExpenseShort, financeHumanLabel } from "./sessionFinance.js";
 import { isSportSessionCategory } from "./nutritionKcal.js";
 
@@ -98,14 +102,17 @@ export function buildCalendarDayInsights({
 
   lines.push(...kcalGoalLines(kcalIn, kcalOut, kcalTarget));
 
-  const overlaps = findSessionOverlapPairs(sessions);
+  const overlaps = findSessionOverlapPairs(sessions, day?.wake || "06:00");
   if (overlaps.length > 0) {
     lines.push({
       key: "overlap",
       label: `⚠ пересечение сессий: ${overlaps.length}`,
       hint: overlaps
         .slice(0, 2)
-        .map(([a, b]) => `${a.start}–${a.end} × ${b.start}–${b.end}`)
+        .map(
+          ([a, b]) =>
+            `${sessionOverlapLabel(a)} ${a.start}–${a.end} × ${sessionOverlapLabel(b)} ${b.start}–${b.end}`,
+        )
         .join("; "),
       tone: "warn",
     });

@@ -1049,12 +1049,8 @@
   gap: 0;
 }
 
-.kanban-card-row-wrap--head {
+.kanban-card-row-wrap--meta {
   justify-content: space-between;
-}
-
-.kanban-card-row-wrap--title {
-  align-items: flex-start;
 }
 
 .kanban-card-time-wrap {
@@ -1088,8 +1084,9 @@
 }
 
 .kanban-card__title {
-  font-size: 12px;
-  line-height: 1.35;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.3;
   color: var(--text);
   display: -webkit-box;
   -webkit-box-orient: vertical;

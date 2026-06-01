@@ -109,28 +109,40 @@ export function businessHourRows(agg) {
 }
 
 /** One insight line: total focus (work) time for the day, not per block. */
-function sessionsOverlap(a, b) {
-  const as = timeToMin(a.start ?? a.start_time);
-  let ae = timeToMin(a.end ?? a.end_time);
-  const bs = timeToMin(b.start ?? b.start_time);
-  let be = timeToMin(b.end ?? b.end_time);
-  if (ae <= as) ae += 24 * 60;
-  if (be <= bs) be += 24 * 60;
+/** Minutes from wake — 01:00 отбой после 23:00, не «утром». */
+function wakeRelativeMin(start, wake) {
+  const s = timeToMin(start);
+  const w = timeToMin(wake);
+  return (s - w + 24 * 60) % (24 * 60);
+}
+
+function sessionsOverlap(a, b, wake = "06:00") {
+  if (sessionDurationMin(a) <= 0 || sessionDurationMin(b) <= 0) return false;
+  const as = wakeRelativeMin(a.start ?? a.start_time, wake);
+  let ae = wakeRelativeMin(a.end ?? a.end_time, wake);
+  const bs = wakeRelativeMin(b.start ?? b.start_time, wake);
+  let be = wakeRelativeMin(b.end ?? b.end_time, wake);
+  if (ae < as) ae += 24 * 60;
+  if (be < bs) be += 24 * 60;
   return as < be && bs < ae;
 }
 
 /** Pairs of diary sessions that overlap in time (broken timeline). */
-export function findSessionOverlapPairs(sessions = []) {
-  const rows = [...sessions].sort((a, b) =>
-    String(a.start || "").localeCompare(String(b.start || "")),
+export function findSessionOverlapPairs(sessions = [], wake = "06:00") {
+  const rows = [...sessions].sort(
+    (a, b) => wakeRelativeMin(a.start, wake) - wakeRelativeMin(b.start, wake),
   );
   const pairs = [];
   for (let i = 0; i < rows.length; i++) {
     for (let j = i + 1; j < rows.length; j++) {
-      if (sessionsOverlap(rows[i], rows[j])) pairs.push([rows[i], rows[j]]);
+      if (sessionsOverlap(rows[i], rows[j], wake)) pairs.push([rows[i], rows[j]]);
     }
   }
   return pairs;
+}
+
+export function sessionOverlapLabel(s) {
+  return (s.project || "").trim() || String(s.category || "session").replace(/_/g, " ");
 }
 
 export function focusWorkInsightLine(date, sessions = []) {
