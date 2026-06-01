@@ -43,7 +43,7 @@ function avg(list, pick) {
   return vals.reduce((a, b) => a + b, 0) / vals.length;
 }
 
-function dayHasMorningSport(date, sessions) {
+export function dayHasMorningSport(date, sessions) {
   return sessions.some(
     (s) =>
       s.date === date && isSportSessionCategory(s.category) && timeToMin(s.start) < 12 * 60,

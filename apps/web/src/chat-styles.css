@@ -238,8 +238,225 @@
   display: flex;
   flex-direction: column;
   width: 100%;
+  padding: 0;
+  gap: 0;
+}
+
+.cal-detail-body-wrap > .cal-detail-meta-wrap,
+.cal-detail-body-wrap > .cal-detail-notes-wrap {
+  padding: 10px 12px 0;
+}
+
+.cal-detail-body-wrap > .cal-detail-notes-wrap {
+  padding-bottom: 10px;
+}
+
+.cal-detail-grid-wrap {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+}
+
+.cal-detail-col-wrap {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  min-width: 0;
+  border-top: 1px solid var(--border);
+}
+
+.cal-detail-panel-head-wrap {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  width: 100%;
+  padding: 8px 12px;
+  background: var(--surface-2);
+  border-bottom: 1px solid var(--border);
+}
+
+.cal-detail-panel-title {
+  font-size: 10px;
+  font-family: var(--mono);
+  color: var(--text-3);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.cal-detail-col-body-wrap {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
   padding: 10px 12px;
+  gap: 10px;
+}
+
+.cal-detail-subsection-wrap {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  gap: 6px;
+}
+
+.cal-detail-subsection-title {
+  font-size: 9px;
+  font-family: var(--mono);
+  color: var(--text-3);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.cal-detail-list-wrap {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  gap: 4px;
+}
+
+.cal-detail-list-row-wrap {
+  display: flex;
+  width: 100%;
+}
+
+.cal-detail-list-row-inner-wrap {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: baseline;
+  width: 100%;
   gap: 8px;
+}
+
+.cal-detail-list-row__time {
+  font-size: 10px;
+  font-family: var(--mono);
+  color: var(--text-3);
+  flex-shrink: 0;
+}
+
+.cal-detail-list-row__main {
+  font-size: 11px;
+  font-family: var(--mono);
+  color: var(--text);
+  line-height: 1.35;
+}
+
+.cal-detail-list-row__meta {
+  font-size: 10px;
+  font-family: var(--mono);
+  color: var(--text-3);
+  margin-left: auto;
+}
+
+.cal-detail-hours-wrap {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  gap: 4px;
+}
+
+.cal-detail-hours-row-wrap {
+  display: flex;
+  flex-direction: row;
+  align-items: baseline;
+  justify-content: space-between;
+  width: 100%;
+}
+
+.cal-detail-hours-row__label {
+  font-size: 10px;
+  font-family: var(--mono);
+  color: var(--text-3);
+}
+
+.cal-detail-hours-row__val {
+  font-size: 11px;
+  font-family: var(--mono);
+  color: var(--text);
+}
+
+.cal-detail-insight-row-wrap {
+  display: flex;
+  width: 100%;
+  padding: 4px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.cal-detail-insight-row-wrap:last-child {
+  border-bottom: none;
+}
+
+.cal-detail-insight-row-inner-wrap {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  gap: 2px;
+}
+
+.cal-detail-insight-row__label {
+  font-size: 11px;
+  font-family: var(--mono);
+  color: var(--text-2);
+  line-height: 1.35;
+}
+
+.cal-detail-insight-row__label--warn {
+  color: var(--danger);
+}
+
+.cal-detail-insight-row__label--ok {
+  color: var(--success);
+}
+
+.cal-detail-insight-row__hint {
+  font-size: 10px;
+  font-family: var(--mono);
+  color: var(--text-3);
+}
+
+.cal-detail-nutri-summary-wrap--col {
+  padding: 0;
+  border: none;
+  background: transparent;
+}
+
+.cal-detail-section-wrap--in-col {
+  padding: 0;
+  border-bottom: none;
+}
+
+.cal-detail-columns-wrap--stack {
+  flex-direction: column;
+  overflow-x: visible;
+}
+
+.cal-detail-columns-wrap--stack .cal-detail-col-wrap {
+  width: 100%;
+  min-width: 0;
+  border-right: none;
+  border-bottom: 1px solid var(--border);
+}
+
+.cal-detail-columns-wrap--stack .cal-detail-col-wrap:last-child {
+  border-bottom: none;
+}
+
+@media (min-width: 900px) {
+  .cal-detail-grid-wrap {
+    flex-direction: row;
+    align-items: stretch;
+  }
+
+  .cal-detail-col-wrap {
+    flex: 1 1 0;
+    width: 0;
+    border-top: none;
+    border-right: 1px solid var(--border);
+  }
+
+  .cal-detail-col-wrap:last-child {
+    border-right: none;
+  }
 }
 
 .cal-detail-meta-wrap {
@@ -1333,6 +1550,14 @@ button.kanban-card:hover {
 
 .cal-detail-section-wrap--sessions {
   border-bottom: none;
+}
+
+.record-open-row.cal-detail-list-row {
+  width: 100%;
+  padding: 6px 8px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: var(--surface-2);
 }
 
 .cal-detail-section-wrap--sessions .cal-detail-sessions-wrap {

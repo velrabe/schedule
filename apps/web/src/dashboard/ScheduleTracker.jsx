@@ -35,11 +35,12 @@ import {
   linkedEventLabel,
 } from "./sessionFinance.js";
 import {
-  standaloneSubstanceEventsForDate,
-  mergeTimelineItems,
-  substanceEventLabel,
-  substanceEventOpenTarget,
-} from "./substanceTimeline.js";
+  buildCalendarDayInsights,
+  dayExpenses,
+  expenseRowLabel,
+  substanceRowLabel,
+  substancesForDate,
+} from "./calendarDayDetail.js";
 import { formatKanbanDayCopy, copyTextToClipboard } from "./kanbanDayCopy.js";
 import FinanceTab from "./FinanceTab.jsx";
 import InsightsTab from "./InsightsTab.jsx";
@@ -1932,18 +1933,9 @@ function CalendarDayDetail({
     );
   }, [sessions, day]);
 
-  const orphanSubstances = useMemo(
-    () => standaloneSubstanceEventsForDate(date, sessionEvents),
-    [date, sessionEvents],
-  );
-
-  const timeline = useMemo(() => {
-    const sortKey = (item) => {
-      const start = item.start ?? String(item.start_time || "").slice(0, 5);
-      return wakeRelativeMin(start, day?.wake || "00:00");
-    };
-    return mergeTimelineItems(sorted, orphanSubstances, sortKey);
-  }, [sorted, orphanSubstances, day]);
+  const daySubstances = useMemo(() => substancesForDate(date, substances), [date, substances]);
+  const dayFinanceExpenses = useMemo(() => dayExpenses(date, finance), [date, finance]);
+  const dayAgg = useMemo(() => aggregateDay(date, sessions), [date, sessions]);
 
   const kcalIn = meals.reduce((a, m) => a + (Number(m.kcal) || 0), 0);
   const kcalOut = dayKcalOut(date, activitiesList, sessionEvents, sessions);
@@ -1958,6 +1950,23 @@ function CalendarDayDetail({
   );
 
   const hasNutrition = kcalIn > 0 || kcalOut > 0 || meals.length > 0 || activitiesList.length > 0;
+  const hasBodyCol = hasNutrition || dayFinanceExpenses.length > 0;
+
+  const insightLines = useMemo(
+    () =>
+      buildCalendarDayInsights({
+        date,
+        day,
+        sessions,
+        meals,
+        activities: activitiesList,
+        substances,
+        kcalIn,
+        kcalOut,
+        kcalTarget: NUTRITION_TARGET.kcal,
+      }),
+    [date, day, sessions, meals, activitiesList, substances, kcalIn, kcalOut],
+  );
 
   const patchDay = useCallback(
     async (patch) => {
@@ -2028,104 +2037,218 @@ function CalendarDayDetail({
         />
       </div>
 
-      ${hasNutrition && html`
-        <div class="cal-detail-nutri-summary-wrap">
-          <div class="cal-detail-nutri-summary-head-wrap">
-            <span class="cal-detail-nutri-summary-title">питание · ${date}</span>
-            <span class=${`cal-detail-balance ${balance > NUTRITION_TARGET.kcal ? "cal-detail-balance--over" : ""}`}>
-              баланс ${Math.round(balance)} / ${NUTRITION_TARGET.kcal}
-            </span>
+      <div class="cal-detail-grid-wrap">
+        <div class="cal-detail-col-wrap cal-detail-col-wrap--schedule">
+          <div class="cal-detail-panel-head-wrap">
+            <span class="cal-detail-panel-title">расписание</span>
           </div>
-          <${NutriMicroBars}
-            layout="row"
-            items=${[
-              { key: "kin", label: "in", value: kcalIn, target: NUTRITION_TARGET.kcal, kind: "kcal" },
-              { key: "kout", label: "out", value: kcalOut, target: NUTRITION_TARGET.kcal, kind: "activity" },
-              { key: "c", label: "C", value: macros.c, target: NUTRITION_TARGET.carbs, kind: "carbs" },
-              { key: "p", label: "P", value: macros.p, target: NUTRITION_TARGET.protein, kind: "protein" },
-              { key: "f", label: "F", value: macros.f, target: NUTRITION_TARGET.fat, kind: "fat" },
-            ]}
-          />
-        </div>
-      `}
-
-      ${(sortedMeals.length > 0 || sortedActs.length > 0) && html`
-        <div class="cal-detail-section-wrap cal-detail-section-wrap--cols">
-          <div class="cal-detail-columns-wrap">
-            ${sortedMeals.map((m) => html`
-                <${CalDetailNutriColumn}
-                  key=${m.id}
-                  meal=${m}
-                  liveMode=${liveMode}
-                  onOpenRecord=${onOpenRecord}
-                  slotLabel=${MEAL_SLOT_RU[m.slot] || m.slot || "еда"}
-                  bars=${barsForMeal(m, NUTRITION_TARGET)}
-                />
-              `)}
-            ${sortedActs.map((a) => {
-              const burn = Number(a.calories_burned) || 0;
-              return html`
-                <${CalDetailNutriColumn}
-                  key=${a.id}
-                  activity=${a}
-                  liveMode=${liveMode}
-                  onOpenRecord=${onOpenRecord}
-                  slotLabel=${activityTypeLabel(a)}
-                  bars=${burn > 0
-                    ? [{ key: "b", label: "out", value: burn, target: NUTRITION_TARGET.kcal, kind: "activity" }]
-                    : []}
-                />
-              `;
-            })}
-          </div>
-        </div>
-      `}
-
-      <div class="cal-detail-section-wrap cal-detail-section-wrap--sessions">
-        <span class="cal-detail-section-title">сессии</span>
-        <div class="cal-detail-sessions-wrap">
-          ${timeline.length === 0 && html`<div class="cal-detail-empty-wrap"><span>сессии не записаны</span></div>`}
-          ${timeline.map((item) =>
-            item.type === "substance_event"
-              ? html`
-                  <div class="cal-detail-session-block-wrap cal-detail-session-block-wrap--substance" key=${item.id}>
-                    <${RecordOpenRow}
-                      className="cal-detail-session cal-detail-session--substance"
-                      onOpen=${onOpenRecord
-                        ? () => onOpenRecord(substanceEventOpenTarget(item.data, substances))
-                        : null}
-                      disabled=${!liveMode}
-                    >
-                      <div class="session-compact-inner-wrap">
-                        <div class="session-compact-head-wrap">
-                          <div class="session-compact-time-wrap">
-                            <span class="session-compact__time">${String(item.data.start_time || "").slice(0, 5)}</span>
-                          </div>
-                          <span class="session-compact__cat">substance</span>
-                        </div>
-                        <div class="session-compact-body-wrap">
-                          <span class="session-compact__proj">${substanceEventLabel(item.data, finance)}</span>
-                        </div>
-                      </div>
-                    </${RecordOpenRow}>
-                  </div>
-                `
-              : html`
-                  <div class="cal-detail-session-block-wrap" key=${item.id}>
+          <div class="cal-detail-col-body-wrap">
+            <div class="cal-detail-sessions-wrap">
+              ${sorted.length === 0 &&
+              html`<div class="cal-detail-empty-wrap"><span>сессии не записаны</span></div>`}
+              ${sorted.map(
+                (s) => html`
+                  <div class="cal-detail-session-block-wrap" key=${s.id}>
                     <${RecordOpenRow}
                       className="cal-detail-session"
-                      onOpen=${onOpenRecord ? () => onOpenRecord({ kind: "session", record: item.data }) : null}
+                      onOpen=${onOpenRecord ? () => onOpenRecord({ kind: "session", record: s }) : null}
                       disabled=${!liveMode}
                     >
                       <${SessionCompactContent}
-                        session=${item.data}
+                        session=${s}
                         sessionEvents=${sessionEvents}
                         finance=${finance}
                       />
                     </${RecordOpenRow}>
                   </div>
                 `,
-          )}
+              )}
+            </div>
+          </div>
+        </div>
+
+        <div class="cal-detail-col-wrap cal-detail-col-wrap--body">
+          <div class="cal-detail-panel-head-wrap">
+            <span class="cal-detail-panel-title">питание · траты · активность</span>
+          </div>
+          <div class="cal-detail-col-body-wrap">
+            ${!hasBodyCol &&
+            html`<div class="cal-detail-empty-wrap"><span>нет данных</span></div>`}
+            ${hasNutrition && html`
+              <div class="cal-detail-nutri-summary-wrap cal-detail-nutri-summary-wrap--col">
+                <div class="cal-detail-nutri-summary-head-wrap">
+                  <span class=${`cal-detail-balance ${balance > NUTRITION_TARGET.kcal ? "cal-detail-balance--over" : ""}`}>
+                    баланс ${Math.round(balance)} / ${NUTRITION_TARGET.kcal}
+                  </span>
+                </div>
+                <${NutriMicroBars}
+                  layout="row"
+                  items=${[
+                    { key: "kin", label: "in", value: kcalIn, target: NUTRITION_TARGET.kcal, kind: "kcal" },
+                    { key: "kout", label: "out", value: kcalOut, target: NUTRITION_TARGET.kcal, kind: "activity" },
+                    { key: "c", label: "C", value: macros.c, target: NUTRITION_TARGET.carbs, kind: "carbs" },
+                    { key: "p", label: "P", value: macros.p, target: NUTRITION_TARGET.protein, kind: "protein" },
+                    { key: "f", label: "F", value: macros.f, target: NUTRITION_TARGET.fat, kind: "fat" },
+                  ]}
+                />
+              </div>
+            `}
+            ${(sortedMeals.length > 0 || sortedActs.length > 0) && html`
+              <div class="cal-detail-section-wrap cal-detail-section-wrap--cols cal-detail-section-wrap--in-col">
+                <div class="cal-detail-columns-wrap cal-detail-columns-wrap--stack">
+                  ${sortedMeals.map((m) => html`
+                      <${CalDetailNutriColumn}
+                        key=${m.id}
+                        meal=${m}
+                        liveMode=${liveMode}
+                        onOpenRecord=${onOpenRecord}
+                        slotLabel=${MEAL_SLOT_RU[m.slot] || m.slot || "еда"}
+                        bars=${barsForMeal(m, NUTRITION_TARGET)}
+                      />
+                    `)}
+                  ${sortedActs.map((a) => {
+                    const burn = Number(a.calories_burned) || 0;
+                    return html`
+                      <${CalDetailNutriColumn}
+                        key=${a.id}
+                        activity=${a}
+                        liveMode=${liveMode}
+                        onOpenRecord=${onOpenRecord}
+                        slotLabel=${activityTypeLabel(a)}
+                        bars=${burn > 0
+                          ? [
+                              {
+                                key: "b",
+                                label: "out",
+                                value: burn,
+                                target: NUTRITION_TARGET.kcal,
+                                kind: "activity",
+                              },
+                            ]
+                          : []}
+                      />
+                    `;
+                  })}
+                </div>
+              </div>
+            `}
+            ${dayFinanceExpenses.length > 0 && html`
+              <div class="cal-detail-subsection-wrap">
+                <span class="cal-detail-subsection-title">траты</span>
+                <div class="cal-detail-list-wrap">
+                  ${dayFinanceExpenses.map((txn) => html`
+                    <div class="cal-detail-list-row-wrap" key=${txn.id}>
+                      <${RecordOpenRow}
+                        className="cal-detail-list-row"
+                        onOpen=${onOpenRecord ? () => onOpenRecord({ kind: "finance", record: txn }) : null}
+                        disabled=${!liveMode}
+                      >
+                        <div class="cal-detail-list-row-inner-wrap">
+                          <span class="cal-detail-list-row__main">${expenseRowLabel(txn)}</span>
+                          ${txn.time &&
+                          html`<span class="cal-detail-list-row__meta">${String(txn.time).slice(0, 5)}</span>`}
+                        </div>
+                      </${RecordOpenRow}>
+                    </div>
+                  `)}
+                </div>
+              </div>
+            `}
+          </div>
+        </div>
+
+        <div class="cal-detail-col-wrap cal-detail-col-wrap--insights">
+          <div class="cal-detail-panel-head-wrap">
+            <span class="cal-detail-panel-title">субстанции · работа</span>
+          </div>
+          <div class="cal-detail-col-body-wrap">
+            <div class="cal-detail-subsection-wrap">
+              <span class="cal-detail-subsection-title">субстанции</span>
+              <div class="cal-detail-list-wrap">
+                ${daySubstances.length === 0 &&
+                html`<div class="cal-detail-empty-wrap"><span>нет записей</span></div>`}
+                ${daySubstances.map((sub) => html`
+                  <div class="cal-detail-list-row-wrap" key=${sub.id}>
+                    <${RecordOpenRow}
+                      className="cal-detail-list-row cal-detail-list-row--substance"
+                      onOpen=${onOpenRecord ? () => onOpenRecord({ kind: "substance", record: sub }) : null}
+                      disabled=${!liveMode}
+                    >
+                      <div class="cal-detail-list-row-inner-wrap">
+                        <span class="cal-detail-list-row__time">${String(sub.time || "").slice(0, 5) || "—"}</span>
+                        <span class="cal-detail-list-row__main">${substanceRowLabel(sub)}</span>
+                      </div>
+                    </${RecordOpenRow}>
+                  </div>
+                `)}
+              </div>
+            </div>
+
+            <div class="cal-detail-subsection-wrap">
+              <span class="cal-detail-subsection-title">часы</span>
+              <div class="cal-detail-hours-wrap">
+                ${dayAgg.business_h > 0 && html`
+                  <div class="cal-detail-hours-row-wrap">
+                    <span class="cal-detail-hours-row__label">работа</span>
+                    <span class="cal-detail-hours-row__val">${fmtHours(dayAgg.business_h * 60)}h</span>
+                  </div>
+                `}
+                ${dayAgg.work_paid_h > 0 && html`
+                  <div class="cal-detail-hours-row-wrap">
+                    <span class="cal-detail-hours-row__label">work_paid</span>
+                    <span class="cal-detail-hours-row__val">${fmtHours(dayAgg.work_paid_h * 60)}h</span>
+                  </div>
+                `}
+                ${dayAgg.personal_h > 0 && html`
+                  <div class="cal-detail-hours-row-wrap">
+                    <span class="cal-detail-hours-row__label">personal</span>
+                    <span class="cal-detail-hours-row__val">${fmtHours(dayAgg.personal_h * 60)}h</span>
+                  </div>
+                `}
+                ${dayAgg.byt_h > 0 && html`
+                  <div class="cal-detail-hours-row-wrap">
+                    <span class="cal-detail-hours-row__label">byt</span>
+                    <span class="cal-detail-hours-row__val">${fmtHours(dayAgg.byt_h * 60)}h</span>
+                  </div>
+                `}
+                ${dayAgg.sport_h > 0 && html`
+                  <div class="cal-detail-hours-row-wrap">
+                    <span class="cal-detail-hours-row__label">спорт</span>
+                    <span class="cal-detail-hours-row__val">${fmtHours(dayAgg.sport_h * 60)}h</span>
+                  </div>
+                `}
+                ${dayAgg.chill_h > 0 && html`
+                  <div class="cal-detail-hours-row-wrap">
+                    <span class="cal-detail-hours-row__label">chill</span>
+                    <span class="cal-detail-hours-row__val">${fmtHours(dayAgg.chill_h * 60)}h</span>
+                  </div>
+                `}
+                ${dayAgg.business_h <= 0 &&
+                dayAgg.sport_h <= 0 &&
+                dayAgg.chill_h <= 0 &&
+                html`<div class="cal-detail-empty-wrap"><span>—</span></div>`}
+              </div>
+            </div>
+
+            ${insightLines.length > 0 && html`
+              <div class="cal-detail-subsection-wrap">
+                <span class="cal-detail-subsection-title">инсайты</span>
+                <div class="cal-detail-list-wrap">
+                  ${insightLines.map((line) => html`
+                    <div class="cal-detail-insight-row-wrap" key=${line.key}>
+                      <div class="cal-detail-insight-row-inner-wrap">
+                        <span class=${`cal-detail-insight-row__label ${line.tone ? `cal-detail-insight-row__label--${line.tone}` : ""}`}>
+                          ${line.label}
+                        </span>
+                        ${line.hint &&
+                        html`<span class="cal-detail-insight-row__hint">${line.hint}</span>`}
+                      </div>
+                    </div>
+                  `)}
+                </div>
+              </div>
+            `}
+          </div>
         </div>
       </div>
     </div>
