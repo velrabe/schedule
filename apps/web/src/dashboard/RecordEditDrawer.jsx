@@ -30,6 +30,8 @@ import {
 } from "./drawerFieldPolicy.js";
 import DrawerSubstancesList from "./DrawerSubstancesList.jsx";
 import { substancesForSessionPhase } from "./substanceSession.js";
+import { sessionBreadcrumbLabel } from "./drawerNavigation.js";
+import { mapSessionEventForDrawer, sessionEventDisplayLabel } from "./recordDisplay.js";
 
 const html = htm.bind(h);
 
@@ -199,7 +201,17 @@ export default function RecordEditDrawer({
 
   useEffect(() => {
     if (current) {
-      setForm(recordToForm(current.kind, current.record, linkedExpense, linkedSession, finance, activities));
+      setForm(
+        recordToForm(
+          current.kind,
+          current.record,
+          linkedExpense,
+          linkedSession,
+          finance,
+          activities,
+          ctx.meals || [],
+        ),
+      );
       if (current.kind === "session_event") {
         setExpenseExpanded(false);
       } else {
@@ -343,9 +355,23 @@ export default function RecordEditDrawer({
     }
   };
 
+  const drawerSubtitle = useMemo(() => {
+    if (!current || !meta) return "";
+    if (current.record?._new) return "новая запись";
+    if (current.kind === "session") return sessionBreadcrumbLabel(current.record);
+    if (current.kind === "session_event") {
+      return sessionEventDisplayLabel(
+        mapSessionEventForDrawer(current.record),
+        finance,
+        ctx.meals || [],
+      );
+    }
+    return meta.subtitle(current.record);
+  }, [current?.kind, current?.record?.id, meta, finance, ctx.meals]);
+
   if (!current || !meta) return null;
 
-  const subtitle = isNew ? "новая запись" : meta.subtitle(current.record);
+  const subtitle = drawerSubtitle;
   const busy = saving || deleting;
   const stopInside = (e) => e.stopPropagation();
   let mainFields = fields.filter((f) => !isExpenseField(f));

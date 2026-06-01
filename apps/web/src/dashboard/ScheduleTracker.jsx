@@ -49,7 +49,7 @@ import {
   sessionDurationMin,
 } from "./sessionDisplay.js";
 import { formatKanbanDayCopy, copyTextToClipboard } from "./kanbanDayCopy.js";
-import { editorTargetKey } from "./recordDisplay.js";
+import { resolveCanonicalDrawerStack } from "./drawerNavigation.js";
 import FinanceTab from "./FinanceTab.jsx";
 import InsightsTab from "./InsightsTab.jsx";
 import BodyTab from "./BodyTab.jsx";
@@ -300,6 +300,18 @@ function App(props = {}) {
 
   const substances = liveData?.raw?.substances || [];
 
+  const drawerNavCtx = useMemo(
+    () => ({
+      sessions,
+      sessionEvents: liveData?.raw?.session_events || [],
+      meals: mergedMeals,
+      activities: liveData?.activities || [],
+      substances,
+      finance: liveData?.finance || [],
+    }),
+    [sessions, liveData, mergedMeals, substances],
+  );
+
   const resolveEditorTarget = useCallback(
     (target) => {
       if (!target?.record) return null;
@@ -328,27 +340,18 @@ function App(props = {}) {
     (target) => {
       const resolved = resolveEditorTarget(target);
       if (!resolved) return;
-      setEditorStack([resolved]);
+      setEditorStack(resolveCanonicalDrawerStack(resolved, drawerNavCtx));
     },
-    [resolveEditorTarget],
+    [resolveEditorTarget, drawerNavCtx],
   );
 
   const pushRecordEditor = useCallback(
     (target) => {
       const resolved = resolveEditorTarget(target);
       if (!resolved) return;
-      const key = editorTargetKey(resolved);
-      if (!key) return;
-      setEditorStack((prev) => {
-        const curKey = editorTargetKey(prev[prev.length - 1]);
-        if (curKey === key) return prev;
-        const idx = prev.findIndex((p) => editorTargetKey(p) === key);
-        if (idx >= 0) return prev.slice(0, idx + 1);
-        if (prev.length >= 12) return prev;
-        return [...prev, resolved];
-      });
+      setEditorStack(resolveCanonicalDrawerStack(resolved, drawerNavCtx));
     },
-    [resolveEditorTarget],
+    [resolveEditorTarget, drawerNavCtx],
   );
 
   const popRecordEditor = useCallback(() => {
@@ -362,18 +365,6 @@ function App(props = {}) {
   const closeRecordEditor = useCallback(() => setEditorStack([]), []);
 
   const recordEditor = editorStack.length ? editorStack[editorStack.length - 1] : null;
-
-  const drawerNavCtx = useMemo(
-    () => ({
-      sessions,
-      sessionEvents: liveData?.raw?.session_events || [],
-      meals: mergedMeals,
-      activities: liveData?.activities || [],
-      substances,
-      finance: liveData?.finance || [],
-    }),
-    [sessions, liveData, mergedMeals, substances],
-  );
 
   // When liveData changes (e.g. after a chat confirm), refresh local state.
   useEffect(() => {

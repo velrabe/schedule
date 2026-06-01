@@ -237,7 +237,7 @@ export default function SessionBundleDrawer({
     const next = {};
     for (const p of parts) {
       const policy = sessionEventDrawerPolicy(p, ctx);
-      let f = sessionEventToForm(p, finance, activities);
+      let f = sessionEventToForm(p, finance, navCtx.meals || [], activities);
       if (!policy.canEditExpenseInline) f = stripExpenseFormFields(f);
       next[p.id] = f;
     }
@@ -335,17 +335,19 @@ export default function SessionBundleDrawer({
         </header>
 
         <div class="record-drawer-body-wrap">
-          <${DrawerNav}
-            stack=${stack}
-            ctx=${navCtx}
-            liveMode=${liveMode}
-            onBack=${onBack}
-            onNavigateToIndex=${onNavigateStack}
-            onOpenLinked=${onOpenRecord}
-            currentKind="session"
-            currentRecord=${session}
-            excludeKinds=${["session", "session_event"]}
-          />
+          ${stack.length > 1 && html`
+            <${DrawerNav}
+              stack=${stack}
+              ctx=${navCtx}
+              liveMode=${liveMode}
+              onBack=${onBack}
+              onNavigateToIndex=${onNavigateStack}
+              onOpenLinked=${onOpenRecord}
+              currentKind="session"
+              currentRecord=${session}
+              excludeKinds=${["session", "session_event", "substance", "meal", "finance", "activity"]}
+            />
+          `}
 
           <section class="session-bundle-envelope-card-wrap">
             <div class="record-drawer-section-wrap record-drawer-section-wrap--card">

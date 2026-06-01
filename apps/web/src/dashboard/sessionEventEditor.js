@@ -1,6 +1,6 @@
 /** session_events ↔ drawer form (atomic parts of a diary session). */
 
-import { expensesForSessionEvent, financeHumanLabel } from "./sessionFinance.js";
+import { expensesForSessionEvent, linkedEventLabel } from "./sessionFinance.js";
 import { findActivityForEvent, isSportSessionEvent, sportMetricsForEvent } from "./activityMetrics.js";
 
 function trimTime(t) {
@@ -53,9 +53,9 @@ export function mapSessionEventUi(row) {
 
 export { findActivityForEvent } from "./activityMetrics.js";
 
-export function sessionEventToForm(ev, finance = [], activities = []) {
+export function sessionEventToForm(ev, finance = [], meals = [], activities = []) {
   const exp = expensesForSessionEvent(ev.id, finance)[0];
-  const label = financeHumanLabel(exp) || ev.title || "";
+  const label = linkedEventLabel(ev, finance, meals) || ev.title || "";
   const base = mapSessionEventUi({ ...ev, title: label });
   const sport = sportMetricsForEvent(ev, activities);
   const cat = (ev.category || "").toLowerCase();

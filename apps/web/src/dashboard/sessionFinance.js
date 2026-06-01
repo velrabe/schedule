@@ -44,11 +44,36 @@ export function financeHumanLabel(txn) {
   return String(txn.merchant || "").trim();
 }
 
-export function linkedEventLabel(event, finance = []) {
+function shortenTitle(title, max = 72) {
+  const t = String(title || "").trim();
+  if (!t) return "";
+  const colon = t.indexOf(":");
+  if (colon > 8 && colon < 56) return t.slice(0, colon).trim();
+  if (t.length <= max) return t;
+  return `${t.slice(0, max - 1)}…`;
+}
+
+/** Short label for UI (breadcrumbs, bundle parts) — prefer meal.name / title, not Grab notes dump. */
+export function linkedEventLabel(event, finance = [], meals = []) {
+  if (!event) return "—";
+  if (event.meal_id) {
+    const meal = meals.find((m) => m.id === event.meal_id);
+    if (meal?.name) return String(meal.name).trim();
+  }
+  const title = shortenTitle(event.title);
+  const kind = (event.kind || "").toLowerCase();
+  if (title) return title;
+  if (kind === "food") {
+    const txn = expensesForSessionEvent(event.id, finance)[0];
+    const merchant = (txn?.merchant || "").trim();
+    if (merchant) return merchant;
+  }
   const txn = expensesForSessionEvent(event?.id, finance)[0];
-  const fromFinance = financeHumanLabel(txn);
-  if (fromFinance) return fromFinance;
-  return (event?.title || event?.category || event?.kind || "—").trim();
+  if (txn?.merchant) return String(txn.merchant).trim();
+  const notes = financeHumanLabel(txn);
+  if (notes && notes.length <= 48) return notes;
+  if (notes) return shortenTitle(notes, 48);
+  return (event.category || event.kind || "—").trim();
 }
 
 export function fmtExpenseShort(txn) {

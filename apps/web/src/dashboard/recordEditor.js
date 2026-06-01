@@ -272,6 +272,7 @@ export function recordToForm(
   linkedSession = null,
   finance = [],
   activities = [],
+  meals = [],
 ) {
   if (!record) return {};
   const expense = expenseToFormFields(linkedExpense);
@@ -281,10 +282,10 @@ export function recordToForm(
         linkedSession && linkedSession.start != null
           ? trimTime(linkedSession.start)
           : trimTime(record.time);
-      const name =
-        linkedSession && (linkedSession.project || linkedSession.note)
+      const name = (record.name || "").trim() ||
+        (linkedSession && (linkedSession.project || linkedSession.note)
           ? (linkedSession.project || linkedSession.note || "").trim()
-          : record.name || "";
+          : "");
       return {
         date: (linkedSession && linkedSession.date) || record.date || "",
         time,
@@ -338,6 +339,7 @@ export function recordToForm(
             end_time: record.end_time || record.end,
           },
           linkedExpense ? [linkedExpense] : finance,
+          meals,
           activities,
         ),
         _session_id: record.session_id,

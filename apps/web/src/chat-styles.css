@@ -4433,10 +4433,19 @@ button.kanban-card:hover {
   display: flex;
   flex-direction: column;
   width: 100%;
-  gap: 12px;
-  margin-bottom: 20px;
-  padding-bottom: 16px;
+  gap: 10px;
+  margin-bottom: 0;
+  padding-bottom: 0;
+}
+
+.drawer-nav-wrap--trail {
+  margin-bottom: 16px;
+  padding-bottom: 14px;
   border-bottom: 1px solid var(--border);
+}
+
+.drawer-nav-wrap--links {
+  margin-bottom: 12px;
 }
 
 .drawer-nav-crumbs-wrap {

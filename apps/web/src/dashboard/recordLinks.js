@@ -13,38 +13,35 @@ import { financeTxnLabel, financeTxnShortMeta } from "./financeDisplay.js";
 import { getRecordEditorMeta } from "./recordEditor.js";
 import { substancesForSessionPhase, substanceRowLabel } from "./substanceSession.js";
 import { mapSessionEventForDrawer, sessionEventDisplayLabel } from "./recordDisplay.js";
+import { mapSessionForDrawer, sessionBreadcrumbLabel } from "./drawerNavigation.js";
+import { fmtExpenseShort } from "./sessionFinance.js";
 
 function trimTime(t) {
   if (!t) return "";
   return String(t).slice(0, 5);
 }
 
-function mapSessionForDrawer(s) {
-  if (!s) return null;
-  return {
-    ...s,
-    start: s.start ?? trimTime(s.start_time),
-    end: s.end ?? trimTime(s.end_time),
-    note: s.note ?? s.notes ?? "",
-  };
-}
-
 export function targetLabel(kind, record, ctx = {}) {
-  const { finance = [], sessionEvents = [], activities = [] } = ctx;
+  const { finance = [], sessionEvents = [], activities = [], meals = [] } = ctx;
   if (!record) return "—";
-  const meta = getRecordEditorMeta(kind);
-  if (meta?.subtitle) return meta.subtitle(record);
   if (kind === "session") {
-    const s = mapSessionForDrawer(record);
-    return `${s.start}–${s.end} ${s.category || ""}`;
+    return sessionBreadcrumbLabel(record);
   }
   if (kind === "session_event") {
-    return sessionEventDisplayLabel(mapSessionEventForDrawer(record), finance);
+    return sessionEventDisplayLabel(
+      mapSessionEventForDrawer(record),
+      finance,
+      meals,
+    );
   }
   if (kind === "finance") {
-    return financeTxnLabel(record);
+    const amt = fmtExpenseShort(record);
+    const merchant = (record.merchant || "").trim();
+    return merchant ? `${amt} · ${merchant}` : amt || financeTxnLabel(record);
   }
   if (kind === "meal") return record.name || "meal";
+  const meta = getRecordEditorMeta(kind);
+  if (meta?.subtitle) return meta.subtitle(record);
   if (kind === "activity") {
     return `активность · ${activityLinkLabel(record)}`;
   }
@@ -121,7 +118,7 @@ export function getRelatedLinks(kind, record, ctx = {}) {
         push({
           kind: "session_event",
           record: ev,
-          label: `часть · ${linkedEventLabel(ev, finance)}`,
+          label: linkedEventLabel(ev, finance, meals),
         });
       }
     }
@@ -179,7 +176,7 @@ export function getRelatedLinks(kind, record, ctx = {}) {
       push({
         kind: "session_event",
         record: ev,
-        label: `ивент · ${linkedEventLabel(ev, finance)}`,
+        label: linkedEventLabel(ev, finance, meals),
       });
     }
   }
@@ -212,7 +209,7 @@ export function getRelatedLinks(kind, record, ctx = {}) {
       push({
         kind: "session_event",
         record: p,
-        label: `часть · ${linkedEventLabel(p, finance)}`,
+        label: linkedEventLabel(p, finance, meals),
       });
     }
     const txns = expensesForSession(record.id, finance).filter(

@@ -27,9 +27,14 @@ export default function DrawerNav({
     { currentKind, currentRecord, stack },
   );
 
+  const showCrumbs = crumbs.length > 1;
+  const showBack = stack.length > 1;
+  const showLinks = related.length > 0;
+  if (!showCrumbs && !showBack && !showLinks) return null;
+
   return html`
-    <div class="drawer-nav-wrap">
-      ${crumbs.length > 1 && html`
+    <div class=${`drawer-nav-wrap ${showCrumbs || showBack ? "drawer-nav-wrap--trail" : "drawer-nav-wrap--links"}`}>
+      ${showCrumbs && html`
         <div class="drawer-nav-crumbs-wrap">
           ${crumbs.map((c, i) => html`
             <span class="drawer-nav-crumb-segment-wrap" key=${`${c.kind}-${c.record?.id || i}`}>
@@ -46,14 +51,14 @@ export default function DrawerNav({
           `)}
         </div>
       `}
-      ${stack.length > 1 && html`
+      ${showBack && html`
         <div class="drawer-nav-back-wrap">
           <button type="button" class="btn btn--ghost drawer-nav-back-btn" onClick=${onBack}>
             <span class="btn__text-wrap">← назад</span>
           </button>
         </div>
       `}
-      ${related.length > 0 && html`
+      ${showLinks && html`
         <div class="drawer-nav-links-wrap">
           <span class="drawer-nav-links-title">связи</span>
           <div class="drawer-nav-links-list-wrap">
