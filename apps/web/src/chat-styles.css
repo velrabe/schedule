@@ -455,20 +455,41 @@
   border-bottom: none;
 }
 
-.cal-detail-columns-wrap--stack {
+.cal-detail-nutri-blocks-wrap {
+  display: flex;
   flex-direction: column;
-  overflow-x: visible;
-}
-
-.cal-detail-columns-wrap--stack .cal-detail-col-wrap {
   width: 100%;
-  min-width: 0;
-  border-right: none;
-  border-bottom: 1px solid var(--border);
 }
 
-.cal-detail-columns-wrap--stack .cal-detail-col-wrap:last-child {
-  border-bottom: none;
+.cal-detail-columns-wrap--meals,
+.cal-detail-columns-wrap--activity {
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
+  width: 100%;
+  overflow-x: auto;
+}
+
+.cal-detail-activity-block-wrap {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+}
+
+.cal-detail-activity-head-wrap {
+  display: flex;
+  width: 100%;
+  padding: 0 10px 6px 10px;
+}
+
+.cal-detail-activity-head__text {
+  font-size: 9px;
+  font-family: var(--mono);
+  color: var(--text-3);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
 }
 
 @media (min-width: 900px) {
@@ -1597,10 +1618,6 @@ button.kanban-card:hover {
   color: var(--text-3);
 }
 
-.cal-detail-col-wrap .nutri-micro-bars-wrap {
-  width: 100%;
-  margin-top: 4px;
-}
 
 .nutri-micro-bars-wrap {
   display: flex;

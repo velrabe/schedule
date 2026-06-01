@@ -15,8 +15,6 @@ import { RecordOpenRow } from "./RecordOpenRow.jsx";
 import { manualPatch, manualUpsertDay } from "./manualSave.js";
 import {
   NutriBar,
-  NutriMicroBars,
-  barsForMeal,
   activityTypeLabel,
   activityDetailLabel,
 } from "./nutriViz.jsx";
@@ -1886,7 +1884,7 @@ function SessionCompactContent({
   `;
 }
 
-function CalDetailNutriColumn({ meal, activity, slotLabel, bars = [], liveMode = false, onOpenRecord }) {
+function CalDetailNutriColumn({ meal, activity, slotLabel, liveMode = false, onOpenRecord }) {
   const isAct = Boolean(activity);
   const mk = meal ? Number(meal.kcal) || 0 : 0;
   const burn = activity ? Number(activity.calories_burned) || 0 : 0;
@@ -1928,7 +1926,6 @@ function CalDetailNutriColumn({ meal, activity, slotLabel, bars = [], liveMode =
           <span class="cal-detail-col-dur">${activity.duration_min}m</span>
         </div>
       `}
-      ${bars.length > 0 && html`<${NutriMicroBars} items=${bars} layout="col" />`}
     </${RecordOpenRow}>
   `;
 }
@@ -2132,54 +2129,42 @@ function CalendarDayDetail({
                         : ""}
                   </span>
                 </div>
-                <${NutriMicroBars}
-                  layout="row"
-                  items=${[
-                    { key: "kin", label: "in", value: kcalIn, target: NUTRITION_TARGET.kcal, kind: "kcal" },
-                    { key: "kout", label: "out", value: kcalOut, target: NUTRITION_TARGET.kcal, kind: "activity" },
-                    { key: "c", label: "C", value: macros.c, target: NUTRITION_TARGET.carbs, kind: "carbs" },
-                    { key: "p", label: "P", value: macros.p, target: NUTRITION_TARGET.protein, kind: "protein" },
-                    { key: "f", label: "F", value: macros.f, target: NUTRITION_TARGET.fat, kind: "fat" },
-                  ]}
-                />
               </div>
             `}
             ${(sortedMeals.length > 0 || sortedActs.length > 0) && html`
               <div class="cal-detail-section-wrap cal-detail-section-wrap--cols cal-detail-section-wrap--in-col">
-                <div class="cal-detail-columns-wrap cal-detail-columns-wrap--stack">
-                  ${sortedMeals.map((m) => html`
-                      <${CalDetailNutriColumn}
-                        key=${m.id}
-                        meal=${m}
-                        liveMode=${liveMode}
-                        onOpenRecord=${onOpenRecord}
-                        slotLabel=${MEAL_SLOT_RU[m.slot] || m.slot || "еда"}
-                        bars=${barsForMeal(m, NUTRITION_TARGET)}
-                      />
-                    `)}
-                  ${sortedActs.map((a) => {
-                    const burn = Number(a.calories_burned) || 0;
-                    return html`
-                      <${CalDetailNutriColumn}
-                        key=${a.id}
-                        activity=${a}
-                        liveMode=${liveMode}
-                        onOpenRecord=${onOpenRecord}
-                        slotLabel=${activityTypeLabel(a)}
-                        bars=${burn > 0
-                          ? [
-                              {
-                                key: "b",
-                                label: "out",
-                                value: burn,
-                                target: NUTRITION_TARGET.kcal,
-                                kind: "activity",
-                              },
-                            ]
-                          : []}
-                      />
-                    `;
-                  })}
+                <div class="cal-detail-nutri-blocks-wrap">
+                  ${sortedMeals.length > 0 && html`
+                    <div class="cal-detail-columns-wrap cal-detail-columns-wrap--meals">
+                      ${sortedMeals.map((m) => html`
+                        <${CalDetailNutriColumn}
+                          key=${m.id}
+                          meal=${m}
+                          liveMode=${liveMode}
+                          onOpenRecord=${onOpenRecord}
+                          slotLabel=${MEAL_SLOT_RU[m.slot] || m.slot || "еда"}
+                        />
+                      `)}
+                    </div>
+                  `}
+                  ${sortedActs.length > 0 && html`
+                    <div class="cal-detail-activity-block-wrap">
+                      <div class="cal-detail-activity-head-wrap">
+                        <span class="cal-detail-activity-head__text">активность</span>
+                      </div>
+                      <div class="cal-detail-columns-wrap cal-detail-columns-wrap--activity">
+                        ${sortedActs.map((a) => html`
+                          <${CalDetailNutriColumn}
+                            key=${a.id}
+                            activity=${a}
+                            liveMode=${liveMode}
+                            onOpenRecord=${onOpenRecord}
+                            slotLabel=${activityTypeLabel(a)}
+                          />
+                        `)}
+                      </div>
+                    </div>
+                  `}
                 </div>
               </div>
             `}
