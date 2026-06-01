@@ -2141,10 +2141,10 @@ function CalendarDayDetail({
                 </div>
               </div>
             `}
-            ${(sortedMeals.length > 0 || sortedActs.length > 0) && html`
+            ${(hasNutrition || sortedActs.length > 0) && html`
               <div class="cal-detail-section-wrap cal-detail-section-wrap--cols cal-detail-section-wrap--in-col">
                 <div class="cal-detail-nutri-blocks-wrap">
-                  ${html`
+                  ${hasNutrition && html`
                     <div class="cal-detail-columns-wrap cal-detail-columns-wrap--meals">
                       ${mealSlots.map(({ slot, meal }) => html`
                         <${CalDetailNutriColumn}
