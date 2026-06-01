@@ -283,6 +283,22 @@
   letter-spacing: 0.06em;
 }
 
+.cal-detail-overlap-wrap {
+  display: flex;
+  width: 100%;
+  padding: 6px 8px;
+  margin-bottom: 6px;
+  border: 1px solid var(--danger);
+  border-radius: var(--radius);
+}
+
+.cal-detail-overlap__text {
+  font-size: 10px;
+  font-family: var(--mono);
+  color: var(--danger);
+  line-height: 1.35;
+}
+
 .cal-detail-col-body-wrap {
   display: flex;
   flex-direction: column;

@@ -44,6 +44,7 @@ import {
 import {
   businessHourRows,
   fmtSessionDuration,
+  findSessionOverlapPairs,
   isRedundantMirrorPart,
   partDurationMin,
   sessionDurationMin,
@@ -51,6 +52,7 @@ import {
 import {
   standaloneSubstanceEventsForDate,
   mergeTimelineItems,
+  substanceEventLabel,
   substanceEventOpenTarget,
 } from "./substanceTimeline.js";
 import { formatKanbanDayCopy, copyTextToClipboard } from "./kanbanDayCopy.js";
@@ -1982,6 +1984,8 @@ function CalendarDayDetail({
   const hasNutrition = kcalIn > 0 || kcalOut > 0 || meals.length > 0 || activitiesList.length > 0;
   const hasBodyCol = hasNutrition || dayFinanceExpenses.length > 0;
 
+  const overlapPairs = useMemo(() => findSessionOverlapPairs(sessions), [sessions]);
+
   const insightLines = useMemo(
     () =>
       buildCalendarDayInsights({
@@ -2073,6 +2077,16 @@ function CalendarDayDetail({
             <span class="cal-detail-panel-title">расписание</span>
           </div>
           <div class="cal-detail-col-body-wrap">
+            ${overlapPairs.length > 0 && html`
+              <div class="cal-detail-overlap-wrap">
+                <span class="cal-detail-overlap__text">
+                  пересечение: ${overlapPairs
+                    .slice(0, 2)
+                    .map(([a, b]) => `${a.project || a.category} ${a.start}–${a.end} / ${b.project || b.category} ${b.start}–${b.end}`)
+                    .join(" · ")}
+                </span>
+              </div>
+            `}
             <div class="cal-detail-sessions-wrap">
               ${sorted.length === 0 &&
               html`<div class="cal-detail-empty-wrap"><span>сессии не записаны</span></div>`}

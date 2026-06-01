@@ -109,6 +109,30 @@ export function businessHourRows(agg) {
 }
 
 /** One insight line: total focus (work) time for the day, not per block. */
+function sessionsOverlap(a, b) {
+  const as = timeToMin(a.start ?? a.start_time);
+  let ae = timeToMin(a.end ?? a.end_time);
+  const bs = timeToMin(b.start ?? b.start_time);
+  let be = timeToMin(b.end ?? b.end_time);
+  if (ae <= as) ae += 24 * 60;
+  if (be <= bs) be += 24 * 60;
+  return as < be && bs < ae;
+}
+
+/** Pairs of diary sessions that overlap in time (broken timeline). */
+export function findSessionOverlapPairs(sessions = []) {
+  const rows = [...sessions].sort((a, b) =>
+    String(a.start || "").localeCompare(String(b.start || "")),
+  );
+  const pairs = [];
+  for (let i = 0; i < rows.length; i++) {
+    for (let j = i + 1; j < rows.length; j++) {
+      if (sessionsOverlap(rows[i], rows[j])) pairs.push([rows[i], rows[j]]);
+    }
+  }
+  return pairs;
+}
+
 export function focusWorkInsightLine(date, sessions = []) {
   const blocks = focusBlocksForDate(date, sessions);
   if (!blocks.length) return null;

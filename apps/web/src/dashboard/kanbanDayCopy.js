@@ -1,11 +1,5 @@
 /** Human-readable semi-JSON day summary for Kanban copy button. */
 
-const DOW = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-
-function dowOf(dateStr) {
-  const d = new Date(`${dateStr}T00:00:00Z`);
-  return DOW[d.getUTCDay()] ?? "?";
-}
 import { findActivityForEvent, metricsFromActivity } from "./activityMetrics.js";
 import {
   childEventsForSession,
@@ -16,6 +10,13 @@ import {
 } from "./sessionFinance.js";
 import { fmtMoney } from "./financeDisplay.js";
 import { toRub, FX_RUB_PER_UNIT } from "./financeInsights.js";
+
+const DOW = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+function dowOf(dateStr) {
+  const d = new Date(`${dateStr}T00:00:00Z`);
+  return DOW[d.getUTCDay()] ?? "?";
+}
 
 function trimTime(t) {
   if (!t) return "";
