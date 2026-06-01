@@ -41,6 +41,12 @@ import {
   substanceRowLabel,
   substancesForDate,
 } from "./calendarDayDetail.js";
+import {
+  fmtSessionDuration,
+  isRedundantMirrorPart,
+  partDurationMin,
+  sessionDurationMin,
+} from "./sessionDisplay.js";
 import { formatKanbanDayCopy, copyTextToClipboard } from "./kanbanDayCopy.js";
 import FinanceTab from "./FinanceTab.jsx";
 import InsightsTab from "./InsightsTab.jsx";
@@ -1805,25 +1811,39 @@ function SubstanceInstantCard({ event, finance = [], onClick, disabled }) {
 }
 
 /** Compact session row: time + category, project/note, optional session_events parts. */
-function SessionCompactContent({ session: s, sessionEvents = [], finance = [], suffix = null, compact = false }) {
-  const parts = childEventsForSession(s.id, sessionEvents);
+function SessionCompactContent({
+  session: s,
+  sessionEvents = [],
+  finance = [],
+  suffix = null,
+  compact = false,
+  scheduleLayout = false,
+}) {
+  const allParts = childEventsForSession(s.id, sessionEvents);
+  const redundant = scheduleLayout && isRedundantMirrorPart(s, allParts);
+  const parts = redundant ? [] : allParts;
   const showParts = parts.length > 0;
   const exp = showParts ? [] : expensesForSession(s.id, finance);
   const trailNote = s.note || "";
   const trailExp = !showParts && exp.length ? fmtExpensesShort(exp) : "";
   const trail = [trailNote, trailExp].filter(Boolean).join(trailNote && trailExp ? " · " : "");
   const hasBody = Boolean(s.project || (!compact && trail));
+  const durLabel = fmtSessionDuration(sessionDurationMin(s));
 
   return html`
-    <div class=${`session-compact-inner-wrap ${compact ? "session-compact-inner-wrap--compact" : ""}`}>
+    <div class=${`session-compact-inner-wrap ${compact ? "session-compact-inner-wrap--compact" : ""} ${scheduleLayout ? "session-compact-inner-wrap--schedule" : ""}`}>
       <div class="session-compact-head-wrap">
-        <div class="session-compact-time-wrap">
-          <span class="session-compact__time">${s.start}</span>
-          <span class="session-compact__sep">–</span>
-          <span class="session-compact__time">${s.end}</span>
+        <div class="session-compact-head-main-wrap">
+          <div class="session-compact-time-wrap">
+            <span class="session-compact__time">${s.start}</span>
+            <span class="session-compact__sep">–</span>
+            <span class="session-compact__time">${s.end}</span>
+          </div>
+          <span class="session-compact__cat">${s.category}</span>
         </div>
-        <span class="session-compact__cat">${s.category}</span>
-        ${suffix}
+        ${scheduleLayout
+          ? html`<span class="session-compact__dur">${durLabel}</span>`
+          : suffix}
       </div>
       ${hasBody && html`
         <div class="session-compact-body-wrap">
@@ -1841,11 +1861,14 @@ function SessionCompactContent({ session: s, sessionEvents = [], finance = [], s
             const instant = p.is_instant || p.kind === "wake" || p.kind === "substance" ||
               (p.duration_min === 0 && t0 === t1);
             const pexp = expensesForSessionEvent(p.id, finance);
-                    const label = linkedEventLabel(p, finance);
+            const label = linkedEventLabel(p, finance);
+            const pDur = scheduleLayout && !instant ? fmtSessionDuration(partDurationMin(p)) : "";
             return html`
               <div class="session-compact-part-wrap ${instant ? "session-compact-part-wrap--instant" : ""}" key=${p.id}>
                 <span class="session-compact-part__time">${instant ? t0 : `${t0}–${t1}`}</span>
                 <span class="session-compact-part__label u-truncate-1" title=${label}>${label}</span>
+                ${scheduleLayout && pDur &&
+                html`<span class="session-compact-part__dur">${pDur}</span>`}
                 ${pexp.length &&
                 html`<span class="session-compact-part__exp session-compact-part__exp--desk-only">${fmtExpensesShort(pexp)}</span>`}
               </div>
@@ -2058,6 +2081,7 @@ function CalendarDayDetail({
                         session=${s}
                         sessionEvents=${sessionEvents}
                         finance=${finance}
+                        scheduleLayout=${true}
                       />
                     </${RecordOpenRow}>
                   </div>

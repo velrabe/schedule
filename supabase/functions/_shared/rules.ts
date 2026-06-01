@@ -50,6 +50,18 @@ const DATA_MODEL = `
 - Prefer update_session / update session_events over delete+recreate when shifting times.
 - Overlaps between **sessions**: chain update_session; swallow_ok on agent API.
 
+## Focus / cognitive load (work blocks — critical for analytics)
+
+- **One diary row per focus block**, NOT one session per tiny event. The UI analyzes merged work_paid/personal/byt spans (peaks of concentration).
+- **Same project, gap ≤20 min** → ONE session from first start to last end (e.g. "приложение" 11:15–14:30), NOT three sessions 11:15–12:15, 12:15–13:05 chill, 13:05–14:30 unless user explicitly logged a break as separate diary line.
+- **Inside a focus block** use create_session_bundle or one session + session_events[]:
+  - parent: work_paid/personal, project="приложение" (or stated project), envelope = full focus window
+  - events[]: real atoms only when user gave detail — coffee 5m, micro-break, taxi, NOT a duplicate mirror of the whole block
+- **Chill/food between work** that user names as break → separate session (short), but do NOT split work into hourly slices by default.
+- **"начал работу" / open tracker** → create_work_session_open; **"перерыв" / "обед"** → close_work_session then food/chill session; **resume same project** → new focus session OR extend via update_session if same block continues.
+- **Bad pattern (never):** 10:00–10:10 work + 10:15–11:15 work + 11:15–12:15 work for one continuous "приложение" day — merge to 10:00–12:15 (or one bundle with internal events if user listed coffee inside).
+- Food, sport, transport, substances stay **separate diary sessions** (or instant markers parallel to timeline).
+
 ## actions[].data fields
 
 - "Concrete" = real column names and values for the target table (see action type), never empty {}.

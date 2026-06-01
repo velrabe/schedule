@@ -99,6 +99,14 @@ node scripts/schedule-api.mjs get-day YYYY-MM-DD > /tmp/after.json
 7. **Не дублируй food**: для приёма пищи → `create_session` с `type=food`, `category=food`; `meals` создаётся на сервере. Отдельный `create_meal` — только если нужны макросы без сессии.
 8. **Не удаляй сессии** с привязанным `finance_transactions.session_id` без понимания последствий для балансов.
 9. **Не клади** пароли/токены в коммиты; только secrets / `codex.env` (gitignored).
+10. **Не дроби работу на часовые `create_session`** с одним `project` — один фокус-блок (11:15–14:30), внутри `events[]` только реальные атомы (кофе, перерыв). Иначе аналитика когнитивной нагрузки ломается.
+
+## Фокус-блоки (для аналитики)
+
+- **Сессия** = строка в ежедневнике (оболочка по времени). **session_events** = атомы внутри.
+- Непрерывная работа над одним проектом → **одна** сессия `work_paid`/`personal` на весь интервал; перерыв/еда — отдельная сессия между блоками.
+- Детали внутри фокуса → `create_session_bundle` с `events[]`, не N отдельных сессий.
+- См. `rules.ts` → **Focus / cognitive load**.
 
 ## Что делать вместо миграций и CI
 
@@ -201,7 +209,7 @@ node scripts/schedule-api.mjs manual update meals '{"id":"<uuid>","kcal":500,"pr
 |------|------------|
 | `update_day` | поля строки `days` |
 | `create_session` | одна строка в ежедневнике (простой блок) |
-| `create_session_bundle` | сессия + несколько `session_events` (такси, зал, перекус) |
+| `create_session_bundle` | сессия + несколько `session_events` (такси, зал, перекус) — **предпочитай для фокус-блоков работы** |
 | `create_session_event` | один атомарный ивент, опционально `session_id` |
 | `update_session` | сдвиг/правка по `id` из `get sessions` |
 | `delete_session` | только по явной просьбе |

@@ -1,6 +1,7 @@
 /** Calendar day detail: column data + auto insights. */
 
 import { aggregateDay, dayHasMorningSport } from "./insightsCompute.js";
+import { focusBlockInsightLines } from "./sessionDisplay.js";
 import { fmtExpenseShort, financeHumanLabel } from "./sessionFinance.js";
 import { isSportSessionCategory } from "./nutritionKcal.js";
 
@@ -101,6 +102,10 @@ export function buildCalendarDayInsights({
 
   if (day?.day_type === "burnout") {
     lines.push({ key: "burnout", label: "тип дня: burnout", tone: "warn" });
+  }
+
+  for (const fb of focusBlockInsightLines(date, sessions)) {
+    lines.push(fb);
   }
 
   const sportSessions = sessions.filter(
