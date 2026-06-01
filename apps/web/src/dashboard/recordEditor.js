@@ -16,6 +16,7 @@ export function filterSessionEventFields(record, fields = []) {
   return fields.filter((f) => !SPORT_EVENT_FIELD_KEYS.has(f.key));
 }
 import { expensesForSessionEvent } from "./sessionFinance.js";
+import { mapSessionEventForDrawer, sessionEventDisplayLabel } from "./recordDisplay.js";
 import { metricsFromActivity } from "./activityMetrics.js";
 
 export const MEAL_SLOTS = ["breakfast", "lunch", "dinner", "snack"];
@@ -242,7 +243,7 @@ const KIND_META = {
   session_event: {
     resource: "session_events",
     title: "Часть сессии",
-    subtitle: (r) => `${r.start || "?"}–${r.end || "?"} · ${r.title || r.kind || ""}`,
+    subtitle: (r) => sessionEventDisplayLabel(mapSessionEventForDrawer(r)),
     fields: [
       { key: "date", label: "дата", type: "date" },
       { key: "start", label: "начало", type: "time" },

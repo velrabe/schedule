@@ -823,15 +823,16 @@
 }
 
 .record-drawer--wide {
-  width: min(420px, 100vw);
+  width: min(600px, 94vw);
+  max-width: 600px;
 }
 
 .session-bundle-envelope-card-wrap {
   display: flex;
   flex-direction: column;
   width: 100%;
-  margin-bottom: 12px;
-  padding: 10px;
+  margin-bottom: 16px;
+  padding: 16px;
   border: 1px solid var(--border);
   border-radius: var(--radius);
   background: var(--surface-2, var(--surface));
@@ -856,14 +857,18 @@
   display: flex;
   flex-direction: column;
   width: 100%;
-  gap: 10px;
+  gap: 14px;
+}
+
+.session-bundle-parts-section-wrap {
+  margin-top: 8px;
 }
 
 .session-bundle-part-card-wrap {
   display: flex;
   flex-direction: column;
   width: 100%;
-  padding: 10px;
+  padding: 16px;
   border: 1px solid var(--border);
   border-radius: var(--radius);
   background: var(--bg);
@@ -951,8 +956,8 @@
   display: flex;
   flex-direction: column;
   width: 100%;
-  margin-bottom: 8px;
-  padding: 8px;
+  margin-bottom: 12px;
+  padding: 12px 14px;
   border-radius: var(--radius);
   background: var(--surface-2, rgba(255, 255, 255, 0.04));
   gap: 8px;
@@ -1002,7 +1007,7 @@
   display: flex;
   flex-direction: column;
   width: 100%;
-  margin-top: 12px;
+  margin-top: 20px;
   gap: 0;
 }
 
@@ -1019,7 +1024,7 @@
   flex-wrap: wrap;
   align-items: center;
   width: 100%;
-  padding: 8px;
+  padding: 12px 14px;
   border: 1px solid var(--border);
   border-radius: var(--radius);
   gap: 8px;
@@ -4275,7 +4280,7 @@ button.kanban-card:hover {
   right: 0;
   bottom: 0;
   width: 100%;
-  max-width: 400px;
+  max-width: 520px;
   background: var(--bg);
   border-left: 1px solid var(--border);
   transform: translateX(100%);
@@ -4291,7 +4296,7 @@ button.kanban-card:hover {
   flex-direction: row;
   align-items: flex-start;
   width: 100%;
-  padding: 12px 16px;
+  padding: 18px 24px;
   border-bottom: 1px solid var(--border);
   background: var(--surface);
 }
@@ -4304,16 +4309,19 @@ button.kanban-card:hover {
 }
 
 .record-drawer-title {
-  font-size: 14px;
+  font-size: 16px;
   font-weight: 600;
   color: var(--text);
+  line-height: 1.35;
 }
 
 .record-drawer-subtitle {
-  font-size: 11px;
+  font-size: 12px;
   color: var(--text-3);
   font-family: var(--mono);
   word-break: break-word;
+  margin-top: 6px;
+  line-height: 1.45;
 }
 
 .record-drawer-header-actions-wrap {
@@ -4327,21 +4335,24 @@ button.kanban-card:hover {
   flex: 1 1 auto;
   width: 100%;
   overflow-y: auto;
+  padding: 20px 24px 28px;
+  box-sizing: border-box;
 }
 
 .record-drawer-fields-wrap {
   display: flex;
   flex-direction: column;
   width: 100%;
-  padding: 12px 16px;
+  padding: 0;
 }
 
 .record-drawer-section-wrap {
   display: flex;
+  flex-direction: column;
   width: 100%;
-  margin-top: 8px;
-  margin-bottom: 4px;
-  padding-top: 12px;
+  margin-top: 16px;
+  margin-bottom: 8px;
+  padding-top: 16px;
   border-top: 1px dashed var(--border);
 }
 
@@ -4356,13 +4367,13 @@ button.kanban-card:hover {
   display: flex;
   flex-direction: column;
   width: 100%;
-  margin-bottom: 12px;
+  margin-bottom: 16px;
 }
 
 .record-drawer-label-wrap {
   display: flex;
   width: 100%;
-  margin-bottom: 4px;
+  margin-bottom: 6px;
 }
 
 .record-drawer-label {
@@ -4377,7 +4388,7 @@ button.kanban-card:hover {
   display: flex;
   width: 100%;
   margin: 0;
-  padding: 8px 10px;
+  padding: 10px 12px;
   box-sizing: border-box;
   border: 1px solid var(--border);
   background: var(--surface);
@@ -4409,9 +4420,9 @@ button.kanban-card:hover {
   flex-wrap: wrap;
   align-items: center;
   width: 100%;
-  padding: 12px 16px;
+  padding: 16px 24px;
   border-top: 1px solid var(--border);
-  gap: 8px;
+  gap: 10px;
 }
 
 .record-drawer-delete-btn .btn__text-wrap {
@@ -4422,8 +4433,10 @@ button.kanban-card:hover {
   display: flex;
   flex-direction: column;
   width: 100%;
-  gap: 8px;
-  margin-bottom: 12px;
+  gap: 12px;
+  margin-bottom: 20px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--border);
 }
 
 .drawer-nav-crumbs-wrap {
@@ -4457,10 +4470,11 @@ button.kanban-card:hover {
 }
 
 .drawer-nav-crumb-btn__text {
-  font-size: 10px;
+  font-size: 11px;
   font-family: var(--mono);
   color: var(--text-2);
   text-decoration: underline;
+  line-height: 1.4;
 }
 
 .drawer-nav-crumb-btn--current .drawer-nav-crumb-btn__text {
@@ -4501,13 +4515,13 @@ button.kanban-card:hover {
   display: flex;
   flex-direction: column;
   width: 100%;
-  gap: 4px;
+  gap: 8px;
 }
 
 .drawer-nav-link-btn {
   display: flex;
   margin: 0;
-  padding: 4px 8px;
+  padding: 10px 12px;
   box-sizing: border-box;
   border: 1px solid var(--border);
   border-radius: 4px;

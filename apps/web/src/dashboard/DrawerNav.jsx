@@ -1,6 +1,7 @@
 import { h } from "preact";
 import htm from "htm";
 import { buildBreadcrumbItems, getRelatedLinks } from "./recordLinks.js";
+import { filterDrawerNavLinks } from "./recordDisplay.js";
 
 const html = htm.bind(h);
 
@@ -19,8 +20,11 @@ export default function DrawerNav({
   excludeKinds = [],
 }) {
   const crumbs = buildBreadcrumbItems(stack, ctx);
-  const related = getRelatedLinks(currentKind, currentRecord, ctx).filter(
-    (l) => !excludeKinds.includes(l.kind),
+  const related = filterDrawerNavLinks(
+    getRelatedLinks(currentKind, currentRecord, ctx).filter(
+      (l) => !excludeKinds.includes(l.kind),
+    ),
+    { currentKind, currentRecord, stack },
   );
 
   return html`

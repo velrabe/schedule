@@ -228,6 +228,16 @@ export default function SessionBundleDrawer({
     return m;
   }, [parts, ctx]);
 
+  const phaseSubstances = useMemo(
+    () => substancesForSessionPhase(session, navCtx.substances || [], sessionEvents),
+    [session, navCtx.substances, sessionEvents],
+  );
+
+  const daySubstances = useMemo(
+    () => substancesForDate(session.date, navCtx.substances || []),
+    [session.date, navCtx.substances],
+  );
+
   useEffect(() => {
     const next = {};
     for (const p of parts) {

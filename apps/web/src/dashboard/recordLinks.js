@@ -12,6 +12,7 @@ import {
 import { financeTxnLabel, financeTxnShortMeta } from "./financeDisplay.js";
 import { getRecordEditorMeta } from "./recordEditor.js";
 import { substancesForSessionPhase, substanceRowLabel } from "./substanceSession.js";
+import { mapSessionEventForDrawer, sessionEventDisplayLabel } from "./recordDisplay.js";
 
 function trimTime(t) {
   if (!t) return "";
@@ -38,7 +39,7 @@ export function targetLabel(kind, record, ctx = {}) {
     return `${s.start}–${s.end} ${s.category || ""}`;
   }
   if (kind === "session_event") {
-    return linkedEventLabel(record, finance);
+    return sessionEventDisplayLabel(mapSessionEventForDrawer(record), finance);
   }
   if (kind === "finance") {
     return financeTxnLabel(record);

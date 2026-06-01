@@ -44,41 +44,36 @@ function fmtH(h) {
   return `${h.toFixed(h % 1 === 0 ? 0 : 1)}h`;
 }
 
-/** kcal vs daily target (not in−out surplus). */
+/** kcal vs daily target (нетто = in − out сравнивается с целью). */
 export function kcalGoalLines(kcalIn, kcalOut, kcalTarget) {
   const lines = [];
   const kin = Math.round(kcalIn);
+  const kout = Math.round(kcalOut);
   const target = Math.round(kcalTarget);
-  if (kin <= 0 && kcalOut <= 0) return lines;
+  const net = kin - kout;
+  if (kin <= 0 && kout <= 0) return lines;
 
-  const pct = target > 0 ? Math.round((kin / target) * 100) : 0;
+  const pct = target > 0 ? Math.round((net / target) * 100) : 0;
   lines.push({
     key: "kcal",
-    label: `ккал ${kin} / ${target} (${pct}% цели)`,
-    hint: kcalOut > 0 ? `сожжено ${Math.round(kcalOut)}` : null,
+    label: kout > 0
+      ? `ккал ${kin} in − ${kout} out = ${net} / ${target} (${pct}% цели)`
+      : `ккал ${kin} / ${target} (${pct}% цели)`,
+    hint: null,
   });
 
-  const vsGoal = kin - target;
+  const vsGoal = net - target;
   if (vsGoal < -50) {
     lines.push({
       key: "kcal_gap",
-      label: `недобор ${Math.abs(vsGoal)} до цели`,
+      label: `до цели ${Math.abs(vsGoal)} (нетто)`,
       tone: "ok",
     });
   } else if (vsGoal > 50) {
     lines.push({
       key: "kcal_over",
-      label: `перебор +${vsGoal} над целью`,
+      label: `перебор +${vsGoal} над целью (нетто)`,
       tone: "warn",
-    });
-  }
-
-  if (kcalOut > 0 && kin > 0) {
-    const net = kin - Math.round(kcalOut);
-    lines.push({
-      key: "kcal_net",
-      label: `нетто in−out ${net >= 0 ? "+" : ""}${net}`,
-      hint: null,
     });
   }
 

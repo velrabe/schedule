@@ -49,6 +49,7 @@ import {
   sessionDurationMin,
 } from "./sessionDisplay.js";
 import { formatKanbanDayCopy, copyTextToClipboard } from "./kanbanDayCopy.js";
+import { editorTargetKey } from "./recordDisplay.js";
 import FinanceTab from "./FinanceTab.jsx";
 import InsightsTab from "./InsightsTab.jsx";
 import BodyTab from "./BodyTab.jsx";
@@ -336,7 +337,16 @@ function App(props = {}) {
     (target) => {
       const resolved = resolveEditorTarget(target);
       if (!resolved) return;
-      setEditorStack((prev) => [...prev, resolved]);
+      const key = editorTargetKey(resolved);
+      if (!key) return;
+      setEditorStack((prev) => {
+        const curKey = editorTargetKey(prev[prev.length - 1]);
+        if (curKey === key) return prev;
+        const idx = prev.findIndex((p) => editorTargetKey(p) === key);
+        if (idx >= 0) return prev.slice(0, idx + 1);
+        if (prev.length >= 12) return prev;
+        return [...prev, resolved];
+      });
     },
     [resolveEditorTarget],
   );
@@ -1966,7 +1976,8 @@ function CalendarDayDetail({
   const kcalIn = meals.reduce((a, m) => a + (Number(m.kcal) || 0), 0);
   const kcalOut = dayKcalOut(date, activitiesList, sessionEvents, sessions);
   const kcalTarget = NUTRITION_TARGET.kcal;
-  const gapToGoal = kcalTarget - kcalIn;
+  const kcalNet = kcalIn - kcalOut;
+  const gapToGoal = kcalTarget - kcalNet;
   const macros = meals.reduce(
     (acc, m) => ({
       p: acc.p + (Number(m.protein_g) || 0),
@@ -2120,10 +2131,12 @@ function CalendarDayDetail({
             ${hasNutrition && html`
               <div class="cal-detail-nutri-summary-wrap cal-detail-nutri-summary-wrap--col">
                 <div class="cal-detail-nutri-summary-head-wrap">
-                  <span class=${`cal-detail-balance ${kcalIn > kcalTarget ? "cal-detail-balance--over" : ""}`}>
-                    ${Math.round(kcalIn)} / ${kcalTarget} ккал
+                  <span class=${`cal-detail-balance ${kcalNet > kcalTarget ? "cal-detail-balance--over" : ""}`}>
+                    ${Math.round(kcalIn)} in
+                    ${kcalOut > 0 ? ` − ${Math.round(kcalOut)} out` : ""}
+                    ${kcalOut > 0 ? ` = ${Math.round(kcalNet)}` : ""} / ${kcalTarget} ккал
                     ${gapToGoal > 50
-                      ? ` · осталось ${Math.round(gapToGoal)}`
+                      ? ` · до цели ${Math.round(gapToGoal)}`
                       : gapToGoal < -50
                         ? ` · перебор +${Math.round(-gapToGoal)}`
                         : ""}
