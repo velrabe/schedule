@@ -1001,6 +1001,23 @@
   font-family: var(--mono);
 }
 
+.drawer-leaf-nav-wrap {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+  gap: 0;
+}
+
+.drawer-leaf-nav-actions-wrap {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  margin-top: 8px;
+}
+
 .drawer-linked-block-wrap {
   display: flex;
   flex-direction: column;

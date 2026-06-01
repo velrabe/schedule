@@ -22,7 +22,13 @@ import {
 } from "./sessionFinance.js";
 import SessionBundleDrawer from "./SessionBundleDrawer.jsx";
 import DrawerNav from "./DrawerNav.jsx";
+import DrawerLeafNav from "./DrawerLeafNav.jsx";
 import { DrawerLinkedBlock } from "./DrawerLinkedBlock.jsx";
+import {
+  findFinanceForMeal,
+  findFinanceForActivity,
+  leafDrawerExcludeKinds,
+} from "./leafLinks.js";
 import {
   sessionEventDrawerPolicy,
   shouldSendExpensePatch,
@@ -151,22 +157,8 @@ export default function RecordEditDrawer({
     return substancesForSessionPhase(current.record, ctx.substances || [], sessionEvents);
   }, [current?.kind, current?.record?.id, ctx.substances, sessionEvents]);
 
-  if (current?.kind === "session" && bundleParts.length > 0) {
-    return html`
-      <${SessionBundleDrawer}
-        session=${current.record}
-        sessionEvents=${sessionEvents}
-        activities=${activities}
-        finance=${finance}
-        accounts=${accounts}
-        liveMode=${liveMode}
-        navCtx=${ctx}
-        onClose=${onClose}
-        onOpenRecord=${onSwitchTarget}
-        setSessions=${setSessions}
-      />
-    `;
-  }
+  const isSessionBundle =
+    current?.kind === "session" && bundleParts.length > 0;
 
   const [form, setForm] = useState({});
   const [saving, setSaving] = useState(false);
@@ -200,9 +192,18 @@ export default function RecordEditDrawer({
     if (current.kind === "session_event") {
       return expensesForSessionEvent(current.record.id, finance)[0] ?? null;
     }
-    const sid = resolveExpenseSessionId(current.kind, current.record, sessions);
-    return expenseForSession(sid, finance);
-  }, [current, finance, sessions]);
+    if (current.kind === "meal") {
+      return findFinanceForMeal(current.record, ctx);
+    }
+    if (current.kind === "activity") {
+      return findFinanceForActivity(current.record, ctx);
+    }
+    if (current.kind === "session") {
+      const sid = resolveExpenseSessionId(current.kind, current.record, sessions);
+      return expenseForSession(sid, finance);
+    }
+    return null;
+  }, [current, finance, sessions, ctx]);
 
   const eventPolicy = useMemo(() => {
     if (current?.kind !== "session_event") return null;
@@ -311,7 +312,7 @@ export default function RecordEditDrawer({
         patch.session_id = linkedSession.id;
       }
       const supportsExpense =
-        current.kind === "session" || current.kind === "meal" || current.kind === "session_event";
+        current.kind === "session" || current.kind === "session_event";
       let expensePayload = undefined;
       if (supportsExpense) {
         if (current.kind === "session_event" && eventPolicy) {
@@ -326,9 +327,6 @@ export default function RecordEditDrawer({
           const parsed = expenseFromForm(form);
           if (parsed) {
             expensePayload = { ...parsed };
-            if (current.kind === "meal" && form.name) {
-              expensePayload.merchant = expensePayload.merchant || form.name;
-            }
             if (current.kind === "session" && form.project) {
               expensePayload.merchant = expensePayload.merchant || form.project;
             }
@@ -420,7 +418,26 @@ export default function RecordEditDrawer({
     return meta.subtitle(current.record);
   }, [current?.kind, current?.record?.id, meta, finance, ctx.meals]);
 
-  if (!current || !meta) return null;
+  if (!current) return null;
+
+  if (isSessionBundle) {
+    return html`
+      <${SessionBundleDrawer}
+        session=${current.record}
+        sessionEvents=${sessionEvents}
+        activities=${activities}
+        finance=${finance}
+        accounts=${accounts}
+        liveMode=${liveMode}
+        navCtx=${ctx}
+        onClose=${onClose}
+        onOpenRecord=${onSwitchTarget}
+        setSessions=${setSessions}
+      />
+    `;
+  }
+
+  if (!meta) return null;
 
   const subtitle = drawerSubtitle;
   const busy = saving || deleting || attachBusy;
@@ -442,7 +459,9 @@ export default function RecordEditDrawer({
     eventPolicy?.canEditExpenseInline &&
     !expenseExpanded;
   const showExpenseLegacy =
-    current?.kind !== "session_event" && expenseFields.length > 0;
+    current?.kind === "session" && expenseFields.length > 0;
+
+  const navExcludeKinds = leafDrawerExcludeKinds(current?.kind);
 
   return html`
     <${Fragment}>
@@ -478,7 +497,7 @@ export default function RecordEditDrawer({
             onOpenLinked=${onSwitchTarget}
             currentKind=${current.kind}
             currentRecord=${current.record}
-            excludeKinds=${[]}
+            excludeKinds=${navExcludeKinds}
           />
           <div class="record-drawer-fields-wrap">
             ${current?.kind === "session_event" && eventPolicy?.readonlyRows?.length > 0 && html`
@@ -613,6 +632,20 @@ export default function RecordEditDrawer({
               </div>
             `}
           </div>
+          ${(current.kind === "meal" ||
+            current.kind === "activity" ||
+            current.kind === "finance") &&
+          html`
+            <${DrawerLeafNav}
+              kind=${current.kind}
+              record=${current.record}
+              ctx=${ctx}
+              liveMode=${liveMode}
+              busy=${busy}
+              accountIds=${accountIds}
+              onOpenRecord=${onSwitchTarget}
+            />
+          `}
         </div>
 
         <footer class="record-drawer-footer-wrap">

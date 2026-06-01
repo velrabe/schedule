@@ -38,7 +38,7 @@ function pushExpenseRow(readonlyRows, txn) {
     detail: [txn.account, txn.category].filter(Boolean).join(" · "),
     linkKind: "finance",
     linkRecord: txn,
-    linkLabel: financeHumanLabel(txn) || "операция",
+    linkText: financeMerchantLabel(txn) || "операция",
   });
 }
 

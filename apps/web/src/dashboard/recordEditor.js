@@ -110,7 +110,6 @@ const KIND_META = {
       { key: "portion_grams", label: "порция, г", type: "number" },
       { key: "confidence", label: "уверенность", type: "select", options: CONFIDENCE_OPTIONS, optional: true },
       { key: "notes", label: "заметки", type: "textarea" },
-      ...EXPENSE_FIELDS,
     ],
   },
   activity: {
@@ -302,8 +301,6 @@ export function recordToForm(
         portion_grams: record.portion_grams ?? "",
         confidence: record.confidence || "",
         notes: record.notes || "",
-        ...expense,
-        expense_category: expense.expense_category || "food",
       };
     }
     case "activity": {
