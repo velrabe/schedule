@@ -45,6 +45,19 @@ export function financeHumanLabel(txn) {
   return String(txn.merchant || "").trim();
 }
 
+/** Short merchant for drawer links — never the full Grab order notes dump. */
+export function financeMerchantLabel(txn) {
+  if (!txn) return "";
+  const merchant = String(txn.merchant || "").trim();
+  if (merchant) return merchant;
+  const notes = String(txn.notes || "").trim();
+  const fromOrder = notes.match(/\bfrom\s+([A-Za-z][A-Za-z0-9]*)\s+order/i);
+  if (fromOrder) return fromOrder[1];
+  if (/grabfood/i.test(notes)) return "GrabFood";
+  if (notes.length <= 28) return notes;
+  return shortenTitle(notes, 28);
+}
+
 function shortenTitle(title, max = 72) {
   const t = String(title || "").trim();
   if (!t) return "";

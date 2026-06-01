@@ -7,7 +7,7 @@ import {
   expensesForSessionEvent,
   expenseFromForm,
   fmtExpensesShort,
-  financeHumanLabel,
+  financeMerchantLabel,
 } from "./sessionFinance.js";
 import {
   findActivityForEvent,
@@ -53,11 +53,11 @@ function pushMealRow(readonlyRows, meal) {
   readonlyRows.push({
     key: "meal",
     label: "приём пищи",
-    value: meal.name || "meal",
+    value: "",
     detail: macro.join(" · "),
     linkKind: "meal",
     linkRecord: meal,
-    linkLabel: meal.name || "meal",
+    linkText: meal.name || "meal",
   });
 }
 
@@ -136,7 +136,7 @@ export function sessionEventDrawerPolicy(ev, ctx = {}) {
       detail: [amt, String(sub.time || "").slice(0, 5)].filter(Boolean).join(" · "),
       linkKind: "substance",
       linkRecord: sub,
-      linkLabel: sub.name || "substance",
+      linkText: substanceLinkLabel(sub),
     });
   }
 
@@ -158,7 +158,7 @@ export function sessionEventDrawerPolicy(ev, ctx = {}) {
       detail: parts.join(" · "),
       linkKind: "activity",
       linkRecord: activity,
-      linkLabel: `активность · ${activityLinkLabel(activity)}`,
+      linkText: activityLinkLabel(activity),
     });
   }
 
