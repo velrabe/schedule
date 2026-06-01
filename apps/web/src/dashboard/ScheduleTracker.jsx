@@ -49,12 +49,6 @@ import {
   partDurationMin,
   sessionDurationMin,
 } from "./sessionDisplay.js";
-import {
-  standaloneSubstanceEventsForDate,
-  mergeTimelineItems,
-  substanceEventLabel,
-  substanceEventOpenTarget,
-} from "./substanceTimeline.js";
 import { formatKanbanDayCopy, copyTextToClipboard } from "./kanbanDayCopy.js";
 import FinanceTab from "./FinanceTab.jsx";
 import InsightsTab from "./InsightsTab.jsx";
@@ -1791,27 +1785,35 @@ function CalendarTab({
   `;
 }
 
-/** Standalone substance dose (parallel to sessions, not inside bundle). */
-function SubstanceInstantCard({ event, finance = [], onClick, disabled }) {
-  const t0 = String(event.start_time || "").slice(0, 5);
-  const label = substanceEventLabel(event, finance);
+/** Kanban: one diary session per row — no session_events list, no substance rows. */
+function KanbanSessionCard({ session: s, onClick, disabled }) {
+  const title = (s.project || "").trim() || (s.category || "").replace(/_/g, " ") || "—";
+  const showCat = Boolean(s.project && s.category);
+  const dur = fmtSessionDuration(sessionDurationMin(s));
+
   return html`
     <button
       type="button"
-      class="kanban-card kanban-card--substance"
+      class=${`kanban-card kanban-card--${(s.category || "x").replace(/[^a-z0-9_]/gi, "_")}`}
       onClick=${onClick}
       disabled=${disabled}
-      title=${label}
+      title=${[s.start, s.end, s.category, s.project, s.note].filter(Boolean).join(" · ")}
     >
-      <div class="session-compact-inner-wrap session-compact-inner-wrap--compact">
-        <div class="session-compact-head-wrap">
-          <div class="session-compact-time-wrap">
-            <span class="session-compact__time">${t0}</span>
+      <div class="kanban-card-inner-wrap">
+        <div class="kanban-card-row-wrap kanban-card-row-wrap--head">
+          <div class="kanban-card-time-wrap">
+            <span class="kanban-card__time">${s.start}–${s.end}</span>
           </div>
-          <span class="session-compact__cat">substance</span>
+          <div class="kanban-card-dur-wrap">
+            <span class="kanban-card__dur">${dur}</span>
+          </div>
         </div>
-        <div class="session-compact-body-wrap">
-          <span class="session-compact__proj u-truncate-1">${label}</span>
+        <div class="kanban-card-row-wrap kanban-card-row-wrap--title">
+          <div class="kanban-card-title-wrap">
+            <span class="kanban-card__title">${title}</span>
+          </div>
+          ${showCat &&
+          html`<div class="kanban-card-cat-wrap"><span class="kanban-card__cat">${s.category}</span></div>`}
         </div>
       </div>
     </button>
@@ -2465,12 +2467,6 @@ function KanbanTab({
                 (a, b) => wakeRelativeMin(a.start, day.wake || "00:00") - wakeRelativeMin(b.start, day.wake || "00:00"),
               )
             : [...list].sort((a, b) => a.start.localeCompare(b.start));
-          const orphanSubstances = standaloneSubstanceEventsForDate(date, sessionEvents);
-          const sortKey = (item) => {
-            const start = item.start ?? String(item.start_time || "").slice(0, 5);
-            return wakeRelativeMin(start, day?.wake || "00:00");
-          };
-          const timeline = mergeTimelineItems(sorted, orphanSubstances, sortKey);
           const isToday = date === today;
           const isFuture = date > today;
           const colMeals = mealsByDate.get(date) || [];
@@ -2515,38 +2511,16 @@ function KanbanTab({
                 </div>
               `}
               <div class="kanban-col-body-wrap">
-                ${timeline.length === 0 && adding !== date && html`<div class="kanban-empty-col"><span>—</span></div>`}
-                ${timeline.map((item) =>
-                  item.type === "substance_event"
-                    ? html`
-                        <${SubstanceInstantCard}
-                          key=${item.id}
-                          event=${item.data}
-                          finance=${finance}
-                          disabled=${!onOpenRecord}
-                          onClick=${() =>
-                            onOpenRecord?.(substanceEventOpenTarget(item.data, substances))}
-                        />
-                      `
-                    : html`
-                        <button
-                          class=${`kanban-card kanban-card--${(item.data.category || "x").replace(/[^a-z0-9_]/gi, "_")}`}
-                          key=${item.id}
-                          onClick=${() => onOpenRecord?.({ kind: "session", record: item.data })}
-                          title=${[item.data.project, item.data.note, item.data.category]
-                            .filter(Boolean)
-                            .join(" · ") || "открыть сессию"}
-                          disabled=${!onOpenRecord}
-                        >
-                          <${SessionCompactContent}
-                            session=${item.data}
-                            sessionEvents=${sessionEvents}
-                            finance=${finance}
-                            compact=${true}
-                            suffix=${html`<span class="kanban-card__dur">${item.data.min}m</span>`}
-                          />
-                        </button>
-                      `,
+                ${sorted.length === 0 && adding !== date && html`<div class="kanban-empty-col"><span>—</span></div>`}
+                ${sorted.map(
+                  (s) => html`
+                    <${KanbanSessionCard}
+                      key=${s.id}
+                      session=${s}
+                      disabled=${!onOpenRecord}
+                      onClick=${() => onOpenRecord?.({ kind: "session", record: s })}
+                    />
+                  `,
                 )}
                 ${adding === date && html`
                   <${KanbanSessionEditor}

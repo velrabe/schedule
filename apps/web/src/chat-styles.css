@@ -1020,7 +1020,7 @@
   flex-direction: column;
   width: 100%;
   min-width: 0;
-  padding: 6px 8px;
+  padding: 0;
   gap: 0;
   border-radius: 4px;
   background: var(--bg);
@@ -1028,6 +1028,84 @@
   border-left: 3px solid var(--text-3);
   overflow: hidden;
   box-sizing: border-box;
+}
+
+.kanban-card-inner-wrap {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  min-width: 0;
+  padding: 8px 8px;
+  gap: 4px;
+  box-sizing: border-box;
+}
+
+.kanban-card-row-wrap {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  width: 100%;
+  min-width: 0;
+  gap: 0;
+}
+
+.kanban-card-row-wrap--head {
+  justify-content: space-between;
+}
+
+.kanban-card-row-wrap--title {
+  align-items: flex-start;
+}
+
+.kanban-card-time-wrap {
+  display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.kanban-card-dur-wrap {
+  display: flex;
+  flex: 0 0 auto;
+}
+
+.kanban-card-title-wrap {
+  display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.kanban-card-cat-wrap {
+  display: flex;
+  flex: 0 0 auto;
+  max-width: 38%;
+}
+
+.kanban-card__time {
+  font-size: 11px;
+  font-family: var(--mono);
+  color: var(--text-2);
+  white-space: nowrap;
+}
+
+.kanban-card__title {
+  font-size: 12px;
+  line-height: 1.35;
+  color: var(--text);
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  word-break: break-word;
+}
+
+.kanban-card__cat {
+  font-size: 9px;
+  font-family: var(--mono);
+  color: var(--text-3);
+  text-transform: lowercase;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .kanban-card--work_paid {
@@ -1073,28 +1151,10 @@
 }
 
 .kanban-card__dur {
-  font-size: 9px;
+  font-size: 10px;
   font-family: var(--mono);
   color: var(--text-3);
-  flex: 0 0 auto;
-  margin-left: auto;
-}
-
-.kanban-card .session-compact__time {
-  font-size: 9px;
-}
-
-.kanban-card .session-compact__cat {
-  font-size: 9px;
-}
-
-.kanban-card .session-compact__proj,
-.kanban-card .session-compact__trail {
-  font-size: 9px;
-}
-
-.kanban-card .session-compact-parts-wrap {
-  padding-left: 6px;
+  white-space: nowrap;
 }
 
 .session-compact-inner-wrap--compact .session-compact-head-wrap {
@@ -3896,9 +3956,9 @@ button.kanban-card:hover {
 
   .kanban-col-wrap,
   .finance-day-col {
-    flex: 0 0 72vw;
-    width: 72vw;
-    max-width: 280px;
+    flex: 0 0 78vw;
+    width: 78vw;
+    max-width: 300px;
   }
 
   .kanban-col-meta-wrap,
