@@ -11,6 +11,7 @@ import {
 } from "./sessionFinance.js";
 import { financeTxnLabel, financeTxnShortMeta } from "./financeDisplay.js";
 import { getRecordEditorMeta } from "./recordEditor.js";
+import { substancesForSessionPhase, substanceRowLabel } from "./substanceSession.js";
 
 function trimTime(t) {
   if (!t) return "";
@@ -194,6 +195,16 @@ export function getRelatedLinks(kind, record, ctx = {}) {
   }
 
   if (kind === "session" && record) {
+    const sess = mapSessionForDrawer(record);
+    const phaseSubs = substancesForSessionPhase(sess, substances, sessionEvents);
+    for (const sub of phaseSubs) {
+      const t = sub.time ? trimTime(sub.time) : "";
+      push({
+        kind: "substance",
+        record: sub,
+        label: `доза ${t ? t + " · " : ""}${substanceRowLabel(sub)}`,
+      });
+    }
     const parts = childEventsForSession(record.id, sessionEvents);
     for (const p of parts.slice(0, 6)) {
       if (p.substance_id) continue;

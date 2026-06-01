@@ -28,6 +28,8 @@ import {
   shouldSendExpensePatch,
   applySessionEventPolicyToPatch,
 } from "./drawerFieldPolicy.js";
+import DrawerSubstancesList from "./DrawerSubstancesList.jsx";
+import { substancesForSessionPhase, substancesForDate } from "./substanceSession.js";
 
 const html = htm.bind(h);
 
@@ -128,10 +130,21 @@ export default function RecordEditDrawer({
       meals: navCtx.meals || [],
       activities,
       finance,
+      substances: navCtx.substances || [],
       ...navCtx,
     }),
     [sessions, sessionEvents, navCtx, activities, finance],
   );
+
+  const sessionSubstances = useMemo(() => {
+    if (current?.kind !== "session") return { phase: [], day: [] };
+    const sess = current.record;
+    const subs = ctx.substances || [];
+    return {
+      phase: substancesForSessionPhase(sess, subs, sessionEvents),
+      day: substancesForDate(sess.date, subs),
+    };
+  }, [current?.kind, current?.record?.id, ctx.substances, sessionEvents]);
 
   if (current?.kind === "session" && bundleParts.length > 0) {
     return html`
@@ -440,6 +453,25 @@ export default function RecordEditDrawer({
                   onClick=${() => setExpenseExpanded(false)}>
                   <span class="btn__text-wrap">скрыть</span>
                 </button>
+              `}
+            `}
+            ${current?.kind === "session" && html`
+              <${DrawerSubstancesList}
+                title="дозы в сессии"
+                hint="по времени оболочки"
+                rows=${sessionSubstances.phase}
+                onOpenRecord=${onSwitchTarget}
+                liveMode=${liveMode}
+              />
+              ${sessionSubstances.day.length > 0 && html`
+                <${DrawerSubstancesList}
+                  title=${`субстанции · ${current.record.date}`}
+                  hint=${`${sessionSubstances.day.length} за день`}
+                  rows=${sessionSubstances.day}
+                  onOpenRecord=${onSwitchTarget}
+                  liveMode=${liveMode}
+                  emptyText="нет"
+                />
               `}
             `}
             ${!liveMode &&
