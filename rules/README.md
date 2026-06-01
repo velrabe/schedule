@@ -8,4 +8,6 @@
 
 План на будущее: вынести секции из `rules.ts` в `global.md`, `work_sessions.md`, … и подгружать при деплое. Пока дублирование **не делать** — править только `rules.ts`.
 
-Секции в `rules.ts`: `data_model` (связи — читать первой), `chat_ui` (только Gemini UI), `global`, `work_sessions`, `activity`, `nutrition`, `finance`, `body_metrics`, `substances`, `sleep`, `mood`, `planner`.
+Секции в `rules.ts`: `data_model` (связи, **Day phases**, **Patch vs full rebuild** — читать первой), `chat_ui`, `global`, `work_sessions`, …
+
+Codex: сначала [`AGENTS.md`](../AGENTS.md) (таблица сценариев), затем `data_model` в `rules.ts`.

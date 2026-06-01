@@ -22,6 +22,12 @@ import {
 } from "./sessionFinance.js";
 import SessionBundleDrawer from "./SessionBundleDrawer.jsx";
 import DrawerNav from "./DrawerNav.jsx";
+import { DrawerLinkedBlock } from "./DrawerLinkedBlock.jsx";
+import {
+  sessionEventDrawerPolicy,
+  shouldSendExpensePatch,
+  applySessionEventPolicyToPatch,
+} from "./drawerFieldPolicy.js";
 
 const html = htm.bind(h);
 
@@ -150,6 +156,7 @@ export default function RecordEditDrawer({
   const [form, setForm] = useState({});
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [expenseExpanded, setExpenseExpanded] = useState(false);
 
   const meta = current ? getRecordEditorMeta(current.kind) : null;
 
@@ -177,11 +184,21 @@ export default function RecordEditDrawer({
     return expenseForSession(sid, finance);
   }, [current, finance, sessions]);
 
+  const eventPolicy = useMemo(() => {
+    if (current?.kind !== "session_event") return null;
+    return sessionEventDrawerPolicy(current.record, ctx);
+  }, [current?.kind, current?.record?.id, ctx]);
+
   useEffect(() => {
     if (current) {
       setForm(recordToForm(current.kind, current.record, linkedExpense, linkedSession, finance, activities));
+      if (current.kind === "session_event") {
+        setExpenseExpanded(false);
+      } else {
+        setExpenseExpanded(Boolean(linkedExpense));
+      }
     } else setForm({});
-  }, [current?.kind, current?.record?.id, linkedExpense?.id, linkedSession?.id, linkedSession?.start, activities, finance]);
+  }, [current?.kind, current?.record?.id, linkedExpense?.id, linkedSession?.id, linkedSession?.start, activities, finance, ctx]);
 
   useEffect(() => {
     if (!current) return;
@@ -215,7 +232,10 @@ export default function RecordEditDrawer({
     }
     setSaving(true);
     try {
-      const patch = formToDbPatch(current.kind, form);
+      let patch = formToDbPatch(current.kind, form);
+      if (current.kind === "session_event" && eventPolicy) {
+        patch = applySessionEventPolicyToPatch(patch, eventPolicy);
+      }
       if (current.kind === "meal" && linkedSession?.id) {
         patch.session_id = linkedSession.id;
       }
@@ -223,17 +243,27 @@ export default function RecordEditDrawer({
         current.kind === "session" || current.kind === "meal" || current.kind === "session_event";
       let expensePayload = undefined;
       if (supportsExpense) {
-        const parsed = expenseFromForm(form);
-        if (parsed) {
-          expensePayload = { ...parsed };
-          if (current.kind === "meal" && form.name) {
-            expensePayload.merchant = expensePayload.merchant || form.name;
+        if (current.kind === "session_event" && eventPolicy) {
+          expensePayload = shouldSendExpensePatch(
+            eventPolicy,
+            form,
+            current.record.id,
+            finance,
+            expenseExpanded,
+          );
+        } else {
+          const parsed = expenseFromForm(form);
+          if (parsed) {
+            expensePayload = { ...parsed };
+            if (current.kind === "meal" && form.name) {
+              expensePayload.merchant = expensePayload.merchant || form.name;
+            }
+            if (current.kind === "session" && form.project) {
+              expensePayload.merchant = expensePayload.merchant || form.project;
+            }
+          } else if (linkedExpense) {
+            expensePayload = null;
           }
-          if (current.kind === "session" && form.project) {
-            expensePayload.merchant = expensePayload.merchant || form.project;
-          }
-        } else if (linkedExpense) {
-          expensePayload = null;
         }
       }
       const expenseSessionId = resolveExpenseSessionId(current.kind, current.record, sessions);
@@ -313,9 +343,21 @@ export default function RecordEditDrawer({
   let mainFields = fields.filter((f) => !isExpenseField(f));
   if (current?.kind === "session_event") {
     mainFields = filterSessionEventFields(current.record, mainFields);
+    if (eventPolicy) {
+      mainFields = mainFields.filter((f) => !eventPolicy.hideFields.has(f.key));
+    }
   }
   const expenseFields = fields.filter((f) => isExpenseField(f));
-  const showExpense = expenseFields.length > 0;
+  const showExpenseEditable =
+    expenseFields.length > 0 &&
+    (current?.kind !== "session_event" ||
+      (eventPolicy?.canEditExpenseInline && expenseExpanded));
+  const showExpenseAddButton =
+    current?.kind === "session_event" &&
+    eventPolicy?.canEditExpenseInline &&
+    !expenseExpanded;
+  const showExpenseLegacy =
+    current?.kind !== "session_event" && expenseFields.length > 0;
 
   return html`
     <${Fragment}>
@@ -354,6 +396,13 @@ export default function RecordEditDrawer({
             excludeKinds=${[]}
           />
           <div class="record-drawer-fields-wrap">
+            ${current?.kind === "session_event" && eventPolicy?.readonlyRows?.length > 0 && html`
+              <${DrawerLinkedBlock}
+                rows=${eventPolicy.readonlyRows}
+                onOpenRecord=${onSwitchTarget}
+                liveMode=${liveMode}
+              />
+            `}
             ${mainFields.map(
               (field) => html`
                 <${FieldInput}
@@ -365,7 +414,13 @@ export default function RecordEditDrawer({
                 />
               `,
             )}
-            ${showExpense && html`
+            ${showExpenseAddButton && html`
+              <button type="button" class="btn btn--ghost btn--block session-bundle-add-expense-btn"
+                disabled=${!liveMode || busy} onClick=${() => setExpenseExpanded(true)}>
+                <span class="btn__text-wrap">добавить расход</span>
+              </button>
+            `}
+            ${(showExpenseEditable || showExpenseLegacy) && html`
               <div class="record-drawer-section-wrap">
                 <span class="record-drawer-section-title">расход · списание со счёта</span>
               </div>
@@ -380,6 +435,12 @@ export default function RecordEditDrawer({
                   />
                 `,
               )}
+              ${current?.kind === "session_event" && eventPolicy?.canEditExpenseInline && expenseExpanded && html`
+                <button type="button" class="btn btn--ghost btn--sm" disabled=${!liveMode || busy}
+                  onClick=${() => setExpenseExpanded(false)}>
+                  <span class="btn__text-wrap">скрыть</span>
+                </button>
+              `}
             `}
             ${!liveMode &&
             html`

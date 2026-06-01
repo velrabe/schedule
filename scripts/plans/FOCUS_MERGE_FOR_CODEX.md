@@ -1,76 +1,55 @@
-# Склейка work-сессий — что передать Codex
+# Склейка work-сессий (узкий patch — не пересборка фаз)
 
-Правила уже в проде: `rules.ts` → **Focus / cognitive load** (деплой `6205717+`).
+> **Не используй этот файл**, если пользователь просит **фазы дня** / полную перестройку дня.  
+> Тогда: [`CODEX_REBUILD_DAY_PHASES.md`](CODEX_REBUILD_DAY_PHASES.md) + [`day-phases-model.md`](day-phases-model.md) + `rules.ts` → **Day phases** / **Patch vs full rebuild**.
 
-## 1. Локально: аудит дня (нужен login)
+Этот сценарий — **хирургия**: два+ подряд `work_paid` с одним `project` и паузой ≤20 мин → одна session. День уже в целом по фазам, но внутри work остались дубли.
 
-```bash
-cd /path/to/schedule
-node scripts/schedule-api.mjs login          # или SCHEDULE_API_KEY в codex.env
-node scripts/audit-focus-day.mjs 2026-06-01
-node scripts/audit-focus-day.mjs 2026-06-01 --write scripts/plans/generated
-```
+Правила склейки: `rules.ts` → `work_sessions` (update_session, не delete ради смены времени) + `data_model` (фазы не пересекаются).
 
-Скрипт выведет:
-- все `work_paid` / `personal` / `byt` с **id**
-- **focus blocks** (как в инсайтах UI)
-- группы **micro-merge** (две+ сессии подряд с gap ≤20 мин и одним `project`)
-- при `--write` — готовые `merge-focus-DATE.agent.json` + `.manual.json`
-
-Применение (если скрипт нашёл дубли):
+## 1. Аудит дня
 
 ```bash
-node scripts/schedule-api.mjs apply-manual scripts/plans/generated/merge-focus-2026-06-01.manual.json
-node scripts/schedule-api.mjs apply scripts/plans/generated/merge-focus-2026-06-01.agent.json
+node scripts/codex-check.mjs
+node scripts/schedule-api.mjs get-day YYYY-MM-DD
+node scripts/audit-focus-day.mjs YYYY-MM-DD
+node scripts/audit-focus-day.mjs YYYY-MM-DD --write scripts/plans/generated
 ```
 
-## 2. Текст для Codex (скопировать в задачу)
+Скрипт выведет work-сессии с id и **micro-merge groups** (gap ≤20 мин, один project). При `--write` — `merge-focus-DATE.agent.json` / `.manual.json`.
 
-Замени `YYYY-MM-DD` на день (например `2026-06-01`).
+Применение:
 
-```
-Прочитай AGENTS.md и supabase/functions/_shared/rules.ts (секции data_model + Focus / cognitive load).
-
-День YYYY-MM-DD — приведи work-сессии к фокус-блокам. НЕ трогай миграции SQL.
-
-1) node scripts/codex-check.mjs && node scripts/schedule-api.mjs login
-2) node scripts/schedule-api.mjs get-day YYYY-MM-DD  → сохрани sessions + session_events
-3) node scripts/audit-focus-day.mjs YYYY-MM-DD  → посмотри micro-merge groups
-
-Правила склейки:
-- Непрерывная работа с одним project и пауза ≤20 мин между work-сессиями → ОДНА session (update первой, delete остальных).
-- Перед delete_session: manual update всех session_events с удаляемых session_id → session_id оставляемой.
-- chill / food / sport / substances — отдельные строки, НЕ внутрь work envelope.
-- scooby/moda/caffeine — только substances + parallel instant events, не в project сессии.
-- Убери дубли mirror: если у work-сессии один child event с тем же 10:00–10:10 что и parent — delete лишний event или оставь только parts с реальной детализацией (кофе, grab, перекус).
-
-Целевые фокус-блоки (пример для 2026-06-01 — уточни по get-day):
-- приложение 11:15–12:15 (если несколько work подряд — склей)
-- приложение 13:05–14:30
-- приложение 15:30–19:30
-
-После правок:
-- node scripts/audit-focus-day.mjs YYYY-MM-DD  → micro-merge groups должны быть пусто
-- integrity: orphan_events, sessions_without_events, food без meal_id = 0
-
-Только API (apply / apply-manual), без Python. Коммит в репо не нужен unless код менял.
+```bash
+node scripts/schedule-api.mjs apply-manual scripts/plans/generated/merge-focus-YYYY-MM-DD.manual.json
+node scripts/schedule-api.mjs apply scripts/plans/generated/merge-focus-YYYY-MM-DD.agent.json
 ```
 
-## 3. Нужна ли SQL-миграция?
+## 2. Промпт для Codex (только micro-merge)
 
-**Нет** для склейки сессий — это правка данных через API по конкретным `id`.
+```
+git pull origin main
+AGENTS.md → таблица «Выбор сценария» → ветка FOCUS_MERGE (не rebuild)
 
-Миграции уже применены для scooby:
-- `0021` detach substance events
-- `0022` promote bundled substances
-- `0023` extract scooby from text
+День YYYY-MM-DD: склей соседние work-сессии с gap ≤20 мин и одним project.
+1) get-day YYYY-MM-DD
+2) audit-focus-day.mjs YYYY-MM-DD
+3) update первой session, delete остальных в группе; перед delete — manual update session_events.session_id на оставляемую
+4) chill / food / sport / substances — не сливать в work envelope
+5) scooby/moda — только create_substance, не в project сессии
+6) audit-focus-day снова → micro-merge groups пусто
 
-## 4. Что уже ок на скрине (2026-06-01)
+Только apply / apply-manual. Без миграций SQL.
+```
 
-- **скуби ×3** — три строки в `substances` — нормально.
-- **Три фокус-блока** (11:15–12:15, 13:05–14:30, 15:30–19:30) — нормально (между ними chill/еда).
-- Чинить нужно только если внутри блока несколько `work_paid` с gap ≤20 мин — audit покажет.
+## 3. SQL-миграция?
 
-## 5. sport 2.5h vs 2.8h в UI
+**Нет** — правка данных по id из API.
 
-Разные агрегаты: «Часы» = sum sessions; «инсайты» = `insightsCompute` (чуть другой набор категорий). Не баг склейки — отдельная задача если мешает.
+## 4. Отличие от фаз
+
+| | Focus merge | Day phases rebuild |
+|--|-------------|-------------------|
+| Когда | 2–3 лишних work подряд | весь день / overlaps / микро-sessions |
+| Sessions/день | уже ~10–15 | целево ~10–15 после delete+bundle |
+| Инструмент | update + delete work | delete all sessions → create_session_bundle |

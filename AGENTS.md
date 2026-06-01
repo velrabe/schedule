@@ -1,306 +1,120 @@
 # Codex / Cursor — инструкция для агентов
 
-**Читай этот файл первым.** Codex подхватывает `AGENTS.md` из корня репо автоматически ([документация](https://developers.openai.com/codex/guides/agents-md)). Репозиторий: личный трекер (расписание, еда, финансы, визаран). Прод: Supabase + GitHub Pages.
+**Читай первым.** Репозиторий: личный трекер (расписание, еда, финансы). Данные в Supabase; UI — GitHub Pages.
 
-## Fast path — запись данных (без правок кода)
+## Выбор сценария (главное)
 
-Задачи «добавь еду / КБЖУ / транспорт / сдвинь сессию» — **только API**, не Python/curl, не чтение `supabase/functions/**` (кроме 2-й попытки после HTTP-ошибки).
+| Запрос пользователя | Документ | Действие |
+|---------------------|----------|----------|
+| Полный день / «по фазам» / много микро-sessions, overlaps | [`CODEX_REBUILD_DAY_PHASES.md`](scripts/plans/CODEX_REBUILD_DAY_PHASES.md) + [`day-phases-model.md`](scripts/plans/day-phases-model.md) | `get-day` → delete **все** sessions дня → один `apply` (~10–15× `create_session_bundle` + substances/meals) |
+| Сдвинуть блок, КБЖУ, +scooby, одна правка | Fast path ниже | `update_session` / `apply-manual` / ≤3 `manual` |
+| Только склейка соседних work (gap ≤20 мин) | [`FOCUS_MERGE_FOR_CODEX.md`](scripts/plans/FOCUS_MERGE_FOR_CODEX.md) | `audit-focus-day.mjs` — **не** замена пересборки фаз |
 
-### Старт сессии (один раз)
+Правила домена (связи, фазы, patch vs rebuild): **`supabase/functions/_shared/rules.ts`** → `data_model` (секции **Day phases**, **Patch vs full rebuild**). Отдельного `rules/*.md` нет.
 
-```bash
-node scripts/codex-check.mjs          # один раз в начале работы Codex
-# login — только если 401 или check-env без auth
-```
+**Модель:** session = **фаза** (непересекающийся блок); `session_events` = атомы внутри; scooby/moda → `create_substance`, не в `project` сессии. Заказ обеда во время работы → event в work-фазе, не параллельная food-session.
 
-`login` каждый раз **не нужен**, если `SCHEDULE_TOKEN` / API key уже в env.
-
-### Что вызывать
-
-| Задача | Команда | Не делать |
-|--------|---------|-----------|
-| Прочитать один день | `get-day YYYY-MM-DD` | 5 отдельных `get` |
-| Сдвиг сессий / bundle | `apply scripts/plans/*.agent.json` | N× `manual` на sessions |
-| КБЖУ у существующих meals | `apply-manual` (массив `update` meals) | Python-скрипт в `/tmp` |
-| Одна правка (время, сумма) | `manual update …` с **`id`** | `update` без id → `id_or_match_required` |
-| Grab/еда + finance | `apply` или `apply-manual` | orphan finance без `session_event_id` |
+## Fast path — запись без правок кода
 
 ```bash
-node scripts/schedule-api.mjs get-day 2026-05-30 > /tmp/day.json
-node scripts/schedule-api.mjs apply scripts/plans/session-time-shift.agent.json
-node scripts/schedule-api.mjs apply-manual scripts/plans/meal-macros-update.manual.json
+node scripts/codex-check.mjs          # раз в сессию; login только при 401
+node scripts/schedule-api.mjs get-day YYYY-MM-DD > /tmp/day.json
+node scripts/schedule-api.mjs apply scripts/plans/….agent.json
+node scripts/schedule-api.mjs apply-manual scripts/plans/….manual.json
 ```
 
-Шаблоны: **`scripts/plans/README.md`**.
+| Задача | Инструмент | Избегать |
+|--------|------------|----------|
+| Один день | `get-day` | 5× `get` |
+| Много блоков / фазы | один `apply` | N× `manual` на sessions/events |
+| КБЖУ meals | `apply-manual` `update meals` + `id` | правки `session_events` ради meal |
+| Сдвиг времени | `update_session` с `id` из get-day | `update` без id; delete+recreate **только ради времени** |
 
-### `manual` — формат (важно)
+Шаблоны: [`scripts/plans/README.md`](scripts/plans/README.md).
 
-CLI сам вынесет `id` / `match` из JSON. Сервер ждёт:
+**`manual update`:** `{ "op":"update", "resource":"meals|sessions|…", "id":"<uuid>", "row":{…} }` — id только из API, валидный hex UUID.
 
-```json
-{ "op": "update", "resource": "meals", "id": "<uuid>", "row": { "kcal": 500, "protein_g": 40 } }
-```
+**`apply`:** `{ "actions": [ { "type", "data" } ] }` — для фаз предпочитай **`create_session_bundle`** (`events[]` с реальными start/end). `create_substance` для scooby/moda/caffeine.
 
-Эквивалент в shell (id можно внутри объекта):
+После записи: один `get-day`; **не пушь** репо и **не деплой** functions без просьбы.
 
-```bash
-node scripts/schedule-api.mjs manual update meals '{"id":"<meal-uuid>","kcal":500,"protein_g":40,"fat_g":15,"carbs_g":45,"confidence":"estimate"}'
-```
+**Запреты скорости:** нет Python/curl-скриптов в `/tmp`; нет `rg` по `supabase/functions` для data-only; нет десятков `manual`, если хватает одного `apply`.
 
-`resource`: `days`, `sessions`, **`session_events`**, `meals`, `activities`, `finance_transactions`, …
+## Жёсткие запреты
 
-**Не трогай** `session_events` ради `meal_id` — для КБЖУ достаточно `manual update meals`. Лишний `update session_events` → тяжёлые hooks и 500.
+1. **Не трогай** `supabase/migrations/*.sql` без явной просьбы.
+2. **Не коммить** `.env`, `.schedule-token`, ключи.
+3. **Не** `service_role` в скриптах агента.
+4. **Не** счёт `loco_rub` — ИП = `ip_rub`.
+5. **UUID** только из ответа API (`[0-9a-f-]{36}`), не выдумывать.
+6. **Не** пересекающиеся sessions (work + food на одни часы).
+7. **Не** 20+ micro `create_session` / patch `session_events`, если нужна модель фаз — **rebuild** (см. таблицу выше).
+8. **Не удаляй** sessions с `finance_transactions` без понимания балансов.
 
-### `apply` — agent actions
+## Auth / URL
 
-Файл `{ "actions": [ { "type": "...", "data": {} } ] }`.
+`SCHEDULE_FUNCTIONS_URL` или авто из `schedule.project.ref`. Auth: `SCHEDULE_TOKEN`, `SCHEDULE_API_KEY`, `SCHEDULE_PASSWORD`, `codex.env` / `agent.api.key`. Codex часто не видит env в shell → `scripts/codex-setup.sh` или `codex.env`. `fetch failed` → `SCHEDULE_USE_CURL=1`. TZ: **Asia/Ho_Chi_Minh**.
+
+## API (кратко)
+
+Все POST кроме login. Bearer после login.
+
+| Endpoint | Назначение |
+|----------|------------|
+| `/data` | `get` таблиц |
+| `/manual` | одна строка insert/update/delete |
+| `/agent` | пакет `actions[]` |
+| `/chat` | Gemini (опционально) |
+
+`get-day` = удобная обёртка за день. `409 swallow_required` → согласовать с пользователем → `"swallow_ok": true`.
+
+### Типы `/agent` (частые)
 
 | type | Когда |
 |------|--------|
-| `update_session` | сдвиг времени по `id` из `get-day` |
-| `create_session` | новый блок еды/чилла |
-| `create_session_bundle` | wake + sport + transport в одной оболочке (`events[]`) |
-| `create_meal` | новый приём с макросами (создаст/свяжет food session) |
-| `create_activity` | walk/run/move (move = дневной kcal out без времени) |
-| `create_finance_transaction` | расход с `session_id` + `session_event_id` |
+| `create_session_bundle` | **фаза дня** (утро, работа+обед, прогулка…) |
+| `create_session` | один простой блок |
+| `update_session` | сдвиг по id |
+| `delete_session` | явная просьба / rebuild дня |
+| `create_substance` | scooby, moda, caffeine, … |
+| `create_meal` | макросы |
+| `create_finance_transaction` | расход → `session_event_id` |
+| `create_activity` | sport / move |
 
-### `apply-manual` — пакет manual
+`reply_to_user` / `needs_confirmation` — **только `/chat`**, не для Codex.
 
-JSON-массив: `[{ "op", "resource", "id"?, "row" }, …]` — один вызов CLI, последовательные POST `/manual`. Для 10–50 meals с КБЖУ быстрее, чем 50 shell-команд в чате.
-
-### Верификация (минимум)
-
-После записи:
-
-```bash
-node scripts/schedule-api.mjs get-day YYYY-MM-DD > /tmp/after.json
-# при необходимости один jq, не 4 таблицы × 2
-```
-
-**Не пушь** репозиторий и **не деплой** functions без просьбы пользователя — данные уже в Supabase.
-
-### Запреты для скорости
-
-- **Нет** Python / `urllib` / скриптов в `/tmp` — только `node scripts/schedule-api.mjs`.
-- **Нет** `rg` по всему `supabase/functions` для data-only задач.
-- **Нет** повторного `codex-check` + `login` на каждый микро-запрос пользователя.
-- **Нет** десятков отдельных `manual`, если можно один `apply` / `apply-manual`.
-
-Полные правила домена: `supabase/functions/_shared/rules.ts` → `data_model` (по необходимости).
-
-## Жёсткие запреты (чтобы не «наворотить говна»)
-
-1. **Не трогай `supabase/migrations/*.sql`** без явной просьбы пользователя. Импорт истории — только по запросу; дневные правки — через API.
-2. **Не редактируй уже применённые миграции** — только новый файл `00XX_*.sql`.
-3. **Не коммить** `.env`, `.env.local`, `.schedule-token`, ключи Supabase/Gemini.
-4. **Не используй `service_role`** во фронте и в скриптах агента — только Edge Functions + JWT.
-5. **Не создавай счёт `loco_rub`** — удалён; ИП = `ip_rub` (Business bank).
-6. **UUID** — только валидный hex (`[0-9a-f]{8}-...`). Префиксы `s`, `p`, `m` в id **нельзя**.
-7. **Не дублируй food**: для приёма пищи → `create_session` с `type=food`, `category=food`; `meals` создаётся на сервере. Отдельный `create_meal` — только если нужны макросы без сессии.
-8. **Не удаляй сессии** с привязанным `finance_transactions.session_id` без понимания последствий для балансов.
-9. **Не клади** пароли/токены в коммиты; только secrets / `codex.env` (gitignored).
-10. **Не создавай пересекающиеся sessions** на один день (work 15:30–17:30 + food 16:47–18:00 = ошибка). Заказ обед во время работы → **event** внутри work-фазы.
-11. **Фазы дня** — см. `rules.ts` → **Day phases** и `scripts/plans/day-phases-model.md`.
-
-## Фазы дня (главная модель)
-
-- **Сессия** = фаза (утро, работа+заказ обед, обед+чилл…) — блоки **по времени не пересекаются**.
-- **session_events** = атомы внутри фазы (кофе, приложение, заказ обед, скуби…).
-- Отдельная food-сессия только для **фазы приёма пищи**, не для заказа еды посреди work.
-- Один атом без фазы → одна короткая session допустима (отбой, одиночный «приложение 11:15»).
-
-## Что делать вместо миграций и CI
-
-| Задача | Инструмент |
-|--------|------------|
-| Прочитать день/неделю | `POST /data` или CLI `get` |
-| Одна правка (сумма, время) | `POST /manual` |
-| День расписания (много блоков) | `POST /agent` с `actions[]` |
-| Массовый исторический импорт | SQL-миграция **только по запросу** |
-
-Правила: **`supabase/functions/_shared/rules.ts`** — сначала секция **`data_model`** (связи сущностей), затем домены. JSON `reply_to_user` / `needs_confirmation` — **только для `/chat`**, не для `/agent`.
-
-## Окружение (CLI / Codex)
-
-```bash
-node scripts/codex-check.mjs
-node scripts/schedule-api.mjs check-env
-node scripts/schedule-api.mjs get-day 2026-05-30
-node scripts/schedule-api.mjs get sessions --from 2026-05-26 --to 2026-05-29
-node scripts/schedule-api.mjs apply scripts/plans/session-time-shift.agent.json
-node scripts/schedule-api.mjs apply-manual scripts/plans/meal-macros-update.manual.json
-```
-
-**URL:** `SCHEDULE_FUNCTIONS_URL=https://<PROJECT_REF>.functions.supabase.co`
-
-**Auth — любой один способ:**
-
-| Способ | Где задать | Примечание |
-|--------|------------|------------|
-| `SCHEDULE_TOKEN` | Codex **Environment variables** | JWT без срока; сгенерируй локально: `login` → `cat .schedule-token` |
-| `SCHEDULE_API_KEY` | Codex env + Supabase secret `AGENT_API_KEY` | Отдельный ключ только для агента (`openssl rand -hex 32`) |
-| `SCHEDULE_PASSWORD` | Codex env | = `APP_PASSWORD` в Supabase |
-| `codex.env` | файл в корне репо | см. `codex.env.example` (в `.gitignore`) |
-
-### Codex: Secrets / Environment variables часто НЕ попадают в shell
-
-Если `printenv | rg SCHEDULE` пусто — **это нормально для Codex**. Рабочие варианты (по надёжности):
-
-1. **Custom Setup script** (лучший): Codex → Environment → Setup script → **Custom** → вставь `scripts/codex-setup.sh`, замени `PASTE_AGENT_API_KEY` на ключ (= Supabase `AGENT_API_KEY`). **Новая сессия** после сохранения.
-2. **Файл `agent.api.key`** в корне workspace: одна строка = API key (в `.gitignore`, не коммитить).
-3. **`codex.env`** в корне (см. `codex.env.example`).
-4. Environment variables в UI Codex — только если после рестарта `codex-check` показывает `set`.
-
-URL подставится сам из `schedule.project.ref`, если `SCHEDULE_FUNCTIONS_URL` не задан.
-
-Первый шаг в **новой** Codex-сессии: `codex-check` → `get-day` или `apply` / `apply-manual`.
-
-**Codex + `fetch failed`:** в setup/maintenance добавь `export SCHEDULE_USE_CURL=1` — CLI сам ходит через `curl -4` (или авто-fallback после ошибки fetch).
-
-Локальный фронт: `apps/web/.env.local` — `VITE_FUNCTIONS_URL`, … (см. `.env.example`).
-
-Часовой пояс логов: **Asia/Ho_Chi_Minh** (UTC+7).
-
-## API (все POST, кроме login)
-
-| Endpoint | Auth | Назначение |
-|----------|------|------------|
-| `/auth/login` | нет | `{ "password" }` или `{ "api_key" }` (если задан `AGENT_API_KEY` на сервере) → `{ "token" }` |
-| `/data` | Bearer | чтение таблицы |
-| `/manual` | Bearer | CRUD одной строки |
-| `/agent` | Bearer | пакет `actions[]` (без Gemini) |
-| `/chat` | Bearer | Gemini (UI, можно не использовать) |
-| `/confirm` | Bearer | подтверждение после chat |
-
-### `/data` — ресурсы для `get`
-
-`days`, `sessions`, `meals`, `activities`, `substances`, `body_metrics`, `finance_transactions`, `accounts`, `balance_snapshots`, `finance_planned_items`, `events`, `planner_events`, `mood_logs`, `nutrition_goals`, `raw_logs`
-
-Тело: `{ "resource": "sessions", "from": "2026-05-01", "to": "2026-05-31", "limit": 1000 }`
-
-### `/manual` — запись одной строки
-
-`op`: `insert` | `update` | `delete` | `upsert`
-
-`resource`: `days`, `sessions`, **`session_events`**, `meals`, `activities`, `substances`, `body_metrics`, `finance_transactions`, `events`, `planner_events`, `mood_logs`, `nutrition_goals`, `accounts`, `balance_snapshots`, `finance_planned_items`
-
-`update` / `delete` требуют **`id`** (или `match`) — см. Fast path.
-
-Примеры:
-
-```bash
-node scripts/schedule-api.mjs manual upsert days '{"date":"2026-05-31","wake_time":"11:00","sleep_time":"02:00","modafinil_mg":50,"day_type":"work"}'
-
-node scripts/schedule-api.mjs manual insert sessions '{"date":"2026-05-31","start_time":"16:00","end_time":"17:00","duration_min":60,"type":"food","category":"food","project":"обед"}'
-
-node scripts/schedule-api.mjs manual update meals '{"id":"<uuid>","kcal":500,"protein_g":40,"fat_g":15,"carbs_g":45,"confidence":"estimate"}'
-```
-
-После `food`-сессии сервер создаёт/линкует `meals`. Finance-транзакции обновляют `accounts.balance`.
-
-### `/agent` — пакет действий
-
-Тело: `{ "actions": [ { "type": "...", "data": { ... } } ], "swallow_ok": false }`
-
-Если ответ `409 swallow_required` — перечитай `warnings`, согласуй с пользователем, повтори с `"swallow_ok": true`.
-
-**Типы** (полные правила в `rules.ts` + примеры в `chat/index.ts`):
-
-| type | Назначение |
-|------|------------|
-| `update_day` | поля строки `days` |
-| `create_session` | одна строка в ежедневнике (простой блок) |
-| `create_session_bundle` | сессия + несколько `session_events` (такси, зал, перекус) — **предпочитай для фокус-блоков работы** |
-| `create_session_event` | один атомарный ивент, опционально `session_id` |
-| `update_session` | сдвиг/правка по `id` из `get sessions` |
-| `delete_session` | только по явной просьбе |
-| `create_work_session_open` / `close_work_session` | открытая работа |
-| `create_meal` | макросы (обычно после food-сессии) |
-| `create_activity` | спорт (run, cycling, …) |
-| `create_finance_transaction` | расход/доход/transfer |
-| `create_substance` | **moda** (мг), **scooby** (+1/session + **time**), caffeine, alcohol, weed |
-| `create_body_metric` | вес, пульс, … |
-| `create_event` | событие (visa, planning, …) |
-| `create_planner_event` | календарь |
-| `create_mood_log` | настроение |
-| `ask_clarification` | **не пишет в БД** — для `/agent` избегай, уточни у пользователя в чате |
-
-Для `/agent` поле `reply_to_user` / `needs_confirmation` **не нужны** — только `actions[]`.
-
-## Счета (`accounts.id`)
-
-| slug | Описание |
-|------|----------|
-| `savings_rub` | Savings RUB |
-| `ip_rub` | Business bank / ИП |
-| `vcb_vnd` | Bank VND |
-| `cash_vnd` | Наличные |
-
-Перевод: `txn_type=transfer`, `account` (откуда), `counter_account`, `amount` (валюта `account`), `amount_counter` (валюта счёта-получателя).
-
-## Связки (обязательно понимать)
+## Связки и субстанции
 
 ```
-days (date PK) — wake_time, modafinil_mg (сумма mg из substances name=moda)
-  └── sessions — оболочка в ежедневнике
-  └── session_events — атомы; is_instant=true → только start_time (wake, substance)
-  └── substances — дозы (`moda`, `scooby`, caffeine, …); сервер зеркалит instant session_event; **время обязательно** для анализа частоты
-  └── meals.session_id → sessions.id
-  └── finance_transactions.session_event_id — расход на атом
-  └── activities — параллельно sport-сессиям по времени (прогулка = sport_walk, не category=walk)
-events ↔ finance_planned_items (визаран и т.п.)
+days → sessions (фазы) → session_events (атомы)
+     → substances (scooby/moda + time) → mirror instant event
+     → meals.session_id
+finance_transactions.session_event_id
 ```
 
-**Instant:** проснулся / moda / scooby / кофе → `create_substance` с **`time`** (или `kind=wake|substance`, `instant:true`).
+| name | Запись |
+|------|--------|
+| `moda` | mg + time → `days.modafinil_mg` |
+| `scooby` | amount:1, unit:session, **новая строка на каждый приём**, time обязателен |
+| `caffeine` | cup + time |
 
-### Субстанции (имена в БД)
+Не `name=modafinil`. Scooby не дублировать в title фазы вместо `create_substance`.
 
-| name | Как говорит пользователь | Запись |
-|------|--------------------------|--------|
-| `moda` | модаф, 75 мг мода, без мода | `{ name:"moda", amount, unit:"mg", time }` → сумма в `days.modafinil_mg` |
-| `scooby` | скуби, был скуби, +1 скуби, перед обедом скуби | `{ name:"scooby", amount:1, unit:"session", time }` — **каждый приём = новая строка**; **не** в `events[]` и **не** в `project`/`title` сессии («тупняк, скуби») |
-| `caffeine` | кофе, эспрессо | `amount:1`, `unit:cup`, `time` |
-| `alcohol` | вино, пиво | `time` |
-| `weed` | покурил | `unit:session`, `time` |
+## Счета
 
-Никогда `name=modafinil` — только **`moda`**. Для scooby не увеличивай старую строку — добавь новую с новым `time`.
+`savings_rub`, `ip_rub`, `vcb_vnd`, `cash_vnd`. Transfer: `txn_type=transfer`, `account`, `counter_account`, `amount`, `amount_counter`.
 
-```bash
-node scripts/schedule-api.mjs manual insert substances '{"date":"2026-05-31","time":"14:45","name":"scooby","amount":1,"unit":"session"}'
-node scripts/schedule-api.mjs manual insert substances '{"date":"2026-05-31","time":"11:00","name":"moda","amount":75,"unit":"mg"}'
-```
+## Workflow Codex (кратко)
 
-**Sport + Apple Health:** `activities` (cycling 11:21, notes с distance/kcal) ↔ `session_events` через `activity_id`; при save/link метрики с устройства переносятся на ивент (106 kcal, 4.74 km), не дублировать 130 вручную если есть activity.
+1. `codex-check` → `get-day`.
+2. По таблице «Выбор сценария» — rebuild **или** patch.
+3. Один `apply` / `apply-manual`; id только из шага 1.
+4. `get-day` для проверки (~10–15 sessions, без overlaps между фазами).
 
-Стабильные id импорта расписания: `521YYxxx-0000-4000-8000-...` (YY = день месяца в коде). Перед правкой дня — **`get sessions` за эту дату**.
+## Миграции / архитектура
 
-## Рекомендуемый workflow Codex
-
-См. **Fast path** выше. Кратко:
-
-1. `get-day` (или `get` для диапазона >1 дня).
-2. Собери `scripts/plans/…` или `apply-manual` массив; id только из ответа API.
-3. Один `apply` / `apply-manual` (или ≤3 `manual` для точечных правок).
-4. Один `get-day` + jq при необходимости.
-5. **Не пушь** без просьбы; **не деплой** functions без просьбы — данные уже в Supabase.
-
-## Миграции (только по запросу)
-
-Файлы `0001`…`0012` — история схемы и разовые импорты. Новый импорт: `0013_short_name.sql`, push через CI или `supabase db push`.
-
-## Архитектура (кратко)
-
-- `apps/web` — дашборд на **live Supabase** (`useSupabaseSnapshot`), не seed (seed только offline/fallback).
-- `supabase/functions` — auth, data, manual, agent, chat, confirm.
-- Деплой: push `main` → Actions (Pages + migrations + functions).
-
-## Чего нет / не путать
-
-- Нет отдельного REST кроме Edge Functions.
-- Gemini **не обязателен** для Codex — используй `/agent` и `/manual`.
-- `rules/global.md` и др. **не существуют** — только `rules.ts`.
-- README «Tasks for Vel» и «dashboard reads seed» — **устарели** (см. актуальный README).
+Миграции — только по запросу. `apps/web` — live Supabase. Правила — только `rules.ts`. README «Tasks for Vel» / seed-only dashboard — устарели.
 
 ## Если сомневаешься
 
-Спроси пользователя одним вопросом вместо массового `delete` или новой миграции. При конфликте сессий на день — `update_session` цепочкой или `--swallow` с явного согласия.
+Один вопрос пользователю вместо массового `delete` или новой миграции. Конфликт сессий на уже правильном дне — `update_session` цепочкой; на «переделай день» — **CODEX_REBUILD**, не 36× manual.

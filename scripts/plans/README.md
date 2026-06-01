@@ -10,9 +10,9 @@ Copy a file, replace `<uuid>` / dates, then apply.
 | `finance-food-link.manual.json` | `apply-manual` | Расход food + привязка к session/event |
 | `sport-wake-transport-bundle.agent.json` | `apply` | Проснулся + спорт + транспорт в одной оболочке |
 | `substance-scooby.manual.json` | `apply-manual` | +1 scooby с временем (перед обедом и т.п.) |
-| `FOCUS_MERGE_FOR_CODEX.md` | — | Промпт + `audit-focus-day.mjs` для склейки work-сессий |
-| `day-phases-model.md` | — | Модель фаз дня (эталон 2026-06-01) |
-| `CODEX_REBUILD_DAY_PHASES.md` | — | Промпт: удалить микро-сессии, пересобрать день bundle-ами |
+| `CODEX_REBUILD_DAY_PHASES.md` | — | **Главный:** пересборка дня по фазам (delete + bundles) |
+| `day-phases-model.md` | — | Эталон фаз (2026-06-01) |
+| `FOCUS_MERGE_FOR_CODEX.md` | — | Узкий patch: склейка соседних work (не замена rebuild) |
 
 ```bash
 node scripts/audit-focus-day.mjs 2026-06-01 --write scripts/plans/generated

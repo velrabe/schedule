@@ -48,8 +48,7 @@ const DATA_MODEL = `
 - **Таймлайн не рвётся:** sessions одного дня **НЕ пересекаются**. Если обед во время работы — это **event** внутри work-фазы, НЕ отдельная food-сессия на те же часы.
 - Prefer **create_session_bundle** per phase: project = название фазы ("пробуждение и завтрак", "работа заказ обед", "обед чилл скуби"), events[] = все атомы фазы.
 - Один простой атом без фазы → create_session OK (отбой instant, короткий chill).
-- Prefer update_session / update session_events over delete+recreate when shifting times.
-- Overlaps between sessions: fix by merge into phase bundle or shift times — never leave overlapping diary rows.
+- Overlaps between sessions: fix by phase bundle or shift — never leave overlapping diary rows.
 
 ## Day phases (главная модель — read this)
 
@@ -76,6 +75,16 @@ User mental model: day = ordered **phases**, each phase = one session envelope +
 **Substances:** create_substance (scooby/moda/caffeine) for analytics + optional mention in phase event title; parallel instant session_event from server is OK (session_id=null).
 
 **Categories:** phase session category = dominant activity (work_paid, chill, food, sport_*, chores). Mixed phases use best-fit + descriptive project string.
+
+## Patch vs full rebuild (agent / Codex)
+
+| Situation | Do | Don't |
+|-----------|-----|-------|
+| Сдвинуть один блок / КБЖУ / +scooby | `update_session` цепочкой, `apply-manual`, 1–3 actions | delete+recreate **только ради смены времени** |
+| «Переделай день», полный рассказ фаз, куча микро-sessions, overlaps | `scripts/plans/CODEX_REBUILD_DAY_PHASES.md`: delete all sessions дня → один `apply` с N× `create_session_bundle` + `create_substance` | 20+ `manual` / `update_session` / перенос `session_events` |
+| День почти ок, подряд 2+ work с gap ≤20 мин, один project | `scripts/audit-focus-day.mjs` + `FOCUS_MERGE_FOR_CODEX.md` (склейка work) | Не путать со сборкой всего дня по фазам |
+
+Target: **~10–15 sessions/day** (фазы), not ~20 micro work rows. Эталон: `scripts/plans/day-phases-model.md`.
 
 ## actions[].data fields
 
@@ -163,9 +172,10 @@ ALWAYS set "type" field:
 - work_paid / personal / byt → type=work
 - (don't conflate type and category — type is the high-level bucket from the schema)
 
-Session updates / moves (НЕ delete+create):
-- "подвинь", "сдвинь", "обнови сессии", "перенеси блок", "старт на 12:20" → update_session using id from CURRENT CONTEXT today_summary.sessions[].id.
-- NEVER ask to delete+recreate a session only to change times. Use update_session.
+Session updates / moves (НЕ delete+create ради времени):
+- "подвинь", "сдвинь", "перенеси блок", "старт на 12:20" → update_session using id from get-day / today_summary.
+- NEVER delete+recreate a session **only** to change times. Use update_session.
+- "переделай день по фазам" / массовые overlaps / микро-work → full rebuild (data_model → Patch vs full rebuild), not update_session × N.
 - When one block moves and would overlap the next session on the same day:
   1) update_session for the moved block (new start_time and/or end_time, keep duration unless user changes it)
   2) update_session for EVERY following session that touches the overlap — shift by the same delta, preserve each duration_min

@@ -826,6 +826,178 @@
   width: min(420px, 100vw);
 }
 
+.session-bundle-envelope-card-wrap {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  margin-bottom: 12px;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-2, var(--surface));
+  gap: 0;
+}
+
+.session-bundle-envelope-fields-wrap {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  gap: 0;
+}
+
+.session-bundle-parts-section-wrap {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  gap: 8px;
+}
+
+.session-bundle-parts-list-wrap {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  gap: 10px;
+}
+
+.session-bundle-part-card-wrap {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg);
+  gap: 0;
+}
+
+.session-bundle-part-card-head-wrap {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+  width: 100%;
+  gap: 8px;
+  margin-bottom: 8px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border);
+}
+
+.session-bundle-part-card-index {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  flex-shrink: 0;
+  font-size: 11px;
+  font-weight: 600;
+  font-family: var(--mono);
+  color: var(--text-2);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+}
+
+.session-bundle-part-card-title-wrap {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+  gap: 2px;
+}
+
+.session-bundle-part-fields-wrap {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  gap: 0;
+}
+
+.session-bundle-part-expense-edit-wrap {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px dashed var(--border);
+  gap: 0;
+}
+
+.session-bundle-expense-fields-wrap {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  gap: 0;
+}
+
+.session-bundle-add-expense-btn {
+  width: 100%;
+  margin-top: 4px;
+}
+
+.record-drawer-section-wrap--card {
+  margin-bottom: 8px;
+}
+
+.record-drawer-section-hint {
+  display: block;
+  width: 100%;
+  margin-top: 2px;
+  font-size: 10px;
+  color: var(--text-3);
+  font-family: var(--mono);
+}
+
+.drawer-linked-block-wrap {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  margin-bottom: 8px;
+  padding: 8px;
+  border-radius: var(--radius);
+  background: var(--surface-2, rgba(255, 255, 255, 0.04));
+  gap: 8px;
+}
+
+.drawer-linked-row-wrap {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  gap: 4px;
+}
+
+.drawer-linked-row-main-wrap {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: baseline;
+  width: 100%;
+  gap: 8px;
+}
+
+.drawer-linked-row-label {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-3);
+  font-family: var(--mono);
+}
+
+.drawer-linked-row-value {
+  font-size: 12px;
+  color: var(--text);
+  flex: 1;
+}
+
+.drawer-linked-row-detail {
+  font-size: 11px;
+  color: var(--text-3);
+  font-family: var(--mono);
+}
+
+.drawer-nav-link-btn--source {
+  align-self: flex-start;
+}
+
 .session-bundle-part-wrap {
   display: flex;
   flex-direction: column;

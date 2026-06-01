@@ -8,7 +8,7 @@ node scripts/codex-check.mjs
 node scripts/schedule-api.mjs login   # только если 401
 ```
 
-Читать по порядку: `AGENTS.md` → `supabase/functions/_shared/rules.ts` (Day phases) → `scripts/plans/day-phases-model.md`.
+Читать: `AGENTS.md` (таблица сценариев) → `rules.ts` (`data_model`: Day phases + Patch vs full rebuild) → `day-phases-model.md`.
 
 ## Задача
 
@@ -45,7 +45,7 @@ node scripts/schedule-api.mjs login   # только если 401
 1. `get-day YYYY-MM-DD` → сохранить id meals/finance если нужно перепривязать.
 2. Удалить **все sessions** этого дня (cascade events) через `manual delete` или план в `scripts/plans/`.
 3. `apply` с JSON: `update_day` (wake, sleep, mod) + N× `create_session_bundle` + `create_substance` + `create_meal` / finance.
-4. `get-day` + `node scripts/audit-focus-day.mjs YYYY-MM-DD` — overlap = 0, sessions ≈ число фаз.
+4. `get-day` — sessions ≈ число фаз (~10–15), нет пересечений по времени (кроме instant sleep 01:00 vs утро). Опционально: `audit-focus-day.mjs` — только если остались лишние micro work (см. FOCUS_MERGE).
 
 ## Не делать
 

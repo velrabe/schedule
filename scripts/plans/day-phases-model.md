@@ -21,11 +21,12 @@
 
 ## Промпт для перестройки дня
 
+См. [`CODEX_REBUILD_DAY_PHASES.md`](CODEX_REBUILD_DAY_PHASES.md). Кратко:
+
 ```
-Прочитай rules.ts секции data_model + Day phases.
-Перестрой YYYY-MM-DD по модели фаз: sessions не пересекаются.
-Заказ обед во время работы — event внутри work-фазы, не отдельная food session.
-Каждая фаза — create_session_bundle с events[] или одна session + events.
-scooby → create_substance + упоминание в фазе.
-После: get-day, проверь что нет overlap sessions по времени.
+AGENTS.md → сценарий rebuild
+rules.ts: data_model → Day phases + Patch vs full rebuild
+delete all sessions YYYY-MM-DD → apply: update_day + N× create_session_bundle + create_substance
+scooby/moda → create_substance (не в project сессии)
+get-day: ~10–15 sessions, без overlaps фаз
 ```
