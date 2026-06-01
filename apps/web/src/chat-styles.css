@@ -910,6 +910,35 @@
   gap: 2px;
 }
 
+.session-bundle-part-card-title-btn {
+  display: flex;
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  width: 100%;
+  text-align: left;
+}
+
+.session-bundle-part-card-title-btn:hover:not(:disabled) .session-bundle-part-card-title-btn__text {
+  color: var(--accent);
+  text-decoration: underline;
+}
+
+.session-bundle-part-card-title-btn:disabled {
+  cursor: default;
+  opacity: 0.55;
+}
+
+.session-bundle-part-card-title-btn__text {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
+  line-height: 1.35;
+}
+
 .session-bundle-part-static-wrap {
   display: flex;
   flex-direction: column;

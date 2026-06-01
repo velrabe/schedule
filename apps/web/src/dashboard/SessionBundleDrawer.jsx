@@ -57,37 +57,41 @@ function BundlePartStaticRow({ label, value }) {
   `;
 }
 
-/** Read-only preview; edit via «атом →» (session_event drawer). */
+/** Read-only preview; open session_event drawer via card title click. */
 function BundlePartCard({ part, idx, policy, finance, meals, sessionEvents, liveMode, onOpenRecord }) {
   const title =
-    policy.readonlyRows.find((r) => r.key === "meal")?.value ||
     linkedEventLabel(part, finance, meals, sessionEvents) ||
-    part.title ||
     part.kind ||
     `атом ${idx + 1}`;
   const pexp = policy.expenseTxn ? [policy.expenseTxn] : [];
+  const openAtom = () =>
+    onOpenRecord?.({ kind: "session_event", record: part });
 
   return html`
     <article class="session-bundle-part-card-wrap">
       <header class="session-bundle-part-card-head-wrap">
         <span class="session-bundle-part-card-index">${idx + 1}</span>
         <div class="session-bundle-part-card-title-wrap">
-          <span class="session-bundle-part-title">${title}</span>
+          ${onOpenRecord
+            ? html`
+              <button
+                type="button"
+                class="session-bundle-part-card-title-btn"
+                disabled=${!liveMode}
+                onClick=${openAtom}
+              >
+                <span class="session-bundle-part-card-title-btn__text">${title}</span>
+              </button>
+            `
+            : html`<span class="session-bundle-part-title">${title}</span>`}
           ${pexp.length ? html`<span class="session-bundle-part-exp">${fmtExpensesShort(pexp)}</span>` : ""}
         </div>
-        ${onOpenRecord && html`
-          <button type="button" class="drawer-nav-link-btn drawer-nav-link-btn--inline"
-            disabled=${!liveMode}
-            onClick=${() => onOpenRecord({ kind: "session_event", record: part })}>
-            <span class="drawer-nav-link-btn__text">атом →</span>
-          </button>
-        `}
       </header>
 
       <div class="session-bundle-part-static-wrap">
         <${BundlePartStaticRow} label="kind" value=${part.kind || "—"} />
         <${BundlePartStaticRow} label="время" value=${sessionEventTimeSpan(part)} />
-        <${BundlePartStaticRow} label="название" value=${part.title || title} />
+        <${BundlePartStaticRow} label="название" value=${part.title || "—"} />
         <${BundlePartStaticRow} label="category" value=${part.category} />
       </div>
 
@@ -226,7 +230,7 @@ export default function SessionBundleDrawer({
           <section class="session-bundle-parts-section-wrap">
             <div class="record-drawer-section-wrap record-drawer-section-wrap--card">
               <span class="record-drawer-section-title">атомы внутри фазы</span>
-              <span class="record-drawer-section-hint">${parts.length} шт. · только просмотр · правка в атоме</span>
+              <span class="record-drawer-section-hint">${parts.length} шт. · клик по заголовку · правка в атоме</span>
             </div>
             <div class="session-bundle-parts-list-wrap">
               ${parts.map((p, idx) => {

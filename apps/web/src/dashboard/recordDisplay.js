@@ -35,8 +35,8 @@ export function sessionEventTimeSpan(ev) {
   return `${start}–${end}`;
 }
 
-export function sessionEventDisplayLabel(ev, finance = [], meals = []) {
-  const title = linkedEventLabel(ev, finance, meals) || ev?.kind || "—";
+export function sessionEventDisplayLabel(ev, finance = [], meals = [], sessionEvents = []) {
+  const title = linkedEventLabel(ev, finance, meals, sessionEvents) || ev?.kind || "—";
   return `${sessionEventTimeSpan(ev)} · ${title}`;
 }
 

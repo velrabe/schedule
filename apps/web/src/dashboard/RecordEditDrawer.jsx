@@ -413,6 +413,7 @@ export default function RecordEditDrawer({
         mapSessionEventForDrawer(current.record),
         finance,
         ctx.meals || [],
+        sessionEvents,
       );
     }
     return meta.subtitle(current.record);

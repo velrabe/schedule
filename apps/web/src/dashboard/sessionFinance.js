@@ -1,7 +1,22 @@
 /** Helpers for session-linked expenses in the UI. */
 
 import { findFoodSessionForMeal } from "./mergeNutrition.js";
-import { findMealForEvent } from "./sessionEventLinks.js";
+import {
+  findMealForEvent,
+  isFoodLikeEvent,
+  isFoodOrderLikeEvent,
+  isMealPhaseFoodEvent,
+} from "./sessionEventLinks.js";
+
+function isFoodAtom(event) {
+  if (!event) return false;
+  return Boolean(
+    event.meal_id ||
+      isFoodLikeEvent(event) ||
+      isFoodOrderLikeEvent(event) ||
+      isMealPhaseFoodEvent(event),
+  );
+}
 
 export function expensesForSession(sessionId, finance = []) {
   if (!sessionId) return [];
@@ -67,14 +82,16 @@ function shortenTitle(title, max = 72) {
   return `${t.slice(0, max - 1)}…`;
 }
 
-/** Short label for UI (breadcrumbs, bundle parts) — prefer meal.name / title, not Grab notes dump. */
+/** Short label for UI (breadcrumbs, bundle parts) — meal.name only on food atoms, not chill/work siblings. */
 export function linkedEventLabel(event, finance = [], meals = [], sessionEvents = []) {
   if (!event) return "—";
-  const linkedMeal = findMealForEvent(event, { meals, sessionEvents });
-  if (linkedMeal?.name) return String(linkedMeal.name).trim();
-  if (event.meal_id) {
-    const meal = meals.find((m) => m.id === event.meal_id);
-    if (meal?.name) return String(meal.name).trim();
+  if (isFoodAtom(event)) {
+    const linkedMeal = findMealForEvent(event, { meals, sessionEvents });
+    if (linkedMeal?.name) return String(linkedMeal.name).trim();
+    if (event.meal_id) {
+      const meal = meals.find((m) => m.id === event.meal_id);
+      if (meal?.name) return String(meal.name).trim();
+    }
   }
   const title = shortenTitle(event.title);
   const kind = (event.kind || "").toLowerCase();
