@@ -1915,7 +1915,7 @@ function CalDetailNutriColumn({ meal, activity, slotLabel, liveMode = false, onO
         <span class=${`cal-detail-col-slot ${isAct ? "cal-detail-col-slot--act" : ""}`}>${slotLabel}</span>
       </div>
       <div class="cal-detail-col-name-wrap">
-        <span class="cal-detail-col-name">${meal ? displayMealName(meal) : activityDetailLabel(activity)}</span>
+        <span class="cal-detail-col-name">${meal ? displayMealName(meal) : activity ? activityDetailLabel(activity) : "—"}</span>
       </div>
       <div class="cal-detail-col-kcal-wrap">
         <span class=${`cal-detail-col-kcal ${isAct ? "cal-detail-col-kcal--burn" : ""}`}>

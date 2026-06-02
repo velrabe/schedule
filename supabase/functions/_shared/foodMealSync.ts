@@ -90,6 +90,21 @@ function orphanMealMatchesSession(
   return false;
 }
 
+/** True when session has more than one non-substance atom (bundle phase). */
+async function sessionHasMultipleAtoms(db: SupabaseClient, sessionId: string): Promise<boolean> {
+  const { data, error } = await db
+    .from("session_events")
+    .select("id, kind, substance_id")
+    .eq("session_id", sessionId);
+  if (error) throw error;
+  const atoms = (data || []).filter((e) => {
+    const row = e as { kind?: string | null; substance_id?: string | null };
+    if (row.substance_id) return false;
+    return (row.kind || "").toLowerCase() !== "substance";
+  });
+  return atoms.length > 1;
+}
+
 /** Create or update meal linked to a food session. */
 export async function syncMealFromFoodSession(
   db: SupabaseClient,
@@ -122,15 +137,18 @@ export async function syncMealFromFoodSession(
         | undefined ?? null;
   }
 
-  const payload = {
+  const multiAtom = await sessionHasMultipleAtoms(db, session.id);
+  const payload: Record<string, unknown> = {
     date: session.date,
     time: padTime(session.start_time),
     slot: inferMealSlot(session),
-    name: mealNameFromSession(session),
     notes: session.notes,
     session_id: session.id,
     source_log_id: sourceLogId ?? existing?.source_log_id ?? null,
   };
+  if (!multiAtom || !existing?.id) {
+    payload.name = mealNameFromSession(session);
+  }
 
   if (existing?.id) {
     const { data, error } = await db

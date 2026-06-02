@@ -180,6 +180,27 @@ export function findLinkedSubstancesForEvent(ev, ctx = {}) {
         if (owner === ev.id) add(s);
         continue;
       }
+      const st = trimTime(s.time);
+      const mealEndsHere =
+        isMealPhaseFoodEvent(ev) &&
+        trimTime(ev.end_time || ev.end) &&
+        st === trimTime(ev.end_time || ev.end);
+      if (!mealEndsHere && ev.session_id) {
+        const foodEndsAtSame = sessionEvents.some(
+          (o) =>
+            o.id !== ev.id &&
+            o.session_id === ev.session_id &&
+            isMealPhaseFoodEvent(o) &&
+            trimTime(o.end_time || o.end) === st,
+        );
+        if (
+          foodEndsAtSame &&
+          trimTime(ev.start_time || ev.start) === st &&
+          !isMealPhaseFoodEvent(ev)
+        ) {
+          continue;
+        }
+      }
       const t = timeToMin(s.time);
       if (t >= start - pad && t <= end + pad) add(s);
     }

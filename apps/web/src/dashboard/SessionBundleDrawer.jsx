@@ -7,8 +7,6 @@ import { childEventsForSession, fmtExpensesShort, linkedEventLabel } from "./ses
 import { sessionEventDrawerPolicy } from "./drawerFieldPolicy.js";
 import { sessionEventTimeSpan } from "./recordDisplay.js";
 import { DrawerLinkedBlock } from "./DrawerLinkedBlock.jsx";
-import DrawerSubstancesList from "./DrawerSubstancesList.jsx";
-import { substancesForSessionPhase } from "./substanceSession.js";
 
 const html = htm.bind(h);
 
@@ -58,11 +56,18 @@ function BundlePartStaticRow({ label, value }) {
 }
 
 /** Read-only preview; open session_event drawer via card title click. */
-function BundlePartCard({ part, idx, policy, finance, meals, sessionEvents, liveMode, onOpenRecord }) {
-  const title =
+function bundlePartTitle(part, finance, meals, sessionEvents) {
+  const t = (part.title || "").trim();
+  if (t) return t.length <= 56 ? t : `${t.slice(0, 55)}…`;
+  return (
     linkedEventLabel(part, finance, meals, sessionEvents) ||
     part.kind ||
-    `атом ${idx + 1}`;
+    "атом"
+  );
+}
+
+function BundlePartCard({ part, idx, policy, finance, meals, sessionEvents, liveMode, onOpenRecord }) {
+  const title = bundlePartTitle(part, finance, meals, sessionEvents) || `атом ${idx + 1}`;
   const pexp = policy.expenseTxn ? [policy.expenseTxn] : [];
   const openAtom = () =>
     onOpenRecord?.({ kind: "session_event", record: part });
@@ -147,11 +152,6 @@ export default function SessionBundleDrawer({
     for (const p of parts) m[p.id] = sessionEventDrawerPolicy(p, ctx);
     return m;
   }, [parts, ctx]);
-
-  const phaseSubstances = useMemo(
-    () => substancesForSessionPhase(session, navCtx.substances || [], sessionEvents),
-    [session, navCtx.substances, sessionEvents],
-  );
 
   const envelopeSpan = useMemo(() => {
     if (!parts.length) return `${session.start}–${session.end}`;
@@ -251,15 +251,6 @@ export default function SessionBundleDrawer({
               })}
             </div>
           </section>
-
-          <${DrawerSubstancesList}
-            title="субстанции в фазе"
-            hint=${`в интервале ${envelopeSpan}`}
-            rows=${phaseSubstances}
-            onOpenRecord=${onOpenRecord}
-            liveMode=${liveMode}
-            emptyText="в этой фазе нет substances"
-          />
         </div>
 
         <footer class="record-drawer-footer-wrap">

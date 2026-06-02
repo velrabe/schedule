@@ -36,8 +36,6 @@ import {
   shouldSendExpensePatch,
   applySessionEventPolicyToPatch,
 } from "./drawerFieldPolicy.js";
-import DrawerSubstancesList from "./DrawerSubstancesList.jsx";
-import { substancesForSessionPhase } from "./substanceSession.js";
 import { sessionBreadcrumbLabel } from "./drawerNavigation.js";
 import { mapSessionEventForDrawer, sessionEventDisplayLabel } from "./recordDisplay.js";
 import {
@@ -156,11 +154,6 @@ export default function RecordEditDrawer({
     }),
     [sessions, sessionEvents, navCtx, activities, finance],
   );
-
-  const sessionPhaseSubstances = useMemo(() => {
-    if (current?.kind !== "session") return [];
-    return substancesForSessionPhase(current.record, ctx.substances || [], sessionEvents);
-  }, [current?.kind, current?.record?.id, ctx.substances, sessionEvents]);
 
   const isSessionBundle =
     current?.kind === "session" && bundleParts.length > 0;
@@ -696,15 +689,6 @@ export default function RecordEditDrawer({
                   <span class="btn__text-wrap">скрыть</span>
                 </button>
               `}
-            `}
-            ${current?.kind === "session" && html`
-              <${DrawerSubstancesList}
-                title="субстанции в сессии"
-                hint="по времени оболочки"
-                rows=${sessionPhaseSubstances}
-                onOpenRecord=${onSwitchTarget}
-                liveMode=${liveMode}
-              />
             `}
             ${!liveMode &&
             html`
