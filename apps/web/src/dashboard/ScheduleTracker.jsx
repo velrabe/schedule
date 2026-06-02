@@ -1885,7 +1885,7 @@ function SessionCompactContent({
                 <span class="session-compact-part__label u-truncate-1" title=${label}>${label}</span>
                 ${scheduleLayout && pDur &&
                 html`<span class="session-compact-part__dur">${pDur}</span>`}
-                ${pexp.length &&
+                ${pexp.length > 0 &&
                 html`<span class="session-compact-part__exp session-compact-part__exp--desk-only">${fmtExpensesShort(pexp)}</span>`}
               </div>
             `;
