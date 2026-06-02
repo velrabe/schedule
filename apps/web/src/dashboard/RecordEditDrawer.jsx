@@ -23,6 +23,8 @@ import {
 import SessionBundleDrawer from "./SessionBundleDrawer.jsx";
 import DrawerNav from "./DrawerNav.jsx";
 import DrawerLeafNav from "./DrawerLeafNav.jsx";
+import DrawerParentAtom from "./DrawerParentAtom.jsx";
+import { isSubstanceMirrorEvent } from "./drawerNavigation.js";
 import { DrawerLinkedBlock } from "./DrawerLinkedBlock.jsx";
 import {
   findFinanceForMeal,
@@ -296,6 +298,23 @@ export default function RecordEditDrawer({
       setAttachBusy(false);
     }
   };
+
+  useEffect(() => {
+    if (
+      current?.kind === "session_event" &&
+      isSubstanceMirrorEvent(current.record) &&
+      current.record.substance_id &&
+      onSwitchTarget
+    ) {
+      const sub = (ctx.substances || []).find((s) => s.id === current.record.substance_id);
+      if (sub) onSwitchTarget({ kind: "substance", record: sub });
+    }
+  }, [current?.kind, current?.record?.id, ctx.substances, onSwitchTarget]);
+
+  const refreshStackForCurrent = useCallback(() => {
+    if (!current || !onSwitchTarget) return;
+    onSwitchTarget({ kind: current.kind, record: current.record });
+  }, [current?.kind, current?.record?.id, onSwitchTarget]);
 
   useEffect(() => {
     if (!current) return;
@@ -694,6 +713,21 @@ export default function RecordEditDrawer({
               </div>
             `}
           </div>
+          ${(current.kind === "meal" ||
+            current.kind === "activity" ||
+            current.kind === "finance" ||
+            current.kind === "substance") &&
+          html`
+            <${DrawerParentAtom}
+              kind=${current.kind}
+              record=${current.record}
+              ctx=${ctx}
+              liveMode=${liveMode}
+              busy=${busy}
+              onOpenRecord=${onSwitchTarget}
+              onReassigned=${refreshStackForCurrent}
+            />
+          `}
           ${(current.kind === "meal" ||
             current.kind === "activity" ||
             current.kind === "finance") &&

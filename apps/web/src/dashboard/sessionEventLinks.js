@@ -6,6 +6,15 @@
 import { mealHasMacroData } from "./mergeNutrition.js";
 import { isSportSessionEvent } from "./activityMetrics.js";
 import { parseAtomLinkFromNotes } from "./atomAttach.js";
+
+/** One parent atom per substance (atom: note or single substance_id owner). */
+export function substanceOwnerEventId(sub, sessionEvents = []) {
+  const fromNote = parseAtomLinkFromNotes(sub?.notes);
+  if (fromNote) return fromNote;
+  const owners = sessionEvents.filter((e) => e.substance_id === sub?.id);
+  const real = owners.find((e) => (e.kind || "").toLowerCase() !== "substance");
+  return real?.id || owners[0]?.id || null;
+}
 import { substanceRowLabel } from "./calendarDayDetail.js";
 import {
   expensesForSession,
@@ -157,13 +166,20 @@ export function findLinkedSubstancesForEvent(ev, ctx = {}) {
   if (instant) {
     for (const s of substances) {
       if (s.date !== ev.date || !s.time) continue;
+      const owner = substanceOwnerEventId(s, sessionEvents);
+      if (owner && owner !== ev.id) continue;
       if (trimTime(s.time) === startStr) add(s);
     }
   } else {
     if (end <= start) end = start + Math.max(eventDurationMin(ev), 5);
-    const pad = 10;
+    const pad = 5;
     for (const s of substances) {
       if (s.date !== ev.date || !s.time) continue;
+      const owner = substanceOwnerEventId(s, sessionEvents);
+      if (owner) {
+        if (owner === ev.id) add(s);
+        continue;
+      }
       const t = timeToMin(s.time);
       if (t >= start - pad && t <= end + pad) add(s);
     }
@@ -179,7 +195,11 @@ export function findLinkedSubstancesForEvent(ev, ctx = {}) {
       ) {
         continue;
       }
-      add(substances.find((s) => s.id === e.substance_id));
+      const s = substances.find((x) => x.id === e.substance_id);
+      if (!s) continue;
+      const owner = substanceOwnerEventId(s, sessionEvents);
+      if (owner && owner !== ev.id) continue;
+      add(s);
     }
   }
 

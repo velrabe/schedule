@@ -362,9 +362,22 @@ function App(props = {}) {
     setEditorStack((prev) => (prev.length <= 1 ? [] : prev.slice(0, -1)));
   }, []);
 
-  const navigateEditorStack = useCallback((index) => {
-    setEditorStack((prev) => prev.slice(0, index + 1));
-  }, []);
+  const navigateEditorStack = useCallback(
+    (index) => {
+      setEditorStack((prev) => {
+        const item = prev[index];
+        if (!item) return prev.slice(0, index + 1);
+        const resolved = resolveEditorTarget(item);
+        if (!resolved) return prev.slice(0, index + 1);
+        const key = (t) => (t?.record?.id ? `${t.kind}:${t.record.id}` : "");
+        if (key(resolved) !== key(item)) {
+          return resolveCanonicalDrawerStack(resolved, drawerNavCtx);
+        }
+        return prev.slice(0, index + 1);
+      });
+    },
+    [resolveEditorTarget, drawerNavCtx],
+  );
 
   const closeRecordEditor = useCallback(() => setEditorStack([]), []);
 

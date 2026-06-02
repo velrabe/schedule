@@ -1,11 +1,51 @@
 /** Canonical drawer stack: session → session_event → leaf (finance / meal / activity / substance). */
 
 import { findFoodSessionForMeal } from "./mergeNutrition.js";
+import { parseAtomLinkFromNotes } from "./atomAttach.js";
 import { mapSessionEventForDrawer } from "./recordDisplay.js";
 
 function trimTime(t) {
   if (!t) return "";
   return String(t).slice(0, 5);
+}
+
+function timeToMin(t) {
+  const [h, m] = trimTime(t).split(":").map(Number);
+  return (h || 0) * 60 + (m || 0);
+}
+
+export function isSubstanceMirrorEvent(ev) {
+  return (ev?.kind || "").toLowerCase() === "substance" && Boolean(ev?.substance_id);
+}
+
+/** Real diary atom for a substance row (not the instant mirror). */
+export function findParentEventForSubstance(sub, sessionEvents = []) {
+  const noteId = parseAtomLinkFromNotes(sub?.notes);
+  if (noteId) {
+    const byNote = sessionEvents.find((e) => e.id === noteId);
+    if (byNote) return byNote;
+  }
+  const linked = sessionEvents.filter((e) => e.substance_id === sub?.id);
+  return (
+    linked.find((e) => (e.kind || "").toLowerCase() !== "substance") ||
+    linked[0] ||
+    null
+  );
+}
+
+export function findSessionCoveringSubstance(sub, sessions = []) {
+  if (!sub?.date || !sub?.time) return null;
+  const t = timeToMin(sub.time);
+  for (const s of sessions) {
+    if (s.date !== sub.date) continue;
+    const start = timeToMin(s.start ?? s.start_time);
+    let end = timeToMin(s.end ?? s.end_time);
+    if (end <= start) end += 24 * 60;
+    let tm = t;
+    if (tm < start - 12 * 60) tm += 24 * 60;
+    if (tm >= start - 5 && tm <= end + 5) return s;
+  }
+  return null;
 }
 
 export function mapSessionForDrawer(s) {
@@ -86,10 +126,17 @@ export function resolveCanonicalDrawerStack(target, ctx = {}) {
       ? sessions.find((s) => s.id === event.session_id) || null
       : null;
   } else if (kind === "substance") {
-    event = sessionEvents.find((e) => e.substance_id === record.id) || null;
-    session = event
-      ? sessions.find((s) => s.id === event.session_id) || null
-      : null;
+    event = findParentEventForSubstance(record, sessionEvents);
+    if (event && isSubstanceMirrorEvent(event)) {
+      const noteId = parseAtomLinkFromNotes(record.notes);
+      event = noteId
+        ? sessionEvents.find((e) => e.id === noteId) || null
+        : null;
+    }
+    session =
+      (event?.session_id && sessions.find((s) => s.id === event.session_id)) ||
+      findSessionCoveringSubstance(record, sessions) ||
+      null;
   } else {
     return [target];
   }
@@ -98,7 +145,7 @@ export function resolveCanonicalDrawerStack(target, ctx = {}) {
   if (session) {
     stack.push({ kind: "session", record: mapSessionForDrawer(session) });
   }
-  if (event) {
+  if (event && !isSubstanceMirrorEvent(event)) {
     stack.push({ kind: "session_event", record: mapSessionEventForDrawer(event) });
   }
   if (kind !== "session" && kind !== "session_event") {

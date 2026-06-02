@@ -37,7 +37,12 @@ export function expensesForSessionEvent(eventId, finance = []) {
 export function childEventsForSession(sessionId, sessionEvents = []) {
   if (!sessionId) return [];
   return sessionEvents
-    .filter((e) => e.session_id === sessionId && !e.substance_id)
+    .filter(
+      (e) =>
+        e.session_id === sessionId &&
+        !e.substance_id &&
+        (e.kind || "").toLowerCase() !== "substance",
+    )
     .sort((a, b) => String(a.start_time || "").localeCompare(String(b.start_time || "")));
 }
 
@@ -92,6 +97,10 @@ export function linkedEventLabel(
   substances = [],
 ) {
   if (!event) return "—";
+  if ((event.kind || "").toLowerCase() === "substance" && event.substance_id) {
+    const sub = substances.find((s) => s.id === event.substance_id);
+    if (sub) return substanceRowLabel(sub);
+  }
   if (event.substance_id) {
     const sub = substances.find((s) => s.id === event.substance_id);
     if (sub) return substanceRowLabel(sub);
