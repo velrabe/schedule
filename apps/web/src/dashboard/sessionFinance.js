@@ -7,6 +7,7 @@ import {
   isFoodOrderLikeEvent,
   isMealPhaseFoodEvent,
 } from "./sessionEventLinks.js";
+import { substanceRowLabel } from "./substanceSession.js";
 
 function isFoodAtom(event) {
   if (!event) return false;
@@ -83,8 +84,18 @@ function shortenTitle(title, max = 72) {
 }
 
 /** Short label for UI (breadcrumbs, bundle parts) — meal.name only on food atoms, not chill/work siblings. */
-export function linkedEventLabel(event, finance = [], meals = [], sessionEvents = []) {
+export function linkedEventLabel(
+  event,
+  finance = [],
+  meals = [],
+  sessionEvents = [],
+  substances = [],
+) {
   if (!event) return "—";
+  if (event.substance_id) {
+    const sub = substances.find((s) => s.id === event.substance_id);
+    if (sub) return substanceRowLabel(sub);
+  }
   if (isFoodAtom(event)) {
     const linkedMeal = findMealForEvent(event, { meals, sessionEvents });
     if (linkedMeal?.name) return String(linkedMeal.name).trim();

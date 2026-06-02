@@ -8,6 +8,7 @@ import {
 } from "./sessionDisplay.js";
 import { fmtExpenseShort, financeHumanLabel } from "./sessionFinance.js";
 import { isSportSessionCategory } from "./nutritionKcal.js";
+import { sportHoursFactual } from "./sportDuration.js";
 
 export function substancesForDate(date, substances = []) {
   return substances
@@ -85,6 +86,7 @@ export function buildCalendarDayInsights({
   date,
   day,
   sessions = [],
+  sessionEvents = [],
   meals = [],
   activities = [],
   substances = [],
@@ -116,8 +118,19 @@ export function buildCalendarDayInsights({
   const focusLine = focusWorkInsightLine(date, sessions);
   if (focusLine) lines.push(focusLine);
 
-  const sh = fmtH(agg.sport_h);
-  if (sh) lines.push({ key: "sport", label: `спорт ${sh}` });
+  const factualSportH = sportHoursFactual(date, activities, sessionEvents);
+  const phaseSportH = agg.sport_h;
+  const sportH = factualSportH > 0 ? factualSportH : phaseSportH;
+  const sh = fmtH(sportH);
+  if (sh) {
+    const hint =
+      factualSportH > 0 && phaseSportH > factualSportH + 0.1
+        ? `фазы в дневнике ${fmtH(phaseSportH)}`
+        : factualSportH <= 0 && phaseSportH > 0
+          ? "по фазам сессии"
+          : undefined;
+    lines.push({ key: "sport", label: `спорт ${sh}`, hint });
+  }
 
   const ch = fmtH(agg.chill_h);
   if (ch && agg.chill_h >= 1) lines.push({ key: "chill", label: `chill ${ch}` });

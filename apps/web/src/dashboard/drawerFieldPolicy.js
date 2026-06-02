@@ -140,26 +140,28 @@ export function sessionEventDrawerPolicy(ev, ctx = {}) {
     });
   }
 
-  if (activity && isSportSessionEvent(ev)) {
+  if (isSportSessionEvent(ev)) {
     hideFields.add("sport_type");
     hideFields.add("calories_burned");
     hideFields.add("distance_km");
     hideFields.add("pace");
     hideFields.add("activity_id");
-    const m = metricsFromActivity(activity);
-    const parts = [];
-    if (m.calories_burned != null) parts.push(`${m.calories_burned} ккал`);
-    if (m.distance_km != null) parts.push(`${m.distance_km} км`);
-    if (m.pace) parts.push(m.pace);
-    readonlyRows.push({
-      key: "activity",
-      label: "активность",
-      value: activityLinkLabel(activity),
-      detail: parts.join(" · "),
-      linkKind: "activity",
-      linkRecord: activity,
-      linkText: activityLinkLabel(activity),
-    });
+    if (activity) {
+      const m = metricsFromActivity(activity);
+      const parts = [];
+      if (m.calories_burned != null) parts.push(`${m.calories_burned} ккал`);
+      if (m.distance_km != null) parts.push(`${m.distance_km} км`);
+      if (m.pace) parts.push(m.pace);
+      readonlyRows.push({
+        key: "activity",
+        label: "активность",
+        value: activityLinkLabel(activity),
+        detail: parts.join(" · "),
+        linkKind: "activity",
+        linkRecord: activity,
+        linkText: activityLinkLabel(activity),
+      });
+    }
   }
 
   const instant =
@@ -175,6 +177,7 @@ export function sessionEventDrawerPolicy(ev, ctx = {}) {
     !meal &&
     !ev.meal_id &&
     (isFoodLikeEvent(ev) || isFoodOrderLikeEvent(ev));
+  const canAddActivity = isSportSessionEvent(ev) && !activity;
 
   return {
     expenseMode,
@@ -185,6 +188,7 @@ export function sessionEventDrawerPolicy(ev, ctx = {}) {
     canEditExpenseInline,
     canAddSubstance,
     canAddMeal,
+    canAddActivity,
     instant,
     meal,
     substance,

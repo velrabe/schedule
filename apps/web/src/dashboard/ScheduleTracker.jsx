@@ -1998,6 +1998,7 @@ function CalendarDayDetail({
         date,
         day,
         sessions,
+        sessionEvents,
         meals: mealsWithData,
         activities: activitiesList,
         substances,
@@ -2005,7 +2006,7 @@ function CalendarDayDetail({
         kcalOut,
         kcalTarget: NUTRITION_TARGET.kcal,
       }),
-    [date, day, sessions, mealsWithData, activitiesList, substances, kcalIn, kcalOut],
+    [date, day, sessions, sessionEvents, mealsWithData, activitiesList, substances, kcalIn, kcalOut],
   );
 
   const patchDay = useCallback(

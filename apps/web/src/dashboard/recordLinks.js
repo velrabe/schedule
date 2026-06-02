@@ -33,6 +33,8 @@ export function targetLabel(kind, record, ctx = {}) {
       mapSessionEventForDrawer(record),
       finance,
       meals,
+      sessionEvents,
+      ctx.substances || [],
     );
   }
   if (kind === "finance") {

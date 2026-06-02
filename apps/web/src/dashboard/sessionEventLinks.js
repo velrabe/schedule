@@ -120,7 +120,8 @@ export function findMealForEvent(ev, ctx = {}) {
 }
 
 /**
- * Substances linked to this atom: explicit atom:note, same-time dose, or substance_id on event.
+ * Substances linked to this atom only — not all doses on the day.
+ * explicit atom:note, substance_id on event, same instant time, or sibling in same session phase.
  */
 export function findLinkedSubstancesForEvent(ev, ctx = {}) {
   const { substances = [], sessionEvents = [] } = ctx;
@@ -143,19 +144,43 @@ export function findLinkedSubstancesForEvent(ev, ctx = {}) {
     if (parseAtomLinkFromNotes(s.notes) === ev.id) add(s);
   }
 
+  const startStr = trimTime(ev.start_time || ev.start);
+  const endStr = trimTime(ev.end_time || ev.end);
   const start = timeToMin(ev.start_time || ev.start);
   let end = timeToMin(ev.end_time || ev.end);
-  if (end <= start) end = start + Math.max(eventDurationMin(ev), 5);
+  const instant =
+    Boolean(ev.is_instant) ||
+    ev.kind === "wake" ||
+    ev.kind === "substance" ||
+    (startStr && (!endStr || startStr === endStr));
 
-  for (const s of substances) {
-    if (s.date !== ev.date || !s.time) continue;
-    const t = timeToMin(s.time);
-    if (t >= start - 10 && t <= end + 10) add(s);
+  if (instant) {
+    for (const s of substances) {
+      if (s.date !== ev.date || !s.time) continue;
+      if (trimTime(s.time) === startStr) add(s);
+    }
+  } else {
+    if (end <= start) end = start + Math.max(eventDurationMin(ev), 5);
+    const pad = 10;
+    for (const s of substances) {
+      if (s.date !== ev.date || !s.time) continue;
+      const t = timeToMin(s.time);
+      if (t >= start - pad && t <= end + pad) add(s);
+    }
   }
 
-  for (const e of sessionEvents) {
-    if (e.id === ev.id || e.session_id !== ev.session_id || !e.substance_id) continue;
-    add(substances.find((s) => s.id === e.substance_id));
+  if (ev.session_id) {
+    for (const e of sessionEvents) {
+      if (
+        e.date !== ev.date ||
+        e.id === ev.id ||
+        e.session_id !== ev.session_id ||
+        !e.substance_id
+      ) {
+        continue;
+      }
+      add(substances.find((s) => s.id === e.substance_id));
+    }
   }
 
   return out.sort((a, b) => String(a.time || "").localeCompare(String(b.time || "")));
@@ -218,8 +243,17 @@ function pickNearestExpense(ev, candidates) {
   return scored[0]?.txn || null;
 }
 
+function expenseCandidatesForEvent(ev, all) {
+  return all.filter((c) => {
+    const ownerId = c.txn?.session_event_id;
+    if (!ownerId) return true;
+    return ownerId === ev.id;
+  });
+}
+
 /**
  * Expense on this event, or sibling food/sport atom in the same session phase.
+ * Never show a txn already pinned to another atom via session_event_id.
  */
 export function findLinkedExpenseForEvent(ev, ctx = {}) {
   const { finance = [], sessionEvents = [] } = ctx;
@@ -229,7 +263,8 @@ export function findLinkedExpenseForEvent(ev, ctx = {}) {
   const sessionId = ev.session_id;
   if (!sessionId) return null;
 
-  const all = collectSessionExpenses(sessionId, finance, sessionEvents);
+  const all = expenseCandidatesForEvent(ev, collectSessionExpenses(sessionId, finance, sessionEvents));
+  if (!all.length) return null;
 
   if (isSportSessionEvent(ev)) {
     const sportPool = all.filter(

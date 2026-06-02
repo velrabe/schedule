@@ -41,10 +41,13 @@ import { mapSessionEventForDrawer, sessionEventDisplayLabel } from "./recordDisp
 import {
   defaultSubstanceAttachForm,
   defaultMealAttachForm,
+  defaultActivityAttachForm,
   attachSubstanceToAtom,
   attachMealToAtom,
+  attachActivityToAtom,
   SUBSTANCE_ATTACH_FIELDS,
   MEAL_ATTACH_FIELDS,
+  ACTIVITY_ATTACH_FIELDS,
 } from "./atomAttach.js";
 
 const html = htm.bind(h);
@@ -166,8 +169,10 @@ export default function RecordEditDrawer({
   const [expenseExpanded, setExpenseExpanded] = useState(false);
   const [substanceExpanded, setSubstanceExpanded] = useState(false);
   const [mealExpanded, setMealExpanded] = useState(false);
+  const [activityExpanded, setActivityExpanded] = useState(false);
   const [substanceAttachForm, setSubstanceAttachForm] = useState({});
   const [mealAttachForm, setMealAttachForm] = useState({});
+  const [activityAttachForm, setActivityAttachForm] = useState({});
   const [attachBusy, setAttachBusy] = useState(false);
 
   const meta = current ? getRecordEditorMeta(current.kind) : null;
@@ -228,12 +233,15 @@ export default function RecordEditDrawer({
         setExpenseExpanded(false);
         setSubstanceExpanded(false);
         setMealExpanded(false);
+        setActivityExpanded(false);
         setSubstanceAttachForm(defaultSubstanceAttachForm(current.record));
         setMealAttachForm(defaultMealAttachForm(current.record));
+        setActivityAttachForm(defaultActivityAttachForm(current.record));
       } else {
         setExpenseExpanded(Boolean(linkedExpense));
         setSubstanceExpanded(false);
         setMealExpanded(false);
+        setActivityExpanded(false);
       }
     } else setForm({});
   }, [current?.kind, current?.record?.id, linkedExpense?.id, linkedSession?.id, linkedSession?.start, activities, finance, ctx, sessionEvents]);
@@ -244,6 +252,10 @@ export default function RecordEditDrawer({
 
   const setMealAttachField = useCallback((key, value) => {
     setMealAttachForm((prev) => ({ ...prev, [key]: value }));
+  }, []);
+
+  const setActivityAttachField = useCallback((key, value) => {
+    setActivityAttachForm((prev) => ({ ...prev, [key]: value }));
   }, []);
 
   const onAttachSubstance = async () => {
@@ -265,6 +277,19 @@ export default function RecordEditDrawer({
     try {
       await attachMealToAtom(current.record, mealAttachForm);
       setMealExpanded(false);
+    } catch (e) {
+      alert(e?.message || String(e));
+    } finally {
+      setAttachBusy(false);
+    }
+  };
+
+  const onAttachActivity = async () => {
+    if (!current?.record?.id || !liveMode) return;
+    setAttachBusy(true);
+    try {
+      await attachActivityToAtom(current.record, activityAttachForm);
+      setActivityExpanded(false);
     } catch (e) {
       alert(e?.message || String(e));
     } finally {
@@ -414,6 +439,7 @@ export default function RecordEditDrawer({
         finance,
         ctx.meals || [],
         sessionEvents,
+        ctx.substances || [],
       );
     }
     return meta.subtitle(current.record);
@@ -584,6 +610,41 @@ export default function RecordEditDrawer({
                   </button>
                   <button type="button" class="btn btn--ghost btn--sm" disabled=${busy}
                     onClick=${() => setMealExpanded(false)}>
+                    <span class="btn__text-wrap">отмена</span>
+                  </button>
+                </div>
+              </div>
+            `}
+            ${current?.kind === "session_event" && eventPolicy?.canAddActivity && !activityExpanded && html`
+              <button type="button" class="btn btn--ghost btn--block session-bundle-add-expense-btn"
+                disabled=${!liveMode || busy} onClick=${() => setActivityExpanded(true)}>
+                <span class="btn__text-wrap">добавить активность</span>
+              </button>
+            `}
+            ${current?.kind === "session_event" && eventPolicy?.canAddActivity && activityExpanded && html`
+              <div class="record-drawer-attach-wrap">
+                <div class="record-drawer-section-wrap">
+                  <span class="record-drawer-section-title">активность · метрики</span>
+                  <span class="record-drawer-section-hint">activities в БД + activity_id на атом · ккал/км там</span>
+                </div>
+                ${ACTIVITY_ATTACH_FIELDS.map(
+                  (field) => html`
+                    <${FieldInput}
+                      key=${`act-attach-${field.key}`}
+                      field=${field}
+                      value=${activityAttachForm[field.key]}
+                      onChange=${setActivityAttachField}
+                      disabled=${!liveMode || busy}
+                    />
+                  `,
+                )}
+                <div class="record-drawer-attach-actions-wrap">
+                  <button type="button" class="btn btn--primary btn--sm" disabled=${!liveMode || busy}
+                    onClick=${onAttachActivity}>
+                    <span class="btn__text-wrap">сохранить активность</span>
+                  </button>
+                  <button type="button" class="btn btn--ghost btn--sm" disabled=${busy}
+                    onClick=${() => setActivityExpanded(false)}>
                     <span class="btn__text-wrap">отмена</span>
                   </button>
                 </div>

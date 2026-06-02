@@ -104,6 +104,67 @@ export const MEAL_ATTACH_FIELDS = [
   { key: "expense_notes", label: "заметки расхода", type: "textarea", optional: true },
 ];
 
+export function defaultActivityAttachForm(ev) {
+  const cat = (ev.category || "").replace(/^sport_/, "");
+  const dur = ev.duration_min != null ? Number(ev.duration_min) : null;
+  let duration_min = "";
+  if (Number.isFinite(dur) && dur > 0) {
+    duration_min = dur;
+  } else if (ev.start_time && ev.end_time) {
+    const [sh, sm] = String(ev.start_time).slice(0, 5).split(":").map(Number);
+    const [eh, em] = String(ev.end_time).slice(0, 5).split(":").map(Number);
+    const span = (eh * 60 + em) - (sh * 60 + sm);
+    if (span > 0) duration_min = span;
+  }
+  return {
+    date: ev.date || "",
+    time: trimTime(ev.start_time || ev.start) || "",
+    type: ev.sport_type || cat || "sport",
+    duration_min,
+    calories_burned: ev.calories_burned ?? "",
+    distance_km: ev.distance_km ?? "",
+    pace: ev.pace || "",
+    source: "manual",
+  };
+}
+
+export const ACTIVITY_ATTACH_FIELDS = [
+  { key: "date", label: "дата", type: "date" },
+  { key: "time", label: "время", type: "time" },
+  { key: "type", label: "тип", type: "text" },
+  { key: "duration_min", label: "длительность, мин", type: "number" },
+  { key: "calories_burned", label: "ккал", type: "number", optional: true },
+  { key: "distance_km", label: "дистанция, км", type: "number", optional: true },
+  { key: "pace", label: "темп", type: "text", optional: true },
+  { key: "source", label: "источник", type: "text", optional: true },
+];
+
+export async function attachActivityToAtom(event, form) {
+  const { insertRow, notifyDataChanged } = await import("../api/manual");
+  const num = (k) => {
+    const v = form[k];
+    if (v === "" || v == null) return null;
+    const n = Number(v);
+    return Number.isFinite(n) ? n : null;
+  };
+  const res = await insertRow("activities", {
+    date: form.date,
+    time: form.time || null,
+    type: form.type || "sport",
+    duration_min: num("duration_min"),
+    calories_burned: num("calories_burned"),
+    distance_km: num("distance_km"),
+    pace: form.pace || null,
+    source: form.source || "manual",
+    notes: atomLinkNote(event.id),
+  });
+  const activityId = res?.row?.id;
+  if (!activityId) throw new Error("activity_insert_failed");
+  await manualPatch("session_events", event.id, { activity_id: activityId });
+  notifyDataChanged();
+  return activityId;
+}
+
 export async function attachMealToAtom(event, form) {
   const { insertRow, notifyDataChanged } = await import("../api/manual");
   const num = (k) => {
