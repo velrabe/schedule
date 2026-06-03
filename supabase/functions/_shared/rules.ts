@@ -4,13 +4,54 @@
 const DATA_MODEL = `
 # data model & linking (chat + agent + manual — ALWAYS follow)
 
+## Logical event model (READ FIRST — /agent, Codex, /chat)
+
+**How to work (interface):** Read this section + AGENTS.md scenario table + plan templates. To **write**: build \`actions[]\` for \`/agent\` or rows for \`/manual\`. Use **one** \`get-day YYYY-MM-DD\` when you need existing UUIDs for a patch — **do not** crawl the database with many \`/data\` \`get\` calls across tables to reverse-engineer schema or «what is in each column» unless the user explicitly asked for an audit or inventory.
+
+### Events (\`session_events\` — atoms)
+
+1. **Start time is set** → that row is an event (diary atom).
+2. **No end time** (and no meaningful duration) → treat as **instant** by default (wake, pill, «marked a fact»). Use \`instant: true\` or \`kind\` wake|substance or omit \`end_time\` — server sets \`end_time = start_time\`, \`is_instant\`.
+3. **End time is set** (or explicit \`duration_min\`) → **durational** event.
+
+### Attachments on an atom
+
+One atom may carry: **expense** (inline in bundle or \`create_finance_transaction\` with \`session_event_id\`), **meal** (\`create_meal\` + food rules below), **activity** (\`create_activity\` + link), **substance dose** (\`create_substance\` with \`time\` in the same window as the atom the user meant).
+
+### Parents (no orphan money / food / dose by intent)
+
+Every **expense**, **meal**, **day-meaningful activity**, and **substance dose** has a **parent atom** in the user story: link money to that atom's \`session_event_id\` when the user tied cost to an action. Substances: always \`create_substance\` row + time; never replace that with «scooby» text in session \`project\` only.
+
+### Meals
+
+Always **slot** (breakfast | lunch | dinner | snack) + **macros (KBJU)** when the user gave them. **Transaction:** if there was a paid order, attach txn to the food atom; if user clearly said free / home / no receipt — state once that there is no txn; if unclear — **ask**.
+
+### Sessions (phases)
+
+All atoms for the day belong inside **sessions** (non-overlapping phases: wake, breakfast, work, lunch+chill, sport, …). See **Day phases** below. For a **full day write**, do not leave atoms with \`session_id: null\` — put them in \`create_session_bundle\`.
+
+### Notes
+
+\`notes\` / free text: **extra context only** — do not duplicate merchant, amount, currency, or macros that already live in \`finance_transactions\` / \`meals\`.
+
+### Worked example — one morning phase (June 3)
+
+Day line like «3 June (0mg)» = date + moda for the day; if user took moda → \`create_substance\` moda with time.
+
+- **Session** «morning, wake»: envelope from \`min(start)\` of its atoms until the next session starts.
+- **10:00–11:00** — one durational atom «wake, weigh-in» **or** split: instant «got up» + durational weigh-in / morning routine — do not assign absurd duration to «weighing» alone without narrative.
+- **11:00–11:30 breakfast**: food atom; \`create_meal\` + slot breakfast + KBJU + dish names; Grab expense → txn with merchant Grab, order detail in txn \`notes\`; coffee → \`create_substance\` caffeine with time inside breakfast window.
+- **11:30–12:20 chill**: durational atom; scooby → \`create_substance\`; Sber→VCB transfer → \`create_finance_transaction\` \`txn_type: transfer\` with \`account\`, \`counter_account\`, amounts; attach to the chill atom if the story ties money to that window, else ask once.
+
+**This block is extended over time** — entity tables below add detail; on conflict, **this section wins** over stray one-liners elsewhere.
+
 ## Entities (do not confuse)
 
 | Entity | Table | Role |
 |--------|-------|------|
 | Day meta | days | wake/sleep, modafinil_mg (from moda rows), mood, day_type |
 | Diary block | sessions | **one line in the daily schedule** ("болдеринг", "работа app", "завтрак") — envelope times roll up from children |
-| Atomic part | session_events | taxi, gym, snack, wake, substance, … — **building block**; optional session_id parent; each may have its own expense |
+| Atomic part | session_events | taxi, gym, snack, wake, substance, … — **building block**; **session_id** points at parent phase session; each may have its own expense |
 | Substance dose | substances | moda, scooby, caffeine, alcohol, weed — **fact row**; server mirrors instant session_event (kind=substance); **time required** for frequency analysis |
 | Nutrition row | meals | KBJU + name; 1:1 with a food session (session_id) |
 | Sport aggregate | activities | optional extra row (distance, kcal burned, source) parallel to sport **session_event** / session |
@@ -34,7 +75,7 @@ const DATA_MODEL = `
    - Do not put "Grab к барберу" in event title if notes already say "такси к барберу".
 6. **Finance plan:** finance_planned_items OR events.budget_* OR session_events.planned_* fields — not fact until paid.
 7. **Events vs planner:** visa / vizaran → events. "Поздравить с ДР" без денег → planner_events + optional session "поздравить …" with session_event kind=reminder, no expense. Gift with sum → session_event + expense or planned line.
-8. **Unattached events:** session_events with session_id=null allowed (orphan atomic rows); attach later via update.
+8. **Atoms under a phase:** for a full day by phases, every atom sits inside a session via \`create_session_bundle\` (session_id set on children). \`session_id: null\` on an atom is only an edge attach-later path — **not** the target model for Codex rebuilds.
 
 ## Past vs future money
 
@@ -72,7 +113,7 @@ User mental model: day = ordered **phases**, each phase = one session envelope +
 - **Dedicated meal phase** (завтрак / обед / ужин block) → food session OR bundle with kind=food event + create_meal for macros.
 - **Snack/lunch order during work** → kind=food or chore event **inside** work phase bundle, expense on that event; optional create_meal linked via session_id of work session only if macros given — do NOT spawn overlapping food session.
 
-**Substances:** create_substance (scooby/moda/caffeine) for analytics + optional mention in phase event title; parallel instant session_event from server is OK (session_id=null).
+**Substances:** \`create_substance\` (scooby/moda/caffeine) for analytics; time must match the parent atom the user described. Server may mirror an instant timeline row — logical parent is still that phase atom (see Logical event model).
 
 **Categories:** phase session category = dominant activity (work_paid, chill, food, sport_*, chores). Mixed phases use best-fit + descriptive project string.
 
@@ -91,10 +132,11 @@ Target: **~10–15 sessions/day** (фазы), not ~20 micro work rows. Этал�
 - "Concrete" = real column names and values for the target table (see action type), never empty {}.
 - Almost always include "date" (ISO YYYY-MM-DD). Times as HH:MM or HH:MM:SS.
 - **create_session_bundle** { date, type?, category?, title|project?, notes?, events[] } — each event: start_time, end_time?, kind, category?, title?, sport_type?, distance_km?, calories_burned?, pace?, instant?, expense?: { … } }
-- **create_session_event** — same fields as one element of events[]; session_id optional (null = unattached).
+- **create_session_event** — same fields as one element of events[]; **prefer** \`session_id\` set (atom inside a phase). \`session_id: null\` only for rare attach-later — not for full-day Codex writes.
 
 ## Instant vs duration (session_events)
 
+See **Logical event model (READ FIRST)** above for the decision tree. Details:
 - **Instant** (проснулся, moda, scooby, кофе, покурил): one timestamp only — start_time required; omit end_time OR instant:true OR kind wake|substance. Server sets end_time=start_time, duration_min=0, is_instant=true. **Never** invent 5-minute windows for wake/substance.
 - **Duration** (зал 90 мин, работа, сон-блок): start_time + end_time (or duration_min > 0).
 - **Substances:** always create_substance { date, time?, name, amount?, unit? } — writes substances + auto instant session_event (kind=substance). Optionally group in morning create_session_bundle with wake instant event + separate create_substance actions.
@@ -118,6 +160,7 @@ const GLOBAL = `
 - If critical ambiguity (мамаду/лемоно project, unknown account for past expense) → ask_clarification for chat; for agent API prefer one clear question to user before writing.
 - ask_clarification is NOT a database write. Never the ONLY action when user gave concrete times/macros/fix — emit create_session / update_session / create_meal instead.
 - Multi-part messages → all actions in one actions[] array.
+- **Do not** use many \`/data\` \`get\` table sweeps to infer how to write — use \`rules.ts\` \`data_model\` + one \`get-day\` when ids are needed (see Logical event model READ FIRST).
 - Chat: never write without user confirm UNLESS AUTO-ALLOW below. Agent/manual: user already delegated write — still follow DATA MODEL linking.
 
 AUTO-ALLOW (chat needs_confirmation=false only):
@@ -380,8 +423,8 @@ Scooby (name=scooby):
 - "перед обедом был скуби" → time = shortly before lunch (e.g. 10–20 min before lunch session start_time from context); if lunch unknown, ask once OR use stated clock time
 - "второй скуби за день" → second row same date, different time — never bump amount on an old row
 - Do not log scooby without time (infer from "сейчас" = now if user just took it)
-- **NEVER** put scooby in create_session_bundle events[] or as a child of chill/work — it is a parallel instant marker (session_id=null on mirrored session_event). User opens it in drawer as kind=substance, not inside «чилл».
-- **NEVER** write «скуби» / scooby in session project, title, or notes («тупняк, скуби») — only create_substance; server extracts text mentions but agents must not rely on it.
+- **NEVER** fake scooby as a \`kind=substance\` row inside \`events[]\` — use \`create_substance\` with \`time\` aligned to the real chill/work/breakfast atom the user meant (same clock window). Do not use session \`project\` as the only dose log.
+- **NEVER** write «скуби» / scooby in session project, title, or notes instead of \`create_substance\`; server may strip text mentions but agents must not rely on that.
 
 Caffeine:
 - "кофе", "эспрессо", "латте", "капучино", "американо", "чашку кофе" → name=caffeine, amount=1, unit=cup

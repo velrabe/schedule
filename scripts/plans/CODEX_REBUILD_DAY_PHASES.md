@@ -8,7 +8,7 @@ node scripts/codex-check.mjs
 node scripts/schedule-api.mjs login   # только если 401
 ```
 
-Читать: `AGENTS.md` (таблица сценариев) → `rules.ts` (`data_model`: Day phases + Patch vs full rebuild) → `day-phases-model.md`.
+Читать: `AGENTS.md` → **`rules.ts`** (`data_model`: **Logical event model READ FIRST** → Day phases → Patch vs full rebuild) → `day-phases-model.md`.
 
 ## Задача
 

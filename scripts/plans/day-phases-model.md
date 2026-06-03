@@ -1,5 +1,7 @@
 # Модель «фазы дня» (эталон для агента)
 
+Краткая логика ивентов / родителей / `get-day` vs обход БД — в [`rules.ts`](../../supabase/functions/_shared/rules.ts) → `data_model` → **Logical event model (READ FIRST)**.
+
 Сессия = **непересекающийся** блок. Внутри — `session_events[]` с реальным временем каждого атома.
 
 ## Пример: 2026-06-01

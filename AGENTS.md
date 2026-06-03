@@ -10,9 +10,23 @@
 | Сдвинуть блок, КБЖУ, +scooby, одна правка | Fast path ниже | `update_session` / `apply-manual` / ≤3 `manual` |
 | Только склейка соседних work (gap ≤20 мин) | [`FOCUS_MERGE_FOR_CODEX.md`](scripts/plans/FOCUS_MERGE_FOR_CODEX.md) | `audit-focus-day.mjs` — **не** замена пересборки фаз |
 
-Правила домена (связи, фазы, patch vs rebuild): **`supabase/functions/_shared/rules.ts`** → `data_model` (секции **Day phases**, **Patch vs full rebuild**). Отдельного `rules/*.md` нет.
+Правила домена (связи, фазы, patch vs rebuild): **`supabase/functions/_shared/rules.ts`** → `data_model` — **сначала** секция **Logical event model (READ FIRST)**, затем Day phases, Instant vs duration. Отдельного `rules/*.md` нет.
 
-**Модель:** session = **фаза** (непересекающийся блок); `session_events` = атомы внутри; scooby/moda → `create_substance`, не в `project` сессии. Заказ обеда во время работы → event в work-фазе, не параллельная food-session.
+## Логическая модель ивентов (кратко для Codex)
+
+Полный текст и пример 3 июня — в `rules.ts` → `data_model` → **Logical event model (READ FIRST)**. Суть:
+
+1. Есть время старта → это атом (`session_events`).
+2. Нет окончания по смыслу → по умолчанию **моментальный** ивент (факт).
+3. Есть окончание → **продолжительный** ивент.
+4. К атому можно привязать расход, приём пищи, активность, дозу субстанции — у leaf-данных логически есть **родительский атом**; не «угадывать» из БД без запроса.
+5. Приём пищи: слот (завтрак/обед/ужин/снек) + КБЖУ; транзакция при оплате — к ивенту еды; без оплаты / неясно — один раз проговорить или спросить.
+6. Все атомы дня — внутри **сессий-фаз** (`create_session_bundle`), без пересечения фаз.
+7. `notes` / title — только дополнение, не дублировать merchant, суммы, КБЖУ из finance / meals.
+
+**Интерфейс записи:** читай правила → собери `apply` / `apply-manual` → отправь. Для id существующего дня: **один** `get-day YYYY-MM-DD`; не делай серию `get` по всем таблицам, чтобы «восстановить схему» или текущие поля, если пользователь не просил аудит.
+
+**Модель:** session = **фаза** (непересекающийся блок); `session_events` = атомы внутри; scooby/moda/caffeine → `create_substance`, не в `project` сессии. Заказ обеда во время работы → event в work-фазе, не параллельная food-session.
 
 ## Fast path — запись без правок кода
 
@@ -25,7 +39,7 @@ node scripts/schedule-api.mjs apply-manual scripts/plans/….manual.json
 
 | Задача | Инструмент | Избегать |
 |--------|------------|----------|
-| Один день | `get-day` | 5× `get` |
+| Один день | `get-day` | серия `get` по всем таблицам «ради схемы» |
 | Много блоков / фазы | один `apply` | N× `manual` на sessions/events |
 | КБЖУ meals | `apply-manual` `update meals` + `id` | правки `session_events` ради meal |
 | Сдвиг времени | `update_session` с `id` из get-day | `update` без id; delete+recreate **только ради времени** |
@@ -106,7 +120,7 @@ finance_transactions.session_event_id
 
 ## Workflow Codex (кратко)
 
-1. `codex-check` → `get-day`.
+1. `codex-check` → при patch: **один** `get-day` за дату (id из ответа).
 2. По таблице «Выбор сценария» — rebuild **или** patch.
 3. Один `apply` / `apply-manual`; id только из шага 1.
 4. `get-day` для проверки (~10–15 sessions, без overlaps между фазами).
