@@ -4,6 +4,7 @@ import { aggregateDay, dayHasMorningSport, focusWorkInsightLine } from "./insigh
 import { findSessionOverlapPairs, sessionOverlapLabel } from "./sessionDisplay.js";
 import { fmtExpenseShort, financeHumanLabel } from "./sessionFinance.js";
 import { sportHoursFromEvents } from "./sportDuration.js";
+import { isSportSessionCategory } from "./nutritionKcal.js";
 
 export function substancesForDate(date, substances = []) {
   return substances
