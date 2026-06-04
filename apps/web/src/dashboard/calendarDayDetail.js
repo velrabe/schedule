@@ -1,14 +1,9 @@
 /** Calendar day detail: column data + auto insights. */
 
-import { aggregateDay, dayHasMorningSport } from "./insightsCompute.js";
-import {
-  findSessionOverlapPairs,
-  focusWorkInsightLine,
-  sessionOverlapLabel,
-} from "./sessionDisplay.js";
+import { aggregateDay, dayHasMorningSport, focusWorkInsightLine } from "./insightsCompute.js";
+import { findSessionOverlapPairs, sessionOverlapLabel } from "./sessionDisplay.js";
 import { fmtExpenseShort, financeHumanLabel } from "./sessionFinance.js";
-import { isSportSessionCategory } from "./nutritionKcal.js";
-import { sportHoursFactual } from "./sportDuration.js";
+import { sportHoursFromEvents } from "./sportDuration.js";
 
 export function substancesForDate(date, substances = []) {
   return substances
@@ -95,7 +90,7 @@ export function buildCalendarDayInsights({
   kcalTarget = 1800,
 }) {
   const lines = [];
-  const agg = aggregateDay(date, sessions);
+  const agg = aggregateDay(date, sessions, sessionEvents);
 
   lines.push(...kcalGoalLines(kcalIn, kcalOut, kcalTarget));
 
@@ -115,27 +110,17 @@ export function buildCalendarDayInsights({
     });
   }
 
-  const focusLine = focusWorkInsightLine(date, sessions);
+  const focusLine = focusWorkInsightLine(date, sessions, sessionEvents);
   if (focusLine) lines.push(focusLine);
 
-  const factualSportH = sportHoursFactual(date, activities, sessionEvents);
-  const phaseSportH = agg.sport_h;
-  const sportH = factualSportH > 0 ? factualSportH : phaseSportH;
+  const sportH = sportHoursFromEvents(date, sessionEvents);
   const sh = fmtH(sportH);
-  if (sh) {
-    const hint =
-      factualSportH > 0 && phaseSportH > factualSportH + 0.1
-        ? `фазы в дневнике ${fmtH(phaseSportH)}`
-        : factualSportH <= 0 && phaseSportH > 0
-          ? "по фазам сессии"
-          : undefined;
-    lines.push({ key: "sport", label: `спорт ${sh}`, hint });
-  }
+  if (sh) lines.push({ key: "sport", label: `спорт ${sh}` });
 
   const ch = fmtH(agg.chill_h);
   if (ch && agg.chill_h >= 1) lines.push({ key: "chill", label: `chill ${ch}` });
 
-  if (dayHasMorningSport(date, sessions)) {
+  if (dayHasMorningSport(date, sessions, sessionEvents)) {
     lines.push({ key: "morning_sport", label: "утренний спорт" });
   }
 

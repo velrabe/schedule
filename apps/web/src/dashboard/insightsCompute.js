@@ -1,4 +1,6 @@
 import { isSportSessionCategory, dayKcalOut } from "./nutritionKcal.js";
+import { isSportSessionEvent } from "./activityMetrics.js";
+import { partDurationMin, fmtSessionDuration, focusBlocksForDate } from "./sessionDisplay.js";
 import { financeTxnDeltaRub } from "./financeInsights.js";
 
 function timeToMin(t) {
@@ -8,8 +10,38 @@ function timeToMin(t) {
   return h * 60 + m;
 }
 
-export function aggregateDay(date, sessions) {
-  const ds = sessions.filter((s) => s.date === date);
+/**
+ * Map one session_event to hour buckets for day insights (atom-first).
+ * Uses atom kind/category when set; otherwise parent session.category.
+ */
+export function insightBucketForEvent(ev, session) {
+  const k = (ev.kind || "").toLowerCase();
+  const cat = (ev.category || "").toLowerCase();
+  const sc = session ? String(session.category || "").toLowerCase() : "";
+
+  if (ev.is_instant || k === "wake") return null;
+  if (k === "substance" || ev.substance_id) return null;
+
+  if (isSportSessionEvent(ev)) {
+    if (cat === "sport_walk" || cat === "walk" || k === "walk") return "walk";
+    return "sport";
+  }
+  if (k === "food" || cat === "food") return "food";
+  if (k === "chill" || cat === "chill") return "chill";
+  if (k === "social" || cat === "social") return "social";
+
+  if (sc === "work_paid") return "work_paid";
+  if (sc === "personal" || sc === "portfolio") return "personal";
+  if (sc === "byt" || sc === "planning") return "byt";
+  if (sc === "food") return "food";
+  if (sc === "chill") return "chill";
+  if (sc === "social") return "social";
+  if (isSportSessionCategory(sc)) return null;
+
+  return null;
+}
+
+function aggregateDayFromSessionsOnly(date, ds) {
   const sum = (pred) => ds.filter(pred).reduce((a, s) => a + (s.min || 0), 0);
   const work_paid_h = sum((s) => s.category === "work_paid") / 60;
   const personal_h = sum((s) => s.category === "personal" || s.category === "portfolio") / 60;
@@ -37,13 +69,161 @@ export function aggregateDay(date, sessions) {
   };
 }
 
+/** Day hour buckets from session_events (sum of atom durations), else session envelopes. */
+export function aggregateDay(date, sessions, sessionEvents = []) {
+  const ds = sessions.filter((s) => s.date === date);
+  const dayEvts = sessionEvents.filter((e) => e.date === date && e.session_id);
+  if (!dayEvts.length) {
+    return aggregateDayFromSessionsOnly(date, ds);
+  }
+
+  const sessById = new Map(ds.map((s) => [s.id, s]));
+  let work_paid = 0;
+  let personal = 0;
+  let byt = 0;
+  let sport = 0;
+  let walk = 0;
+  let food = 0;
+  let social = 0;
+  let chill = 0;
+
+  for (const ev of dayEvts) {
+    const session = sessById.get(ev.session_id);
+    const bucket = insightBucketForEvent(ev, session);
+    if (!bucket) continue;
+    const dm = partDurationMin(ev);
+    if (dm <= 0) continue;
+    switch (bucket) {
+      case "work_paid":
+        work_paid += dm;
+        break;
+      case "personal":
+        personal += dm;
+        break;
+      case "byt":
+        byt += dm;
+        break;
+      case "sport":
+        sport += dm;
+        break;
+      case "walk":
+        walk += dm;
+        sport += dm;
+        break;
+      case "food":
+        food += dm;
+        break;
+      case "social":
+        social += dm;
+        break;
+      case "chill":
+        chill += dm;
+        break;
+      default:
+        break;
+    }
+  }
+
+  const work_paid_h = work_paid / 60;
+  const personal_h = personal / 60;
+  const byt_h = byt / 60;
+  const business_h = work_paid_h + personal_h + byt_h;
+  const sport_h = sport / 60;
+  const walk_h = walk / 60;
+  const food_h = food / 60;
+  const social_h = social / 60;
+  const chill_h = chill / 60;
+  const tracked_h =
+    work_paid_h + personal_h + byt_h + sport_h + food_h + social_h + chill_h;
+
+  return {
+    work_paid_h,
+    personal_h,
+    byt_h,
+    business_h,
+    sport_h,
+    walk_h,
+    food_h,
+    social_h,
+    chill_h,
+    tracked_h,
+    sessions: ds.length,
+  };
+}
+
+const FOCUS_INSIGHT_BUCKETS = new Set(["work_paid", "personal", "byt"]);
+
+/** Calendar insight: total focus time from work atoms (or session fallback if no events). */
+export function focusWorkInsightLine(date, sessions = [], sessionEvents = []) {
+  const sessById = new Map(sessions.filter((s) => s.date === date).map((s) => [s.id, s]));
+  const dayEvts = sessionEvents.filter((e) => e.date === date && e.session_id);
+
+  let blocks;
+  if (dayEvts.length) {
+    const rows = [];
+    for (const e of dayEvts) {
+      const session = sessById.get(e.session_id);
+      const bucket = insightBucketForEvent(e, session);
+      if (!bucket || !FOCUS_INSIGHT_BUCKETS.has(bucket)) continue;
+      const dm = partDurationMin(e);
+      if (dm <= 0) continue;
+      const proj = `${(e.title || session?.project || session?.category || "").trim()}` || "работа";
+      rows.push({
+        start: String(e.start_time || e.start || "00:00").slice(0, 5),
+        end: String(e.end_time || e.end || "00:00").slice(0, 5),
+        min: dm,
+        project: proj,
+      });
+    }
+    rows.sort((a, b) => String(a.start).localeCompare(String(b.start)));
+    blocks = [];
+    for (const row of rows) {
+      const last = blocks[blocks.length - 1];
+      const gap = last ? timeToMin(row.start) - timeToMin(last.end) : 999;
+      if (last && last.project === row.project && gap >= 0 && gap <= 20) {
+        if (timeToMin(row.end) > timeToMin(last.end)) last.end = row.end;
+        last.min += row.min;
+      } else {
+        blocks.push({
+          project: row.project,
+          start: row.start,
+          end: row.end,
+          min: row.min,
+        });
+      }
+    }
+  } else {
+    blocks = focusBlocksForDate(date, sessions);
+  }
+
+  if (!blocks.length) return null;
+  const totalMin = blocks.reduce((a, b) => a + b.min, 0);
+  if (totalMin < 15) return null;
+  const projects = [...new Set(blocks.map((b) => b.project))];
+  const hint =
+    projects.length === 1
+      ? projects[0]
+      : projects.slice(0, 2).join(", ") + (projects.length > 2 ? "…" : "");
+  return {
+    key: "focus_total",
+    label: `фокус ${fmtSessionDuration(totalMin)}`,
+    hint,
+    tone: totalMin >= 120 ? "ok" : undefined,
+  };
+}
+
 function avg(list, pick) {
   const vals = list.map(pick).filter((v) => v !== null && v !== undefined && !Number.isNaN(v));
   if (!vals.length) return null;
   return vals.reduce((a, b) => a + b, 0) / vals.length;
 }
 
-export function dayHasMorningSport(date, sessions) {
+export function dayHasMorningSport(date, sessions, sessionEvents = []) {
+  const evs = sessionEvents.filter((e) => e.date === date && isSportSessionEvent(e));
+  for (const e of evs) {
+    const t = timeToMin(e.start_time || e.start);
+    if (t >= 0 && t < 12 * 60) return true;
+  }
   return sessions.some(
     (s) =>
       s.date === date && isSportSessionCategory(s.category) && timeToMin(s.start) < 12 * 60,
@@ -68,7 +248,7 @@ export function buildInsightsModel({
 }) {
   const sorted = [...days].sort((a, b) => a.date.localeCompare(b.date));
   const enriched = sorted.map((d) => {
-    const agg = aggregateDay(d.date, sessions);
+    const agg = aggregateDay(d.date, sessions, sessionEvents);
     const kcalIn = meals
       .filter((m) => m.date === d.date)
       .reduce((s, m) => s + (Number(m.kcal) || 0), 0);
@@ -76,7 +256,7 @@ export function buildInsightsModel({
     return {
       ...d,
       ...agg,
-      morningSport: dayHasMorningSport(d.date, sessions),
+      morningSport: dayHasMorningSport(d.date, sessions, sessionEvents),
       kcalIn,
       kcalOut,
       kcalBalance: kcalIn > 0 || kcalOut > 0 ? kcalIn - kcalOut : null,
@@ -115,20 +295,28 @@ export function buildInsightsModel({
   ].filter((r) => r.h > 0.05);
 
   const sportMinutes = {};
-  for (const s of sessions) {
-    if (!isSportSessionCategory(s.category)) continue;
-    const label = sportCategoryLabel(s.category);
-    sportMinutes[label] = (sportMinutes[label] || 0) + (s.min || 0);
+  for (const ev of sessionEvents) {
+    if (!ev.date || !isSportSessionEvent(ev)) continue;
+    const sess = sessions.find((s) => s.id === ev.session_id);
+    const label = sportCategoryLabel(ev.category || sess?.category || "");
+    const dm = partDurationMin(ev);
+    if (dm <= 0) continue;
+    sportMinutes[label] = (sportMinutes[label] || 0) + dm;
   }
   const sportMix = Object.entries(sportMinutes)
     .map(([label, min]) => ({ label, hours: min / 60 }))
     .sort((a, b) => b.hours - a.hours);
 
   const projectMinutes = {};
-  for (const s of sessions) {
-    if (!["work_paid", "personal", "portfolio", "byt", "planning"].includes(s.category)) continue;
-    const key = s.project?.trim() || s.category;
-    projectMinutes[key] = (projectMinutes[key] || 0) + (s.min || 0);
+  for (const ev of sessionEvents) {
+    if (!ev.date || !ev.session_id) continue;
+    const sess = sessions.find((s) => s.id === ev.session_id);
+    const bucket = insightBucketForEvent(ev, sess);
+    if (!bucket || !["work_paid", "personal", "byt"].includes(bucket)) continue;
+    const dm = partDurationMin(ev);
+    if (dm <= 0) continue;
+    const key = (ev.title || sess?.project || sess?.category || "").trim() || bucket;
+    projectMinutes[key] = (projectMinutes[key] || 0) + dm;
   }
   const topProjects = Object.entries(projectMinutes)
     .map(([label, min]) => ({ label, hours: min / 60 }))

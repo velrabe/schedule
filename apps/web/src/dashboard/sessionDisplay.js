@@ -108,7 +108,6 @@ export function businessHourRows(agg) {
   ];
 }
 
-/** One insight line: total focus (work) time for the day, not per block. */
 /** Minutes from wake — 01:00 отбой после 23:00, не «утром». */
 function wakeRelativeMin(start, wake) {
   const s = timeToMin(start);
@@ -143,22 +142,4 @@ export function findSessionOverlapPairs(sessions = [], wake = "06:00") {
 
 export function sessionOverlapLabel(s) {
   return (s.project || "").trim() || String(s.category || "session").replace(/_/g, " ");
-}
-
-export function focusWorkInsightLine(date, sessions = []) {
-  const blocks = focusBlocksForDate(date, sessions);
-  if (!blocks.length) return null;
-  const totalMin = blocks.reduce((a, b) => a + b.min, 0);
-  if (totalMin < 15) return null;
-  const projects = [...new Set(blocks.map((b) => b.project))];
-  const hint =
-    projects.length === 1
-      ? projects[0]
-      : projects.slice(0, 2).join(", ") + (projects.length > 2 ? "…" : "");
-  return {
-    key: "focus_total",
-    label: `фокус ${fmtSessionDuration(totalMin)}`,
-    hint,
-    tone: totalMin >= 120 ? "ok" : undefined,
-  };
 }

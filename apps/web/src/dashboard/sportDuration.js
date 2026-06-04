@@ -1,6 +1,6 @@
 /**
  * Factual sport minutes: activities + sport session_events (deduped).
- * Differs from phase envelope sport_h (whole sport_* sessions on the diary).
+ * Calendar insights «спорт» use sport hours from session_events only — see sportHoursFromEvents.
  */
 
 import { findActivityForEvent, isSportSessionEvent } from "./activityMetrics.js";
@@ -45,4 +45,18 @@ export function sportMinutesFactual(date, activities = [], sessionEvents = []) {
 
 export function sportHoursFactual(date, activities = [], sessionEvents = []) {
   return sportMinutesFactual(date, activities, sessionEvents) / 60;
+}
+
+/** Sport diary atoms only (no activities, no session envelope). */
+export function sportEventMinutesOnly(date, sessionEvents = []) {
+  let minutes = 0;
+  for (const ev of sessionEvents) {
+    if (ev.date !== date || !isSportSessionEvent(ev)) continue;
+    minutes += eventDurationMin(ev);
+  }
+  return minutes;
+}
+
+export function sportHoursFromEvents(date, sessionEvents = []) {
+  return sportEventMinutesOnly(date, sessionEvents) / 60;
 }

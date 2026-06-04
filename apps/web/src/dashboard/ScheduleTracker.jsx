@@ -29,6 +29,7 @@ import {
   normalizeMealSlot,
   MEAL_SLOT_LABEL_RU,
 } from "./mergeNutrition.js";
+import { aggregateDay } from "./insightsCompute.js";
 import {
   childEventsForSession,
   expensesForSession,
@@ -169,33 +170,6 @@ function wakeRelativeMin(start, wake) {
   const s = timeToMin(start);
   const w = timeToMin(wake);
   return (s - w + 24 * 60) % (24 * 60);
-}
-
-function aggregateDay(date, sessions) {
-  const ds = sessions.filter((s) => s.date === date);
-  const sum = (pred) => ds.filter(pred).reduce((a, s) => a + (s.min || 0), 0);
-  const work_paid_h = sum((s) => s.category === "work_paid") / 60;
-  const personal_h = sum((s) => s.category === "personal" || s.category === "portfolio") / 60;
-  const byt_h = sum((s) => s.category === "byt" || s.category === "planning") / 60;
-  const business_h = work_paid_h + personal_h + byt_h;
-  const sport_h = sum((s) => isSportSessionCategory(s.category)) / 60;
-  const walk_h = sum((s) => s.category === "sport_walk" || s.category === "walk") / 60;
-  const social_h = sum((s) => s.category === "social") / 60;
-  const chill_h = sum((s) => s.category === "chill") / 60;
-  return {
-    work_paid_h,
-    personal_h,
-    byt_h,
-    // legacy aliases for older consumers (Insights tab, etc.)
-    portfolio_h: personal_h,
-    planning_h: byt_h,
-    business_h,
-    sport_h,
-    walk_h,
-    social_h,
-    chill_h,
-    sessions: ds.length,
-  };
 }
 
 function toCsv(rows) {
@@ -498,6 +472,7 @@ function App(props = {}) {
       html`<${DaysTab}
         days=${days}
         sessions=${sessions}
+        sessionEvents=${liveData?.raw?.session_events || []}
         setDays=${setDays}
         setSessions=${setSessions}
       />`}
@@ -645,7 +620,7 @@ function StatCell({ label, value, unit, tone }) {
 
 // ---------------- Days tab ----------------
 
-function DaysTab({ days, sessions, setDays, setSessions }) {
+function DaysTab({ days, sessions, sessionEvents = [], setDays, setSessions }) {
   const [expanded, setExpanded] = useState(() => new Set());
   const { sort, toggleSort, filters, setFilter, search, setSearch } = useSheetState("days", {
     id: "date",
@@ -654,10 +629,10 @@ function DaysTab({ days, sessions, setDays, setSessions }) {
 
   const rows = useMemo(() => {
     return days.map((d) => {
-      const agg = aggregateDay(d.date, sessions);
+      const agg = aggregateDay(d.date, sessions, sessionEvents);
       return { ...d, ...agg };
     });
-  }, [days, sessions]);
+  }, [days, sessions, sessionEvents]);
 
   const columns = useMemo(
     () => [
@@ -1980,7 +1955,7 @@ function CalendarDayDetail({
 
   const daySubstances = useMemo(() => substancesForDate(date, substances), [date, substances]);
   const dayFinanceExpenses = useMemo(() => dayExpenses(date, finance), [date, finance]);
-  const dayAgg = useMemo(() => aggregateDay(date, sessions), [date, sessions]);
+  const dayAgg = useMemo(() => aggregateDay(date, sessions, sessionEvents), [date, sessions, sessionEvents]);
 
   const kcalIn = mealsWithData.reduce((a, m) => a + (Number(m.kcal) || 0), 0);
   const kcalOut = dayKcalOut(date, activitiesList, sessionEvents, sessions);
