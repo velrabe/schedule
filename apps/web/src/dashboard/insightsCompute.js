@@ -2,6 +2,7 @@ import { isSportSessionCategory, dayKcalOut } from "./nutritionKcal.js";
 import { isSportSessionEvent } from "./activityMetrics.js";
 import { partDurationMin, fmtSessionDuration, focusBlocksForDate } from "./sessionDisplay.js";
 import { financeTxnDeltaRub } from "./financeInsights.js";
+import { computeDisplaySleepHours } from "./dayWakeTimeline.js";
 
 function timeToMin(t) {
   if (!t) return 0;
@@ -253,9 +254,11 @@ export function buildInsightsModel({
       .filter((m) => m.date === d.date)
       .reduce((s, m) => s + (Number(m.kcal) || 0), 0);
     const kcalOut = dayKcalOut(d.date, activities, sessionEvents, sessions);
+    const sleep_h = computeDisplaySleepHours(d, null, sessions);
     return {
       ...d,
       ...agg,
+      sleep_h: sleep_h != null ? sleep_h : d.sleep_h,
       morningSport: dayHasMorningSport(d.date, sessions, sessionEvents),
       kcalIn,
       kcalOut,
@@ -435,7 +438,7 @@ export function buildInsightsModel({
     insights.push({
       tone: diff > 1 ? "info" : "warning",
       title: "Модафинил 75 vs 100",
-      body: `75мг (n=${mod75.length}): ${fmtH(avg75)} работы в среднем. 100мг (n=${mod100.length}): ${fmtH(avg100)}. Разница ${diff >= 0 ? "+" : ""}${diff.toFixed(1)}ч — ${diff < 0.5 ? "прирост слабый относительно дозы" : "100мг даёт заметный буст"}.`,
+      body: `75мг (n=${mod75.length}): ${fmtH(avg75)} работы в среднем. 100мг (n=${mod100.length}): ${fmtH(avg100)}. Разница ${diff >= 0 ? "+" : ""}${diff.toFixed(1)}ч — ${diff < 0.5 ? "прирост слабый относительно +25мг" : "100мг даёт заметный буст"}.`,
     });
   }
 

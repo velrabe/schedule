@@ -62,7 +62,7 @@ export default function DrawerParentAtom({
   return html`
     <div class="drawer-parent-atom-wrap">
       <div class="record-drawer-section-wrap">
-        <span class="record-drawer-section-title">родитель · атом</span>
+        <span class="record-drawer-section-title">родитель · ивент</span>
         <span class="record-drawer-section-hint">один session_event на день · не сессия и не зеркало substance</span>
       </div>
       ${parentId && parentEvent && onOpenRecord && html`
@@ -77,11 +77,11 @@ export default function DrawerParentAtom({
         </button>
       `}
       ${!parentId && html`
-        <span class="drawer-parent-atom-empty">не привязан к атому</span>
+        <span class="drawer-parent-atom-empty">не привязан к ивенту</span>
       `}
       <div class="record-drawer-field-wrap">
         <label class="record-drawer-label-wrap" for="drawer-parent-atom-select">
-          <span class="record-drawer-label">переназначить на атом</span>
+          <span class="record-drawer-label">переназначить на ивент</span>
         </label>
         <select
           id="drawer-parent-atom-select"
@@ -90,7 +90,7 @@ export default function DrawerParentAtom({
           value=${parentId || ""}
           onChange=${onSelect}
         >
-          <option value="">— выберите атом —</option>
+          <option value="">— выберите ивент —</option>
           ${options.map(
             (o) => html`<option value=${o.id}>${o.label}</option>`,
           )}

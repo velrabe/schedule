@@ -33,17 +33,36 @@ export function expensesForSessionEvent(eventId, finance = []) {
   );
 }
 
-/** Atomic parts of a diary session (session_events table). */
-export function childEventsForSession(sessionId, sessionEvents = []) {
+function chronoMinutes(clock, anchor) {
+  const toMin = (t) => {
+    const [h, m] = String(t || "00:00").slice(0, 5).split(":").map(Number);
+    return (h || 0) * 60 + (m || 0);
+  };
+  return (toMin(clock) - toMin(anchor) + 24 * 60) % (24 * 60);
+}
+
+/**
+ * Events of a diary session (session_events table).
+ * When `anchorStart` (the session's start time) is given, events are ordered
+ * chronologically relative to it, so a 02:00 event sorts AFTER a 22:00 one.
+ */
+export function childEventsForSession(sessionId, sessionEvents = [], anchorStart = null) {
   if (!sessionId) return [];
-  return sessionEvents
-    .filter(
-      (e) =>
-        e.session_id === sessionId &&
-        !e.substance_id &&
-        (e.kind || "").toLowerCase() !== "substance",
-    )
-    .sort((a, b) => String(a.start_time || "").localeCompare(String(b.start_time || "")));
+  const list = sessionEvents.filter(
+    (e) =>
+      e.session_id === sessionId &&
+      !e.substance_id &&
+      (e.kind || "").toLowerCase() !== "substance",
+  );
+  if (anchorStart) {
+    return list.sort(
+      (a, b) =>
+        chronoMinutes(a.start_time, anchorStart) - chronoMinutes(b.start_time, anchorStart),
+    );
+  }
+  return list.sort((a, b) =>
+    String(a.start_time || "").localeCompare(String(b.start_time || "")),
+  );
 }
 
 /** Primary expense for simple UI (first linked txn). */

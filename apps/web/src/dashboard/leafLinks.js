@@ -23,22 +23,23 @@ import {
 } from "./sessionEventLinks.js";
 import { manualPatch } from "./manualSave.js";
 
+// expense_* labels mirror the finance_transactions columns they map to.
 export const FINANCE_ATTACH_FIELDS = [
-  { key: "expense_amount", label: "стоимость", type: "number" },
+  { key: "expense_amount", label: "amount", type: "number" },
   {
     key: "expense_currency",
-    label: "валюта",
+    label: "currency",
     type: "select",
     options: ["VND", "RUB", "USD"],
   },
   {
     key: "expense_account",
-    label: "счёт списания",
+    label: "account",
     type: "select",
     options: ["cash_vnd", "vcb_vnd", "savings_rub", "ip_rub"],
   },
-  { key: "expense_category", label: "категория", type: "text", optional: true },
-  { key: "expense_merchant", label: "магазин", type: "text", optional: true },
+  { key: "expense_category", label: "category", type: "text", optional: true },
+  { key: "expense_merchant", label: "merchant", type: "text", optional: true },
 ];
 
 export function findAtomEventForMeal(meal, sessionEvents = [], sessions = []) {
@@ -264,7 +265,7 @@ export async function attachFinanceToMeal(meal, form, ctx = {}) {
 
   const sid = meal.session_id || findFoodSessionForMeal(meal, sessions)?.id;
   if (!sid) {
-    throw new Error("нет сессии еды — откройте приём из календаря или привяжите к атому");
+    throw new Error("нет сессии еды — откройте приём из календаря или привяжите к ивенту");
   }
   await manualPatch(
     "meals",

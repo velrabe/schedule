@@ -196,7 +196,11 @@ export function getRelatedLinks(kind, record, ctx = {}) {
   }
 
   if (kind === "session" && record) {
-    const parts = childEventsForSession(record.id, sessionEvents);
+    const parts = childEventsForSession(
+      record.id,
+      sessionEvents,
+      record.start || record.start_time,
+    );
     for (const p of parts.slice(0, 6)) {
       if (p.substance_id) continue;
       push({

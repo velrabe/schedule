@@ -101,7 +101,7 @@ async function clearSubstanceOwners(substanceId, sessionEvents) {
 
 export async function setSubstanceParentAtom(substanceId, eventId, ctx = {}) {
   const { sessionEvents = [] } = ctx;
-  if (!eventId) throw new Error("выберите атом");
+  if (!eventId) throw new Error("выберите ивент");
   await clearSubstanceOwners(substanceId, sessionEvents);
   await manualPatch("session_events", eventId, { substance_id: substanceId });
   await manualPatch("substances", substanceId, { notes: atomLinkNote(eventId) });
@@ -111,9 +111,9 @@ export async function setSubstanceParentAtom(substanceId, eventId, ctx = {}) {
 
 export async function setMealParentAtom(mealId, eventId, ctx = {}) {
   const { sessionEvents = [] } = ctx;
-  if (!eventId) throw new Error("выберите атом");
+  if (!eventId) throw new Error("выберите ивент");
   const ev = sessionEvents.find((e) => e.id === eventId);
-  if (!ev) throw new Error("атом не найден");
+  if (!ev) throw new Error("ивент не найден");
 
   for (const e of sessionEvents) {
     if (e.meal_id === mealId && e.id !== eventId) {
@@ -130,7 +130,7 @@ export async function setMealParentAtom(mealId, eventId, ctx = {}) {
 
 export async function setFinanceParentAtom(txnId, eventId, ctx = {}) {
   const { sessionEvents = [] } = ctx;
-  if (!eventId) throw new Error("выберите атом");
+  if (!eventId) throw new Error("выберите ивент");
   const ev = sessionEvents.find((e) => e.id === eventId);
   await manualPatch("finance_transactions", txnId, {
     session_event_id: eventId,
@@ -142,7 +142,7 @@ export async function setFinanceParentAtom(txnId, eventId, ctx = {}) {
 
 export async function setActivityParentAtom(activityId, eventId, ctx = {}) {
   const { sessionEvents = [] } = ctx;
-  if (!eventId) throw new Error("выберите атом");
+  if (!eventId) throw new Error("выберите ивент");
   for (const e of sessionEvents) {
     if (e.activity_id === activityId && e.id !== eventId) {
       await manualPatch("session_events", e.id, { activity_id: null });

@@ -59,6 +59,11 @@ import FinanceTab from "./FinanceTab.jsx";
 import InsightsTab from "./InsightsTab.jsx";
 import BodyTab from "./BodyTab.jsx";
 import { useSheetState, applySheet, SheetHeader, Toolbar } from "./sheetUi.js";
+import {
+  dayWakeChronoMinutes,
+  addCalendarDaysISO,
+  computeDisplaySleepHours,
+} from "./dayWakeTimeline.js";
 
 const html = htm.bind(h);
 const STORE_KEY = "schedule-tracker:v1";
@@ -161,15 +166,6 @@ function timeToMin(t) {
   const [h, m] = t.split(":").map(Number);
   if (Number.isNaN(h) || Number.isNaN(m)) return 0;
   return h * 60 + m;
-}
-
-// Returns minutes-since-wake for a session start. Sessions that take place
-// after midnight (e.g. 00:30 when wake was 10:00) get a value greater than
-// the morning sessions, so they sort to the end of the day.
-function wakeRelativeMin(start, wake) {
-  const s = timeToMin(start);
-  const w = timeToMin(wake);
-  return (s - w + 24 * 60) % (24 * 60);
 }
 
 function toCsv(rows) {
@@ -401,7 +397,16 @@ function App(props = {}) {
     const bytMin = sessions
       .filter((s) => s.category === "byt" || s.category === "planning")
       .reduce((a, s) => a + (s.min || 0), 0);
-    const sleepValues = days.map((d) => d.sleep_h).filter((v) => v !== null && v !== undefined);
+    const dayMap = new Map(days.map((d) => [d.date, d]));
+    const sleepValues = days
+      .map((d) =>
+        computeDisplaySleepHours(
+          d,
+          dayMap.get(addCalendarDaysISO(d.date, 1)) || { date: addCalendarDaysISO(d.date, 1), wake: "06:00" },
+          sessions,
+        ),
+      )
+      .filter((v) => v != null && Number.isFinite(v));
     const avgSleep = sleepValues.length ? sleepValues.reduce((a, b) => a + b, 0) / sleepValues.length : 0;
     const modDays = days.filter((d) => d.modafinil_mg > 0).length;
     return {
@@ -627,12 +632,16 @@ function DaysTab({ days, sessions, sessionEvents = [], setDays, setSessions }) {
     dir: "asc",
   });
 
+  const byDateDays = useMemo(() => new Map(days.map((d) => [d.date, d])), [days]);
+
   const rows = useMemo(() => {
     return days.map((d) => {
       const agg = aggregateDay(d.date, sessions, sessionEvents);
-      return { ...d, ...agg };
+      const next = byDateDays.get(addCalendarDaysISO(d.date, 1));
+      const sh = computeDisplaySleepHours(d, next, sessions);
+      return { ...d, ...agg, sleep_h: sh != null ? sh : d.sleep_h };
     });
-  }, [days, sessions, sessionEvents]);
+  }, [days, sessions, sessionEvents, byDateDays]);
 
   const columns = useMemo(
     () => [
@@ -889,7 +898,9 @@ function DayExpand({ date, row, sessions, setSessions, updateDay }) {
     const wake = row.wake || "00:00";
     return sessions
       .filter((s) => s.date === date)
-      .sort((a, b) => wakeRelativeMin(a.start, wake) - wakeRelativeMin(b.start, wake));
+      .sort(
+        (a, b) => dayWakeChronoMinutes(a.start, wake) - dayWakeChronoMinutes(b.start, wake),
+      );
   }, [sessions, date, row.wake]);
 
   const addSession = useCallback(() => {
@@ -1721,6 +1732,14 @@ function CalendarTab({
             const kcalOut = kcalOutOf(c.date);
             const isSelected = selected === c.date;
             const isToday = c.date === today;
+            const nextIso = addCalendarDaysISO(c.date, 1);
+            const sleepH =
+              row &&
+              computeDisplaySleepHours(
+                row,
+                byDate.get(nextIso) || { date: nextIso, wake: "06:00" },
+                sessions,
+              );
             return html`
               <button
                 key=${i}
@@ -1732,7 +1751,8 @@ function CalendarTab({
                   ${row && row.modafinil_mg > 0 && html`<span class="cal-cell__mod">${row.modafinil_mg}</span>`}
                 </div>
                 <div class="cal-cell__body-wrap">
-                  ${row && row.sleep_h !== null && html`<div class="cal-cell__line"><span>😴 ${fmt(row.sleep_h, 1)}h</span></div>`}
+                  ${sleepH != null &&
+                  html`<div class="cal-cell__line"><span>😴 ${fmt(sleepH, 1)}h</span></div>`}
                   ${businessMin > 0 && html`<div class="cal-cell__line"><span>💼 ${fmtHours(businessMin)}h</span></div>`}
                   ${kcalIn > 0 && html`<div class="cal-cell__line cal-cell__line--food"><span>🍴 ${Math.round(kcalIn)}</span></div>`}
                   ${kcalOut > 0 && html`<div class="cal-cell__line cal-cell__line--burn"><span>🔥 ${Math.round(kcalOut)}</span></div>`}
@@ -1754,6 +1774,11 @@ function CalendarTab({
           <${CalendarDayDetail}
             date=${selected}
             day=${byDate.get(selected)}
+            nextDay=${byDate.get(addCalendarDaysISO(selected, 1)) || {
+              date: addCalendarDaysISO(selected, 1),
+              wake: "06:00",
+            }}
+            allSessions=${sessions}
             sessions=${sessionsByDate.get(selected) || []}
             rawMeals=${rawMeals}
             finance=${finance}
@@ -1810,10 +1835,11 @@ function SessionCompactContent({
   compact = false,
   scheduleLayout = false,
 }) {
-  const allParts = childEventsForSession(s.id, sessionEvents);
+  const allParts = childEventsForSession(s.id, sessionEvents, s.start || s.start_time);
   const redundant = scheduleLayout && isRedundantMirrorPart(s, allParts);
   const parts = redundant ? [] : allParts;
-  const showParts = parts.length > 0;
+  const displayParts = parts;
+  const showParts = displayParts.length > 0;
   const exp = showParts ? [] : expensesForSession(s.id, finance);
   const trailNote = s.note || "";
   const trailExp = !showParts && exp.length ? fmtExpensesShort(exp) : "";
@@ -1846,7 +1872,7 @@ function SessionCompactContent({
       `}
       ${showParts && html`
         <div class="session-compact-parts-wrap">
-          ${parts.map((p) => {
+          ${displayParts.map((p) => {
             const t0 = String(p.start_time || "").slice(0, 5);
             const t1 = String(p.end_time || "").slice(0, 5);
             const instant = p.is_instant || p.kind === "wake" || p.kind === "substance" ||
@@ -1921,6 +1947,8 @@ function CalDetailNutriColumn({ meal, activity, slotLabel, liveMode = false, onO
 function CalendarDayDetail({
   date,
   day,
+  nextDay,
+  allSessions = [],
   sessions,
   rawMeals = [],
   finance = [],
@@ -1932,9 +1960,16 @@ function CalendarDayDetail({
   setDays,
   onOpenRecord,
 }) {
-  const mealSlots = useMemo(
+  const wake = day?.wake || "06:00";
+
+  const allMealSlots = useMemo(
     () => mealsForNutritionDay(date, sessions, rawMeals),
     [date, sessions, rawMeals],
+  );
+  // Snack column is shown only when a meal is actually registered in the snack slot.
+  const mealSlots = useMemo(
+    () => allMealSlots.filter((s) => s.slot !== "snack" || Boolean(s.meal)),
+    [allMealSlots],
   );
   const mealsWithData = useMemo(
     () => mealSlots.map((s) => s.meal).filter(Boolean),
@@ -1947,11 +1982,20 @@ function CalendarDayDetail({
   );
 
   const sorted = useMemo(() => {
-    if (!day) return [...sessions];
     return [...sessions].sort(
-      (a, b) => wakeRelativeMin(a.start, day.wake || "00:00") - wakeRelativeMin(b.start, day.wake || "00:00"),
+      (a, b) => dayWakeChronoMinutes(a.start, wake) - dayWakeChronoMinutes(b.start, wake),
     );
-  }, [sessions, day]);
+  }, [sessions, wake]);
+
+  const sleepDisplay = useMemo(
+    () =>
+      computeDisplaySleepHours(
+        day ?? { date, wake: "06:00", sleep_start: "", sleep_h: null },
+        nextDay,
+        allSessions,
+      ),
+    [date, day, nextDay, allSessions],
+  );
 
   const daySubstances = useMemo(() => substancesForDate(date, substances), [date, substances]);
   const dayFinanceExpenses = useMemo(() => dayExpenses(date, finance), [date, finance]);
@@ -2035,8 +2079,8 @@ function CalendarDayDetail({
           className="cal-detail-meta editable-field-btn--meta"
           onSave=${(v) => patchDay({ sleep_start: v })}
         />
-        ${day?.sleep_h != null &&
-        html`<span class="cal-detail-meta cal-detail-meta--static">${fmt(day.sleep_h, 1)}h</span>`}
+        ${sleepDisplay != null &&
+        html`<span class="cal-detail-meta cal-detail-meta--static">${fmt(sleepDisplay, 1)}h</span>`}
         <${EditableField}
           type="number"
           value=${day?.modafinil_mg ?? 0}
@@ -2382,7 +2426,7 @@ function KanbanTab({
         activities,
         substances,
         finance,
-        wakeRelativeMin,
+        wakeRelativeMin: dayWakeChronoMinutes,
       });
       const ok = await copyTextToClipboard(text);
       if (ok) {
@@ -2445,17 +2489,20 @@ function KanbanTab({
         ${visibleDates.map((date) => {
           const day = byDate.get(date);
           const list = sessionsByDate.get(date) || [];
-          const sorted = day
-            ? [...list].sort(
-                (a, b) => wakeRelativeMin(a.start, day.wake || "00:00") - wakeRelativeMin(b.start, day.wake || "00:00"),
-              )
-            : [...list].sort((a, b) => a.start.localeCompare(b.start));
+          const wake = day?.wake || "06:00";
+          const sorted = [...list].sort(
+            (a, b) => dayWakeChronoMinutes(a.start, wake) - dayWakeChronoMinutes(b.start, wake),
+          );
           const isToday = date === today;
           const isFuture = date > today;
           const colMeals = mealsByDate.get(date) || [];
           const colActs = activitiesByDate.get(date) || [];
           const kcalIn = colMeals.reduce((a, m) => a + (m.kcal || 0), 0);
           const kcalOut = dayKcalOut(date, colActs, sessionEvents, sessions);
+          const nextIso = addCalendarDaysISO(date, 1);
+          const sleepMeta =
+            day &&
+            computeDisplaySleepHours(day, byDate.get(nextIso) || { date: nextIso, wake: "06:00" }, sessions);
           return html`
             <div
               class=${`kanban-col-wrap ${isToday ? "kanban-col-wrap--today" : ""} ${isFuture ? "kanban-col-wrap--future" : ""}`}
@@ -2484,7 +2531,7 @@ function KanbanTab({
                 <div class="kanban-col-meta-wrap">
                   ${day.wake && html`<span class="kanban-col-meta">↑${day.wake}</span>`}
                   ${day.sleep_start && html`<span class="kanban-col-meta">↓${day.sleep_start}</span>`}
-                  ${day.sleep_h !== null && html`<span class="kanban-col-meta">${fmt(day.sleep_h, 1)}h</span>`}
+                  ${sleepMeta != null && html`<span class="kanban-col-meta">${fmt(sleepMeta, 1)}h</span>`}
                 </div>
               `}
               ${(kcalIn > 0 || kcalOut > 0) && html`

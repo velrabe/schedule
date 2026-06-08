@@ -1,11 +1,17 @@
 import { h } from "preact";
-import { useMemo } from "preact/hooks";
+import { useMemo, useState } from "preact/hooks";
 import htm from "htm";
 import { buildInsightsModel } from "./insightsCompute.js";
 import { fmtRub } from "./financeInsights.js";
 import { InsightsLineChart, InsightsBarChart } from "./insightsCharts.jsx";
+import { localTodayISO } from "./useDateStrip.js";
 
 const html = htm.bind(h);
+
+const INSIGHTS_PERIODS = [
+  { id: "month", label: "Месяц" },
+  { id: "all", label: "Всё" },
+];
 
 function fmt(n, digits = 1) {
   if (n === null || n === undefined || Number.isNaN(n)) return "—";
@@ -13,6 +19,17 @@ function fmt(n, digits = 1) {
 }
 
 const fmtNum = fmt;
+
+/** Lower bound (inclusive ISO date) for a period; null = no bound. */
+function periodFromDate(period, today) {
+  if (period === "month") return `${today.slice(0, 7)}-01`;
+  return null;
+}
+
+function inPeriod(dateStr, fromDate) {
+  if (!fromDate) return true;
+  return String(dateStr || "") >= fromDate;
+}
 
 export default function InsightsTab({
   days,
@@ -24,18 +41,27 @@ export default function InsightsTab({
   substances = [],
   liveMode = false,
 }) {
+  const today = localTodayISO();
+  const [period, setPeriod] = useState("month");
+
+  const fromDate = useMemo(() => periodFromDate(period, today), [period, today]);
+
+  const scoped = useMemo(() => {
+    const keep = (r) => inPeriod(r.date, fromDate);
+    return {
+      days: days.filter(keep),
+      sessions: sessions.filter(keep),
+      meals: meals.filter(keep),
+      activities: activities.filter(keep),
+      sessionEvents: sessionEvents.filter(keep),
+      finance: finance.filter(keep),
+      substances: substances.filter(keep),
+    };
+  }, [days, sessions, meals, activities, sessionEvents, finance, substances, fromDate]);
+
   const model = useMemo(
-    () =>
-      buildInsightsModel({
-        days,
-        sessions,
-        meals,
-        activities,
-        sessionEvents,
-        finance,
-        substances,
-      }),
-    [days, sessions, meals, activities, sessionEvents, finance, substances],
+    () => buildInsightsModel(scoped),
+    [scoped],
   );
 
   const {
@@ -64,6 +90,28 @@ export default function InsightsTab({
 
   return html`
     <div class="insights-page-wrap">
+      <div class="body-tab-toolbar-wrap">
+        <div class="body-period-bar-wrap">
+          ${INSIGHTS_PERIODS.map(
+            (p) => html`
+              <button
+                type="button"
+                key=${p.id}
+                class=${`body-period-btn ${period === p.id ? "body-period-btn--active" : ""}`}
+                onClick=${() => setPeriod(p.id)}
+              >
+                <span class="body-period-btn__text">${p.label}</span>
+              </button>
+            `,
+          )}
+        </div>
+        <div class="body-period-range-wrap">
+          <span class="body-period-range-sub"
+            >${period === "month" ? `с ${fromDate}` : "вся история"} · ${kpis.days} дн.</span
+          >
+        </div>
+      </div>
+
       <div class="insights-kpi-strip-wrap">
         <${KpiPill} label="дней" value=${String(kpis.days)} />
         <${KpiPill} label="работа/день" value=${`${fmt(kpis.avgBusiness)}ч`} />

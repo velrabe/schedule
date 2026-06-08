@@ -139,7 +139,11 @@ export default function RecordEditDrawer({
   const current = target;
   const bundleParts = useMemo(() => {
     if (!current || current.kind !== "session") return [];
-    return childEventsForSession(current.record.id, sessionEvents);
+    return childEventsForSession(
+      current.record.id,
+      sessionEvents,
+      current.record.start || current.record.start_time,
+    );
   }, [current, sessionEvents]);
 
   const ctx = useMemo(
@@ -566,8 +570,8 @@ export default function RecordEditDrawer({
             ${current?.kind === "session_event" && eventPolicy?.canAddSubstance && substanceExpanded && html`
               <div class="record-drawer-attach-wrap">
                 <div class="record-drawer-section-wrap">
-                  <span class="record-drawer-section-title">субстанция · доза</span>
-                  <span class="record-drawer-section-hint">привязка к этому атому · отдельная строка substances</span>
+                  <span class="record-drawer-section-title">субстанция</span>
+                  <span class="record-drawer-section-hint">привязка к этому ивенту · отдельная строка substances</span>
                 </div>
                 ${SUBSTANCE_ATTACH_FIELDS.map(
                   (field) => html`
@@ -583,7 +587,7 @@ export default function RecordEditDrawer({
                 <div class="record-drawer-attach-actions-wrap">
                   <button type="button" class="btn btn--primary btn--sm" disabled=${!liveMode || busy}
                     onClick=${onAttachSubstance}>
-                    <span class="btn__text-wrap">сохранить дозу</span>
+                    <span class="btn__text-wrap">сохранить субстанцию</span>
                   </button>
                   <button type="button" class="btn btn--ghost btn--sm" disabled=${busy}
                     onClick=${() => setSubstanceExpanded(false)}>
@@ -602,7 +606,7 @@ export default function RecordEditDrawer({
               <div class="record-drawer-attach-wrap">
                 <div class="record-drawer-section-wrap">
                   <span class="record-drawer-section-title">приём пищи + расход</span>
-                  <span class="record-drawer-section-hint">meal в БД + meal_id на атом · расход на этот же атом</span>
+                  <span class="record-drawer-section-hint">meal в БД + meal_id на ивент · расход на этот же ивент</span>
                 </div>
                 ${MEAL_ATTACH_FIELDS.map(
                   (field) => html`
@@ -637,7 +641,7 @@ export default function RecordEditDrawer({
               <div class="record-drawer-attach-wrap">
                 <div class="record-drawer-section-wrap">
                   <span class="record-drawer-section-title">активность · метрики</span>
-                  <span class="record-drawer-section-hint">activities в БД + activity_id на атом · ккал/км там</span>
+                  <span class="record-drawer-section-hint">activities в БД + activity_id на ивент · ккал/км там</span>
                 </div>
                 ${ACTIVITY_ATTACH_FIELDS.map(
                   (field) => html`

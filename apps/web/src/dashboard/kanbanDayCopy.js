@@ -186,7 +186,7 @@ export function formatKanbanDayCopy({
   for (const s of sorted) {
     const head = `${s.start}–${s.end} ${s.category}${s.project ? ` · ${s.project}` : ""}`;
     lines.push(head);
-    const parts = childEventsForSession(s.id, sessionEvents);
+    const parts = childEventsForSession(s.id, sessionEvents, s.start || s.start_time);
     if (parts.length) {
       for (const p of parts) {
         lines.push(`  · ${formatPartLine(p, meals, activities, finance, sessions)}`);

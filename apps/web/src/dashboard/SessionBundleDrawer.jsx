@@ -62,12 +62,12 @@ function bundlePartTitle(part, finance, meals, sessionEvents) {
   return (
     linkedEventLabel(part, finance, meals, sessionEvents) ||
     part.kind ||
-    "атом"
+    "ивент"
   );
 }
 
 function BundlePartCard({ part, idx, policy, finance, meals, sessionEvents, liveMode, onOpenRecord }) {
-  const title = bundlePartTitle(part, finance, meals, sessionEvents) || `атом ${idx + 1}`;
+  const title = bundlePartTitle(part, finance, meals, sessionEvents) || `ивент ${idx + 1}`;
   const pexp = policy.expenseTxn ? [policy.expenseTxn] : [];
   const openAtom = () =>
     onOpenRecord?.({ kind: "session_event", record: part });
@@ -95,8 +95,8 @@ function BundlePartCard({ part, idx, policy, finance, meals, sessionEvents, live
 
       <div class="session-bundle-part-static-wrap">
         <${BundlePartStaticRow} label="kind" value=${part.kind || "—"} />
-        <${BundlePartStaticRow} label="время" value=${sessionEventTimeSpan(part)} />
-        <${BundlePartStaticRow} label="название" value=${part.title || "—"} />
+        <${BundlePartStaticRow} label="time" value=${sessionEventTimeSpan(part)} />
+        <${BundlePartStaticRow} label="title" value=${part.title || "—"} />
         <${BundlePartStaticRow} label="category" value=${part.category} />
       </div>
 
@@ -123,8 +123,8 @@ export default function SessionBundleDrawer({
   setSessions,
 }) {
   const parts = useMemo(
-    () => childEventsForSession(session.id, sessionEvents),
-    [session.id, sessionEvents],
+    () => childEventsForSession(session.id, sessionEvents, session.start || session.start_time),
+    [session.id, sessionEvents, session.start, session.start_time],
   );
 
   const ctx = useMemo(
@@ -203,7 +203,7 @@ export default function SessionBundleDrawer({
       <aside class="record-drawer record-drawer--open record-drawer--wide" onClick=${(e) => e.stopPropagation()}>
         <header class="record-drawer-header-wrap">
           <div class="record-drawer-title-wrap">
-            <span class="record-drawer-title">Сессия · части</span>
+            <span class="record-drawer-title">Сессия · ивенты</span>
             <span class="record-drawer-subtitle">${envelopeSpan} · ${envelope.category || "—"}</span>
           </div>
           <button type="button" class="btn btn--ghost btn--icon" onClick=${onClose}>×</button>
@@ -212,25 +212,25 @@ export default function SessionBundleDrawer({
         <div class="record-drawer-body-wrap">
           <section class="session-bundle-envelope-card-wrap">
             <div class="record-drawer-section-wrap record-drawer-section-wrap--card">
-              <span class="record-drawer-section-title">оболочка · ежедневник</span>
+              <span class="record-drawer-section-title">сессия · ежедневник</span>
               <span class="record-drawer-section-hint">одна строка в расписании</span>
             </div>
             <div class="session-bundle-envelope-fields-wrap">
-              <${FieldInput} field=${{ key: "date", label: "дата", type: "date" }} value=${envelope.date}
+              <${FieldInput} field=${{ key: "date", label: "date", type: "date" }} value=${envelope.date}
                 onChange=${(k, v) => setEnvelope((e) => ({ ...e, [k]: v }))} disabled=${!liveMode || saving} />
-              <${FieldInput} field=${{ key: "category", label: "категория", type: "text" }} value=${envelope.category}
+              <${FieldInput} field=${{ key: "category", label: "category", type: "text" }} value=${envelope.category}
                 onChange=${(k, v) => setEnvelope((e) => ({ ...e, [k]: v }))} disabled=${!liveMode || saving} />
-              <${FieldInput} field=${{ key: "project", label: "заголовок", type: "text" }} value=${envelope.project}
+              <${FieldInput} field=${{ key: "project", label: "project", type: "text" }} value=${envelope.project}
                 onChange=${(k, v) => setEnvelope((e) => ({ ...e, [k]: v }))} disabled=${!liveMode || saving} />
-              <${FieldInput} field=${{ key: "note", label: "заметка", type: "textarea", optional: true }} value=${envelope.note}
+              <${FieldInput} field=${{ key: "note", label: "notes", type: "textarea", optional: true }} value=${envelope.note}
                 onChange=${(k, v) => setEnvelope((e) => ({ ...e, [k]: v }))} disabled=${!liveMode || saving} />
             </div>
           </section>
 
           <section class="session-bundle-parts-section-wrap">
             <div class="record-drawer-section-wrap record-drawer-section-wrap--card">
-              <span class="record-drawer-section-title">атомы внутри фазы</span>
-              <span class="record-drawer-section-hint">${parts.length} шт. · клик по заголовку · правка в атоме</span>
+              <span class="record-drawer-section-title">ивенты внутри сессии</span>
+              <span class="record-drawer-section-hint">${parts.length} шт. · клик по заголовку · правка в ивенте</span>
             </div>
             <div class="session-bundle-parts-list-wrap">
               ${parts.map((p, idx) => {
@@ -256,7 +256,7 @@ export default function SessionBundleDrawer({
         <footer class="record-drawer-footer-wrap">
           ${liveMode && html`
             <button type="button" class="btn btn--primary" disabled=${saving} onClick=${onSave}>
-              <span class="btn__text-wrap">${saving ? "сохранение…" : "сохранить оболочку"}</span>
+              <span class="btn__text-wrap">${saving ? "сохранение…" : "сохранить сессию"}</span>
             </button>
           `}
           <button type="button" class="btn btn--ghost" onClick=${onClose}>закрыть</button>

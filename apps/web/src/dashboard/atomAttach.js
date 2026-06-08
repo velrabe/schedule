@@ -70,38 +70,39 @@ export async function attachSubstanceToAtom(eventId, form) {
 }
 
 export const SUBSTANCE_ATTACH_FIELDS = [
-  { key: "date", label: "дата", type: "date" },
-  { key: "time", label: "время", type: "time" },
+  { key: "date", label: "date", type: "date" },
+  { key: "time", label: "time", type: "time" },
   {
     key: "name",
     label: "name",
     type: "select",
     options: ["moda", "scooby", "caffeine", "alcohol", "weed"],
   },
-  { key: "amount", label: "количество", type: "number", optional: true },
-  { key: "unit", label: "ед.", type: "text", optional: true },
+  { key: "amount", label: "amount", type: "number", optional: true },
+  { key: "unit", label: "unit", type: "text", optional: true },
 ];
 
+// expense_* labels mirror the finance_transactions columns they map to.
 export const MEAL_ATTACH_FIELDS = [
-  { key: "date", label: "дата", type: "date" },
-  { key: "time", label: "время", type: "time" },
+  { key: "date", label: "date", type: "date" },
+  { key: "time", label: "time", type: "time" },
   {
     key: "slot",
-    label: "слот",
+    label: "slot",
     type: "select",
     options: ["breakfast", "lunch", "dinner", "snack"],
   },
-  { key: "name", label: "название", type: "text" },
-  { key: "kcal", label: "ккал", type: "number", optional: true },
-  { key: "carbs_g", label: "углеводы, г", type: "number", optional: true },
-  { key: "protein_g", label: "белок, г", type: "number", optional: true },
-  { key: "fat_g", label: "жир, г", type: "number", optional: true },
-  { key: "expense_amount", label: "стоимость", type: "number", optional: true },
-  { key: "expense_currency", label: "валюта", type: "select", options: ["VND", "RUB", "USD"], optional: true },
-  { key: "expense_account", label: "счёт", type: "select", options: ["cash_vnd", "vcb_vnd", "savings_rub", "ip_rub"], optional: true },
-  { key: "expense_category", label: "категория расхода", type: "text", optional: true },
+  { key: "name", label: "name", type: "text" },
+  { key: "kcal", label: "kcal", type: "number", optional: true },
+  { key: "carbs_g", label: "carbs_g", type: "number", optional: true },
+  { key: "protein_g", label: "protein_g", type: "number", optional: true },
+  { key: "fat_g", label: "fat_g", type: "number", optional: true },
+  { key: "expense_amount", label: "amount", type: "number", optional: true },
+  { key: "expense_currency", label: "currency", type: "select", options: ["VND", "RUB", "USD"], optional: true },
+  { key: "expense_account", label: "account", type: "select", options: ["cash_vnd", "vcb_vnd", "savings_rub", "ip_rub"], optional: true },
+  { key: "expense_category", label: "category", type: "text", optional: true },
   { key: "expense_merchant", label: "merchant", type: "text", optional: true },
-  { key: "expense_notes", label: "заметки расхода", type: "textarea", optional: true },
+  { key: "expense_notes", label: "notes", type: "textarea", optional: true },
 ];
 
 export function defaultActivityAttachForm(ev) {
@@ -129,14 +130,14 @@ export function defaultActivityAttachForm(ev) {
 }
 
 export const ACTIVITY_ATTACH_FIELDS = [
-  { key: "date", label: "дата", type: "date" },
-  { key: "time", label: "время", type: "time" },
-  { key: "type", label: "тип", type: "text" },
-  { key: "duration_min", label: "длительность, мин", type: "number" },
-  { key: "calories_burned", label: "ккал", type: "number", optional: true },
-  { key: "distance_km", label: "дистанция, км", type: "number", optional: true },
-  { key: "pace", label: "темп", type: "text", optional: true },
-  { key: "source", label: "источник", type: "text", optional: true },
+  { key: "date", label: "date", type: "date" },
+  { key: "time", label: "time", type: "time" },
+  { key: "type", label: "type", type: "text" },
+  { key: "duration_min", label: "duration_min", type: "number" },
+  { key: "calories_burned", label: "calories_burned", type: "number", optional: true },
+  { key: "distance_km", label: "distance_km", type: "number", optional: true },
+  { key: "pace", label: "pace", type: "text", optional: true },
+  { key: "source", label: "source", type: "text", optional: true },
 ];
 
 export async function attachActivityToAtom(event, form) {
