@@ -96,13 +96,13 @@ Day line like «3 June (0mg)» = date + moda for the day; if user took moda → 
 User mental model: day = ordered **phases**, each phase = one session envelope + N events inside.
 
 **DO:**
-- Утро: `9:05–11:15` session "пробуждение и завтрак" → events: wake 9:05, кофе+заказ 9:30, app 10:00–10:10, завтрак 10:15–…
-- Работа с перерывом: `11:15` one event session "приложение" OR short phase if only one atom.
-- Перерыв: `12:15–13:05` session "перерыв, скуби" (chill) + create_substance scooby at 12:15.
-- Смешанная фаза: `14:30–15:30` "перекус, скуби, кофе, растяжка" → events: перекус, scooby instant, кофе, sport_stretch.
-- Работа+заказ еды: `15:30–17:30` "работа, заказ обед" → events: приложение, заказ обед 16:40–16:45, приложение 16:50 — **no separate food session 16:47–18:00**.
-- Социальная фаза: `17:30–19:00` "обед, чилл, скуби" → events: обед (kind=food, meal macros), chill, scooby; category=food or chill by dominant time.
-- Отбой: `01:00` instant sleep event — отдельная короткая session или event + update_day sleep_time.
+- Утро: \`9:05–11:15\` session "пробуждение и завтрак" → events: wake 9:05, кофе+заказ 9:30, app 10:00–10:10, завтрак 10:15–…
+- Работа с перерывом: \`11:15\` one event session "приложение" OR short phase if only one atom.
+- Перерыв: \`12:15–13:05\` session "перерыв, скуби" (chill) + create_substance scooby at 12:15.
+- Смешанная фаза: \`14:30–15:30\` "перекус, скуби, кофе, растяжка" → events: перекус, scooby instant, кофе, sport_stretch.
+- Работа+заказ еды: \`15:30–17:30\` "работа, заказ обед" → events: приложение, заказ обед 16:40–16:45, приложение 16:50 — **no separate food session 16:47–18:00**.
+- Социальная фаза: \`17:30–19:00\` "обед, чилл, скуби" → events: обед (kind=food, meal macros), chill, scooby; category=food or chill by dominant time.
+- Отбой: \`01:00\` instant sleep event — отдельная короткая session или event + update_day sleep_time.
 
 **DON'T:**
 - Parallel overlapping sessions (work 15:30–17:30 AND food 16:47–18:00) — breaks the timeline.
@@ -121,11 +121,11 @@ User mental model: day = ordered **phases**, each phase = one session envelope +
 
 | Situation | Do | Don't |
 |-----------|-----|-------|
-| Сдвинуть один блок / КБЖУ / +scooby | `update_session` цепочкой, `apply-manual`, 1–3 actions | delete+recreate **только ради смены времени** |
-| «Переделай день», полный рассказ фаз, куча микро-sessions, overlaps | `scripts/plans/CODEX_REBUILD_DAY_PHASES.md`: delete all sessions дня → один `apply` с N× `create_session_bundle` + `create_substance` | 20+ `manual` / `update_session` / перенос `session_events` |
-| День почти ок, подряд 2+ work с gap ≤20 мин, один project | `scripts/audit-focus-day.mjs` + `FOCUS_MERGE_FOR_CODEX.md` (склейка work) | Не путать со сборкой всего дня по фазам |
+| Сдвинуть один блок / КБЖУ / +scooby | \`update_session\` цепочкой, \`apply-manual\`, 1–3 actions | delete+recreate **только ради смены времени** |
+| «Переделай день», полный рассказ фаз, куча микро-sessions, overlaps | \`scripts/plans/CODEX_REBUILD_DAY_PHASES.md\`: delete all sessions дня → один \`apply\` с N× \`create_session_bundle\` + \`create_substance\` | 20+ \`manual\` / \`update_session\` / перенос \`session_events\` |
+| День почти ок, подряд 2+ work с gap ≤20 мин, один project | \`scripts/audit-focus-day.mjs\` + \`FOCUS_MERGE_FOR_CODEX.md\` (склейка work) | Не путать со сборкой всего дня по фазам |
 
-Target: **~10–15 sessions/day** (фазы), not ~20 micro work rows. Эталон: `scripts/plans/day-phases-model.md`.
+Target: **~10–15 sessions/day** (фазы), not ~20 micro work rows. Эталон: \`scripts/plans/day-phases-model.md\`.
 
 ## actions[].data fields
 

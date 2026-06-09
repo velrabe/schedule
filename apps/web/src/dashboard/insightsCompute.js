@@ -27,58 +27,43 @@ export function insightBucketForEvent(ev, session) {
     if (cat === "sport_walk" || cat === "walk" || k === "walk") return "walk";
     return "sport";
   }
-  if (k === "food" || cat === "food") return "food";
-  if (k === "chill" || cat === "chill") return "chill";
-  if (k === "social" || cat === "social") return "social";
 
-  if (sc === "work_paid") return "work_paid";
-  if (sc === "personal" || sc === "portfolio") return "personal";
-  if (sc === "byt" || sc === "planning") return "byt";
-  if (sc === "food") return "food";
-  if (sc === "chill") return "chill";
-  if (sc === "social") return "social";
-  if (isSportSessionCategory(sc)) return null;
+  // The event is the source of truth. Its own kind/category wins; the parent
+  // session's category is only a fallback hint (a session is a named wrapper,
+  // it carries nothing unique). Otherwise a work event under a category-less
+  // wrapper session would be bucketed as nothing.
+  const c = cat || sc;
+  if (k === "food" || c === "food") return "food";
+  if (k === "chill" || c === "chill") return "chill";
+  if (k === "social" || c === "social") return "social";
+  if (c === "work_paid") return "work_paid";
+  if (c === "personal" || c === "portfolio") return "personal";
+  if (c === "byt" || c === "planning") return "byt";
+  if (isSportSessionCategory(c)) return null;
 
   return null;
 }
 
-function aggregateDayFromSessionsOnly(date, ds) {
-  const sum = (pred) => ds.filter(pred).reduce((a, s) => a + (s.min || 0), 0);
-  const work_paid_h = sum((s) => s.category === "work_paid") / 60;
-  const personal_h = sum((s) => s.category === "personal" || s.category === "portfolio") / 60;
-  const byt_h = sum((s) => s.category === "byt" || s.category === "planning") / 60;
-  const business_h = work_paid_h + personal_h + byt_h;
-  const sport_h = sum((s) => isSportSessionCategory(s.category)) / 60;
-  const walk_h = sum((s) => s.category === "sport_walk" || s.category === "walk") / 60;
-  const food_h = sum((s) => s.category === "food") / 60;
-  const social_h = sum((s) => s.category === "social") / 60;
-  const chill_h = sum((s) => s.category === "chill") / 60;
-  const tracked_h =
-    work_paid_h + personal_h + byt_h + sport_h + food_h + social_h + chill_h;
-  return {
-    work_paid_h,
-    personal_h,
-    byt_h,
-    business_h,
-    sport_h,
-    walk_h,
-    food_h,
-    social_h,
-    chill_h,
-    tracked_h,
-    sessions: ds.length,
-  };
+/** Map a session envelope's own category to an hour bucket (fallback when it has no child events). */
+function bucketForSessionCategory(cat) {
+  const c = (cat || "").toLowerCase();
+  if (c === "work_paid") return "work_paid";
+  if (c === "personal" || c === "portfolio") return "personal";
+  if (c === "byt" || c === "planning") return "byt";
+  if (c === "sport_walk" || c === "walk") return "walk";
+  if (isSportSessionCategory(c)) return "sport";
+  if (c === "food") return "food";
+  if (c === "social") return "social";
+  if (c === "chill") return "chill";
+  return null;
 }
 
 /** Day hour buckets from session_events (sum of atom durations), else session envelopes. */
 export function aggregateDay(date, sessions, sessionEvents = []) {
   const ds = sessions.filter((s) => s.date === date);
   const dayEvts = sessionEvents.filter((e) => e.date === date && e.session_id);
-  if (!dayEvts.length) {
-    return aggregateDayFromSessionsOnly(date, ds);
-  }
-
   const sessById = new Map(ds.map((s) => [s.id, s]));
+
   let work_paid = 0;
   let personal = 0;
   let byt = 0;
@@ -88,41 +73,31 @@ export function aggregateDay(date, sessions, sessionEvents = []) {
   let social = 0;
   let chill = 0;
 
-  for (const ev of dayEvts) {
-    const session = sessById.get(ev.session_id);
-    const bucket = insightBucketForEvent(ev, session);
-    if (!bucket) continue;
-    const dm = partDurationMin(ev);
-    if (dm <= 0) continue;
+  const add = (bucket, dm) => {
+    if (!bucket || !(dm > 0)) return;
     switch (bucket) {
-      case "work_paid":
-        work_paid += dm;
-        break;
-      case "personal":
-        personal += dm;
-        break;
-      case "byt":
-        byt += dm;
-        break;
-      case "sport":
-        sport += dm;
-        break;
-      case "walk":
-        walk += dm;
-        sport += dm;
-        break;
-      case "food":
-        food += dm;
-        break;
-      case "social":
-        social += dm;
-        break;
-      case "chill":
-        chill += dm;
-        break;
-      default:
-        break;
+      case "work_paid": work_paid += dm; break;
+      case "personal": personal += dm; break;
+      case "byt": byt += dm; break;
+      case "sport": sport += dm; break;
+      case "walk": walk += dm; sport += dm; break;
+      case "food": food += dm; break;
+      case "social": social += dm; break;
+      case "chill": chill += dm; break;
+      default: break;
     }
+  };
+
+  // Sessions with child events are measured by those events; sessions without
+  // any child event still count via their own envelope so envelope-only work
+  // is never dropped just because the day has an unrelated meal/substance event.
+  const coveredSessions = new Set(dayEvts.map((e) => e.session_id));
+  for (const ev of dayEvts) {
+    add(insightBucketForEvent(ev, sessById.get(ev.session_id)), partDurationMin(ev));
+  }
+  for (const s of ds) {
+    if (coveredSessions.has(s.id)) continue;
+    add(bucketForSessionCategory(s.category), s.min || 0);
   }
 
   const work_paid_h = work_paid / 60;
@@ -247,8 +222,16 @@ export function buildInsightsModel({
   finance = [],
   substances = [],
 }) {
-  const sorted = [...days].sort((a, b) => a.date.localeCompare(b.date));
-  const byDate = new Map(sorted.map((d) => [d.date, d]));
+  const byDate = new Map(days.map((d) => [d.date, d]));
+  // Insights must also surface dates that have activity but no day row yet
+  // (e.g. today's work logged before отбой/подъём), otherwise their work
+  // hours never show up in the dynamics chart or averages.
+  const allDates = new Set(days.map((d) => d.date));
+  for (const s of sessions) if (s?.date) allDates.add(s.date);
+  for (const e of sessionEvents) if (e?.date) allDates.add(e.date);
+  const sorted = [...allDates]
+    .sort((a, b) => String(a).localeCompare(String(b)))
+    .map((date) => byDate.get(date) || { date });
   const enriched = sorted.map((d) => {
     const agg = aggregateDay(d.date, sessions, sessionEvents);
     const kcalIn = meals
