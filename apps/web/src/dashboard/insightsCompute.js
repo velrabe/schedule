@@ -63,7 +63,9 @@ function bucketForSessionCategory(cat) {
 /** Day hour buckets from session_events (sum of atom durations), else session envelopes. */
 export function aggregateDay(date, sessions, sessionEvents = []) {
   const ds = sessions.filter((s) => s.date === date);
-  const dayEvts = sessionEvents.filter((e) => e.date === date && e.session_id);
+  // Events are the source of truth — count them even if they have no parent
+  // session wrapper (substance/instant events are filtered out by the bucketer).
+  const dayEvts = sessionEvents.filter((e) => e.date === date);
   const sessById = new Map(ds.map((s) => [s.id, s]));
 
   let work_paid = 0;
