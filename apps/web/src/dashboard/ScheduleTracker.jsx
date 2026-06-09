@@ -268,6 +268,7 @@ function App(props = {}) {
   );
 
   const substances = liveData?.raw?.substances || [];
+  const sessionEvents = liveData?.raw?.session_events || [];
 
   const drawerNavCtx = useMemo(
     () => ({
