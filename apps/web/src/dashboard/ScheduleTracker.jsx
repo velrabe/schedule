@@ -108,8 +108,6 @@ function fmt(n, digits = 1) {
 // work_paid: оплачиваемая работа на заказчиков.
 // personal:  личные проекты (раньше называлось portfolio).
 // byt:       бытовые задачи (банк, документы, отчёты, планирование).
-const BUSINESS_CATS = new Set(["work_paid", "personal", "byt"]);
-const PAID_CATS = new Set(["work_paid"]);
 const PERSONAL_CATS = new Set(["personal"]);
 const BYT_CATS = new Set(["byt"]);
 const SPORT_CATS = new Set([
@@ -382,18 +380,22 @@ function App(props = {}) {
   }, [days, sessions, events]);
 
   const totals = useMemo(() => {
-    const businessMin = sessions
-      .filter((s) => BUSINESS_CATS.has(s.category))
-      .reduce((a, s) => a + (s.min || 0), 0);
-    const paidMin = sessions
-      .filter((s) => PAID_CATS.has(s.category))
-      .reduce((a, s) => a + (s.min || 0), 0);
-    const personalMin = sessions
-      .filter((s) => s.category === "personal" || s.category === "portfolio")
-      .reduce((a, s) => a + (s.min || 0), 0);
-    const bytMin = sessions
-      .filter((s) => s.category === "byt" || s.category === "planning")
-      .reduce((a, s) => a + (s.min || 0), 0);
+    // Hours come from session_events (the source of truth), summed per date,
+    // not from session-envelope categories.
+    const dates = new Set(days.map((d) => d.date));
+    for (const s of sessions) if (s?.date) dates.add(s.date);
+    for (const e of sessionEvents) if (e?.date) dates.add(e.date);
+    let businessMin = 0;
+    let paidMin = 0;
+    let personalMin = 0;
+    let bytMin = 0;
+    for (const date of dates) {
+      const agg = aggregateDay(date, sessions, sessionEvents);
+      businessMin += agg.business_h * 60;
+      paidMin += agg.work_paid_h * 60;
+      personalMin += agg.personal_h * 60;
+      bytMin += agg.byt_h * 60;
+    }
     const dayMap = new Map(days.map((d) => [d.date, d]));
     const sleepValues = days
       .map((d) => computeDisplaySleepHours(d, dayMap.get(addCalendarDaysISO(d.date, -1)), sessions))
@@ -412,7 +414,7 @@ function App(props = {}) {
       modDays,
       avgBusinessPerDay: days.length ? businessMin / 60 / days.length : 0,
     };
-  }, [days, sessions]);
+  }, [days, sessions, sessionEvents]);
 
   return html`
     <div class="app-shell">
@@ -1715,10 +1717,7 @@ function CalendarTab({
           ${cells.map((c, i) => {
             if (!c) return html`<div class="cal-cell cal-cell--empty"></div>`;
             const row = byDate.get(c.date);
-            const list = sessionsByDate.get(c.date) || [];
-            const businessMin = list
-              .filter((s) => BUSINESS_CATS.has(s.category))
-              .reduce((a, s) => a + (s.min || 0), 0);
+            const businessMin = aggregateDay(c.date, sessions, sessionEvents).business_h * 60;
             const kcalIn = kcalInOf(c.date);
             const kcalOut = kcalOutOf(c.date);
             const isSelected = selected === c.date;
