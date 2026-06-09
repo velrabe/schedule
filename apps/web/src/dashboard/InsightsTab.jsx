@@ -2,6 +2,7 @@ import { h } from "preact";
 import { useMemo, useState } from "preact/hooks";
 import htm from "htm";
 import { buildInsightsModel } from "./insightsCompute.js";
+import { fmtHoursHM } from "./dayWakeTimeline.js";
 import { fmtRub } from "./financeInsights.js";
 import { InsightsLineChart, InsightsBarChart } from "./insightsCharts.jsx";
 import { localTodayISO } from "./useDateStrip.js";
@@ -17,8 +18,6 @@ function fmt(n, digits = 1) {
   if (n === null || n === undefined || Number.isNaN(n)) return "—";
   return Number(n).toFixed(digits);
 }
-
-const fmtNum = fmt;
 
 /** Lower bound (inclusive ISO date) for a period; null = no bound. */
 function periodFromDate(period, today) {
@@ -114,12 +113,12 @@ export default function InsightsTab({
 
       <div class="insights-kpi-strip-wrap">
         <${KpiPill} label="дней" value=${String(kpis.days)} />
-        <${KpiPill} label="работа/день" value=${`${fmt(kpis.avgBusiness)}ч`} />
+        <${KpiPill} label="работа/день" value=${fmtHoursHM(kpis.avgBusiness)} />
         <${KpiPill}
           label="сон"
-          value=${kpis.avgSleep != null ? `${fmt(kpis.avgSleep)}ч` : "—"}
+          value=${kpis.avgSleep != null ? fmtHoursHM(kpis.avgSleep) : "—"}
         />
-        <${KpiPill} label="спорт/день" value=${`${fmt(kpis.avgSport)}ч`} />
+        <${KpiPill} label="спорт/день" value=${fmtHoursHM(kpis.avgSport)} />
         <${KpiPill} label="мод" value=${`${kpis.modPct}%`} sub="дней с moda" />
         <${KpiPill}
           label="burnout"
@@ -151,7 +150,7 @@ export default function InsightsTab({
       <div class="insights-grid">
         <${InsightCard}
           title="Баланс времени (среднее/день)"
-          subtitle="сессии по категориям · ${fmt(timeBudgetTotal)}ч в день"
+          subtitle="сессии по категориям · ${fmtHoursHM(timeBudgetTotal)} в день"
         >
           <${StackedBudgetBar} rows=${timeBudget} total=${timeBudgetTotal} />
         </${InsightCard}>
@@ -165,22 +164,24 @@ export default function InsightsTab({
                 label: "Сон",
                 color: "var(--info)",
                 data: enriched.map((d) => d.sleep_h),
-                unit: " ч",
-                formatValue: (v) => fmtNum(v, 1),
+                unit: "",
+                formatValue: (v) => fmtHoursHM(v),
               },
               {
                 key: "business",
                 label: "Работа",
                 color: "var(--success)",
                 data: enriched.map((d) => d.business_h),
-                unit: " ч",
+                unit: "",
+                formatValue: (v) => fmtHoursHM(v),
               },
               {
                 key: "sport",
                 label: "Спорт",
                 color: "var(--danger)",
                 data: enriched.map((d) => d.sport_h),
-                unit: " ч",
+                unit: "",
+                formatValue: (v) => fmtHoursHM(v),
               },
             ]}
             extraLines=${(date, i) => {
@@ -256,7 +257,8 @@ export default function InsightsTab({
                 value: r.hours,
                 tone: "danger",
               }))}
-              unit=" ч"
+              unit=""
+              valueFmt=${(v) => fmtHoursHM(v)}
               hint="сумма минут sport_* сессий"
             />
           </${InsightCard}>
@@ -268,7 +270,8 @@ export default function InsightsTab({
                 value: r.hours,
                 tone: "success",
               }))}
-              unit=" ч"
+              unit=""
+              valueFmt=${(v) => fmtHoursHM(v)}
             />
           </${InsightCard}>
         </div>
@@ -316,7 +319,8 @@ export default function InsightsTab({
                   tone: "info",
                   detail: `средняя работа, n=${b.count}`,
                 }))}
-              unit=" ч"
+              unit=""
+              valueFmt=${(v) => fmtHoursHM(v)}
             />
           </${InsightCard}>
 
@@ -331,7 +335,8 @@ export default function InsightsTab({
                   tone: "success",
                   detail: `n=${b.count}`,
                 }))}
-              unit=" ч"
+              unit=""
+              valueFmt=${(v) => fmtHoursHM(v)}
             />
           </${InsightCard}>
         </div>
@@ -347,7 +352,8 @@ export default function InsightsTab({
                   value: b.avgWork,
                   tone: "warning",
                 }))}
-              unit=" ч"
+              unit=""
+              valueFmt=${(v) => fmtHoursHM(v)}
               hint="среднее business_h"
             />
             <${InsightsBarChart}
@@ -359,7 +365,8 @@ export default function InsightsTab({
                   value: b.avgSport,
                   tone: "danger",
                 }))}
-              unit=" ч"
+              unit=""
+              valueFmt=${(v) => fmtHoursHM(v)}
             />
           </${InsightCard}>
 
@@ -400,7 +407,8 @@ export default function InsightsTab({
                 tone: "success",
               },
             ]}
-            unit=" ч"
+            unit=""
+            valueFmt=${(v) => fmtHoursHM(v)}
             hint="спорт-сессии до 12:00"
           />
         </${InsightCard}>
@@ -411,19 +419,19 @@ export default function InsightsTab({
             html`<${ExtremeRow}
               label="макс. работа"
               date=${extremes.bestWork.date}
-              detail=${`${fmt(extremes.bestWork.business_h)}ч · ${extremes.bestWork.day_type || "—"}`}
+              detail=${`${fmtHoursHM(extremes.bestWork.business_h)} · ${extremes.bestWork.day_type || "—"}`}
             />`}
             ${extremes.worstWork &&
             html`<${ExtremeRow}
               label="мин. работа"
               date=${extremes.worstWork.date}
-              detail=${`${fmt(extremes.worstWork.business_h)}ч · ${extremes.worstWork.day_type || "—"}`}
+              detail=${`${fmtHoursHM(extremes.worstWork.business_h)} · ${extremes.worstWork.day_type || "—"}`}
             />`}
             ${extremes.shortestSleepWork &&
             html`<${ExtremeRow}
               label="мало сна, много работы"
               date=${extremes.shortestSleepWork.date}
-              detail=${`${fmt(extremes.shortestSleepWork.sleep_h)}ч сна → ${fmt(extremes.shortestSleepWork.business_h)}ч`}
+              detail=${`${fmtHoursHM(extremes.shortestSleepWork.sleep_h)} сна → ${fmtHoursHM(extremes.shortestSleepWork.business_h)}`}
             />`}
             ${extremes.maxKcalIn &&
             html`<${ExtremeRow}
@@ -513,7 +521,7 @@ function StackedBudgetBar({ rows, total }) {
               class=${`insights-stacked-seg insights-stacked-seg--${r.tone}`}
               key=${r.key}
               style=${`flex: ${r.h} 1 0;`}
-              title=${`${r.label}: ${fmt(r.h)}ч`}
+              title=${`${r.label}: ${fmtHoursHM(r.h)}`}
             ></div>
           `,
         )}
@@ -523,7 +531,7 @@ function StackedBudgetBar({ rows, total }) {
           (r) => html`
             <div class="insights-stacked-legend-item-wrap" key=${r.key}>
               <span class=${`insights-stacked-swatch insights-stacked-swatch--${r.tone}`}></span>
-              <span class="insights-stacked-legend-text">${r.label} ${fmt(r.h)}ч</span>
+              <span class="insights-stacked-legend-text">${r.label} ${fmtHoursHM(r.h)}</span>
             </div>
           `,
         )}

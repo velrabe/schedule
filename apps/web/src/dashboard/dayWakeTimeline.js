@@ -83,22 +83,28 @@ function earliestSessionStartClock(date, sessions = []) {
 }
 
 /**
- * Sleep for a day, from отбой (`sleep_start`) to подъём (`wake`) on the same day row.
- * Falls back to the latest session end / earliest session start when a field is missing,
- * and to a stored `sleep_h` only when отбой/подъём cannot be derived.
- * `nextDay` is accepted for signature compatibility but no longer required.
+ * Sleep that powers a given day D = from the PREVIOUS day's отбой (`sleep_start`,
+ * the bedtime that night) to this day's подъём (`wake`). So a 6th-evening отбой 02:30
+ * paired with a 7th подъём 11:05 = 8ч35м, attributed to the 7th (the wake day),
+ * which matches how `sleep_hours` is stored on the wake row.
+ *
+ * Falls back to the previous day's latest session end (bed) / this day's earliest
+ * session start (rise) when a field is missing, and to a stored `sleep_h` last.
  */
-export function computeDisplaySleepHours(day, _nextDay, allSessions = []) {
+export function computeDisplaySleepHours(day, prevDay, allSessions = []) {
   if (!day?.date) return null;
+  const prevDate = addCalendarDaysISO(day.date, -1);
 
-  let bedClock = trimTime(day.sleep_start);
-  let wakeClock = trimTime(day.wake);
+  let riseClock = trimTime(day.wake);
+  if (!riseClock) riseClock = earliestSessionStartClock(day.date, allSessions);
 
-  if (!bedClock) bedClock = latestSessionEndClock(day.date, wakeClock || "06:00", allSessions);
-  if (!wakeClock) wakeClock = earliestSessionStartClock(day.date, allSessions);
+  let bedClock = trimTime(prevDay?.sleep_start);
+  if (!bedClock) {
+    bedClock = latestSessionEndClock(prevDate, trimTime(prevDay?.wake) || "06:00", allSessions);
+  }
 
-  if (bedClock && wakeClock) {
-    const durMin = (timeToMin(wakeClock) - timeToMin(bedClock) + DAY_MIN) % DAY_MIN;
+  if (bedClock && riseClock) {
+    const durMin = (timeToMin(riseClock) - timeToMin(bedClock) + DAY_MIN) % DAY_MIN;
     const hours = clampSleepHours(durMin);
     if (hours != null) return hours;
   }
@@ -108,4 +114,22 @@ export function computeDisplaySleepHours(day, _nextDay, allSessions = []) {
     return Number(stored);
   }
   return null;
+}
+
+/** Duration in hours → "9ч 05м" / "9ч" / "35м" / "—" (no decimals). */
+export function fmtHoursHM(hours) {
+  if (hours == null || !Number.isFinite(Number(hours))) return "—";
+  const total = Math.round(Number(hours) * 60);
+  if (total <= 0) return "0ч";
+  const h = Math.floor(total / 60);
+  const m = total % 60;
+  if (h > 0 && m > 0) return `${h}ч ${String(m).padStart(2, "0")}м`;
+  if (h > 0) return `${h}ч`;
+  return `${m}м`;
+}
+
+/** Minutes → "9ч 05м" / "9ч" / "35м" / "—" (no decimals). */
+export function fmtMinutesHM(min) {
+  if (min == null || !Number.isFinite(Number(min))) return "—";
+  return fmtHoursHM(Number(min) / 60);
 }

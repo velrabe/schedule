@@ -63,6 +63,8 @@ import {
   dayWakeChronoMinutes,
   addCalendarDaysISO,
   computeDisplaySleepHours,
+  fmtHoursHM,
+  fmtMinutesHM,
 } from "./dayWakeTimeline.js";
 
 const html = htm.bind(h);
@@ -100,11 +102,6 @@ function fmt(n, digits = 1) {
   if (n === null || n === undefined || Number.isNaN(n)) return "";
   if (Number.isInteger(n) && digits > 0) return n.toFixed(0);
   return Number(n).toFixed(digits);
-}
-
-function fmtHours(min) {
-  if (!min) return "0";
-  return (min / 60).toFixed(min % 60 === 0 ? 0 : 1);
 }
 
 // Categories that count as productive output for the "business work" aggregate.
@@ -399,13 +396,7 @@ function App(props = {}) {
       .reduce((a, s) => a + (s.min || 0), 0);
     const dayMap = new Map(days.map((d) => [d.date, d]));
     const sleepValues = days
-      .map((d) =>
-        computeDisplaySleepHours(
-          d,
-          dayMap.get(addCalendarDaysISO(d.date, 1)) || { date: addCalendarDaysISO(d.date, 1), wake: "06:00" },
-          sessions,
-        ),
-      )
+      .map((d) => computeDisplaySleepHours(d, dayMap.get(addCalendarDaysISO(d.date, -1)), sessions))
       .filter((v) => v != null && Number.isFinite(v));
     const avgSleep = sleepValues.length ? sleepValues.reduce((a, b) => a + b, 0) / sleepValues.length : 0;
     const modDays = days.filter((d) => d.modafinil_mg > 0).length;
@@ -598,12 +589,12 @@ function StatBar({ totals, days }) {
   const burnouts = days.filter((d) => d.day_type === "burnout").length;
   return html`
     <div class="stat-bar">
-      <${StatCell} label="avg business/day" value=${fmt(totals.avgBusinessPerDay)} unit="ч" tone="info" />
-      <${StatCell} label="total business" value=${fmt(totals.businessH, 0)} unit="ч" />
-      <${StatCell} label="paid" value=${fmt(totals.paidH, 0)} unit="ч" tone="success" />
-      <${StatCell} label="personal" value=${fmt(totals.personalH, 0)} unit="ч" tone="info" />
-      <${StatCell} label="byt" value=${fmt(totals.bytH, 0)} unit="ч" />
-      <${StatCell} label="avg sleep" value=${fmt(totals.avgSleep)} unit="ч" />
+      <${StatCell} label="avg business/day" value=${fmtHoursHM(totals.avgBusinessPerDay)} unit="" tone="info" />
+      <${StatCell} label="total business" value=${fmtHoursHM(totals.businessH)} unit="" />
+      <${StatCell} label="paid" value=${fmtHoursHM(totals.paidH)} unit="" tone="success" />
+      <${StatCell} label="personal" value=${fmtHoursHM(totals.personalH)} unit="" tone="info" />
+      <${StatCell} label="byt" value=${fmtHoursHM(totals.bytH)} unit="" />
+      <${StatCell} label="avg sleep" value=${fmtHoursHM(totals.avgSleep)} unit="" />
       <${StatCell} label="mod days" value=${`${totals.modDays}/${days.length}`} unit="" tone="warning" />
       <${StatCell} label="burnouts" value=${burnouts} unit="" tone=${burnouts > 0 ? "danger" : null} />
     </div>
@@ -637,8 +628,8 @@ function DaysTab({ days, sessions, sessionEvents = [], setDays, setSessions }) {
   const rows = useMemo(() => {
     return days.map((d) => {
       const agg = aggregateDay(d.date, sessions, sessionEvents);
-      const next = byDateDays.get(addCalendarDaysISO(d.date, 1));
-      const sh = computeDisplaySleepHours(d, next, sessions);
+      const prev = byDateDays.get(addCalendarDaysISO(d.date, -1));
+      const sh = computeDisplaySleepHours(d, prev, sessions);
       return { ...d, ...agg, sleep_h: sh != null ? sh : d.sleep_h };
     });
   }, [days, sessions, sessionEvents, byDateDays]);
@@ -819,8 +810,8 @@ function DaysTab({ days, sessions, sessionEvents = [], setDays, setSessions }) {
     <div class="footer-bar">
       <span>${view.length} of ${days.length} days</span>
       <span class="footer-bar__spacer"></span>
-      <span>business: ${fmt(totalBusiness, 1)} ч</span>
-      <span>avg: ${fmt(view.length ? totalBusiness / view.length : 0)} ч/день</span>
+      <span>business: ${fmtHoursHM(totalBusiness)}</span>
+      <span>avg: ${fmtHoursHM(view.length ? totalBusiness / view.length : 0)}/день</span>
     </div>
   `;
 }
@@ -1385,9 +1376,9 @@ function SessionsTab({ sessions, setSessions }) {
     </div>
     <div class="footer-bar">
       <span>${view.length} of ${sessions.length} sessions</span>
-      <span>total: ${fmtHours(totalMin)}h</span>
+      <span>total: ${fmtMinutesHM(totalMin)}</span>
       <span class="footer-bar__spacer"></span>
-      ${byCat.slice(0, 4).map(([c, m]) => html`<span>${c}: ${fmtHours(m)}h</span>`)}
+      ${byCat.slice(0, 4).map(([c, m]) => html`<span>${c}: ${fmtMinutesHM(m)}</span>`)}
     </div>
   `;
 }
@@ -1732,14 +1723,9 @@ function CalendarTab({
             const kcalOut = kcalOutOf(c.date);
             const isSelected = selected === c.date;
             const isToday = c.date === today;
-            const nextIso = addCalendarDaysISO(c.date, 1);
+            const prevIso = addCalendarDaysISO(c.date, -1);
             const sleepH =
-              row &&
-              computeDisplaySleepHours(
-                row,
-                byDate.get(nextIso) || { date: nextIso, wake: "06:00" },
-                sessions,
-              );
+              row && computeDisplaySleepHours(row, byDate.get(prevIso), sessions);
             return html`
               <button
                 key=${i}
@@ -1752,8 +1738,8 @@ function CalendarTab({
                 </div>
                 <div class="cal-cell__body-wrap">
                   ${sleepH != null &&
-                  html`<div class="cal-cell__line"><span>😴 ${fmt(sleepH, 1)}h</span></div>`}
-                  ${businessMin > 0 && html`<div class="cal-cell__line"><span>💼 ${fmtHours(businessMin)}h</span></div>`}
+                  html`<div class="cal-cell__line"><span>😴 ${fmtHoursHM(sleepH)}</span></div>`}
+                  ${businessMin > 0 && html`<div class="cal-cell__line"><span>💼 ${fmtMinutesHM(businessMin)}</span></div>`}
                   ${kcalIn > 0 && html`<div class="cal-cell__line cal-cell__line--food"><span>🍴 ${Math.round(kcalIn)}</span></div>`}
                   ${kcalOut > 0 && html`<div class="cal-cell__line cal-cell__line--burn"><span>🔥 ${Math.round(kcalOut)}</span></div>`}
                 </div>
@@ -1774,10 +1760,7 @@ function CalendarTab({
           <${CalendarDayDetail}
             date=${selected}
             day=${byDate.get(selected)}
-            nextDay=${byDate.get(addCalendarDaysISO(selected, 1)) || {
-              date: addCalendarDaysISO(selected, 1),
-              wake: "06:00",
-            }}
+            prevDay=${byDate.get(addCalendarDaysISO(selected, -1))}
             allSessions=${sessions}
             sessions=${sessionsByDate.get(selected) || []}
             rawMeals=${rawMeals}
@@ -1947,7 +1930,7 @@ function CalDetailNutriColumn({ meal, activity, slotLabel, liveMode = false, onO
 function CalendarDayDetail({
   date,
   day,
-  nextDay,
+  prevDay,
   allSessions = [],
   sessions,
   rawMeals = [],
@@ -1991,10 +1974,10 @@ function CalendarDayDetail({
     () =>
       computeDisplaySleepHours(
         day ?? { date, wake: "06:00", sleep_start: "", sleep_h: null },
-        nextDay,
+        prevDay,
         allSessions,
       ),
-    [date, day, nextDay, allSessions],
+    [date, day, prevDay, allSessions],
   );
 
   const daySubstances = useMemo(() => substancesForDate(date, substances), [date, substances]);
@@ -2080,7 +2063,7 @@ function CalendarDayDetail({
           onSave=${(v) => patchDay({ sleep_start: v })}
         />
         ${sleepDisplay != null &&
-        html`<span class="cal-detail-meta cal-detail-meta--static">${fmt(sleepDisplay, 1)}h</span>`}
+        html`<span class="cal-detail-meta cal-detail-meta--static">${fmtHoursHM(sleepDisplay)}</span>`}
         <${EditableField}
           type="number"
           value=${day?.modafinil_mg ?? 0}
@@ -2274,19 +2257,19 @@ function CalendarDayDetail({
                     <span class="cal-detail-hours-row__label">
                       ${row.label}${row.sub ? html`<span class="cal-detail-hours-row__sub"> · ${row.sub}</span>` : ""}
                     </span>
-                    <span class="cal-detail-hours-row__val">${fmtHours(row.h * 60)}h</span>
+                    <span class="cal-detail-hours-row__val">${fmtHoursHM(row.h)}</span>
                   </div>
                 `)}
                 ${dayAgg.sport_h > 0 && html`
                   <div class="cal-detail-hours-row-wrap">
                     <span class="cal-detail-hours-row__label">спорт</span>
-                    <span class="cal-detail-hours-row__val">${fmtHours(dayAgg.sport_h * 60)}h</span>
+                    <span class="cal-detail-hours-row__val">${fmtHoursHM(dayAgg.sport_h)}</span>
                   </div>
                 `}
                 ${dayAgg.chill_h > 0 && html`
                   <div class="cal-detail-hours-row-wrap">
                     <span class="cal-detail-hours-row__label">chill</span>
-                    <span class="cal-detail-hours-row__val">${fmtHours(dayAgg.chill_h * 60)}h</span>
+                    <span class="cal-detail-hours-row__val">${fmtHoursHM(dayAgg.chill_h)}</span>
                   </div>
                 `}
                 ${dayAgg.business_h <= 0 &&
@@ -2499,10 +2482,8 @@ function KanbanTab({
           const colActs = activitiesByDate.get(date) || [];
           const kcalIn = colMeals.reduce((a, m) => a + (m.kcal || 0), 0);
           const kcalOut = dayKcalOut(date, colActs, sessionEvents, sessions);
-          const nextIso = addCalendarDaysISO(date, 1);
-          const sleepMeta =
-            day &&
-            computeDisplaySleepHours(day, byDate.get(nextIso) || { date: nextIso, wake: "06:00" }, sessions);
+          const prevIso = addCalendarDaysISO(date, -1);
+          const sleepMeta = day && computeDisplaySleepHours(day, byDate.get(prevIso), sessions);
           return html`
             <div
               class=${`kanban-col-wrap ${isToday ? "kanban-col-wrap--today" : ""} ${isFuture ? "kanban-col-wrap--future" : ""}`}
@@ -2531,7 +2512,7 @@ function KanbanTab({
                 <div class="kanban-col-meta-wrap">
                   ${day.wake && html`<span class="kanban-col-meta">↑${day.wake}</span>`}
                   ${day.sleep_start && html`<span class="kanban-col-meta">↓${day.sleep_start}</span>`}
-                  ${sleepMeta != null && html`<span class="kanban-col-meta">${fmt(sleepMeta, 1)}h</span>`}
+                  ${sleepMeta != null && html`<span class="kanban-col-meta">${fmtHoursHM(sleepMeta)}</span>`}
                 </div>
               `}
               ${(kcalIn > 0 || kcalOut > 0) && html`

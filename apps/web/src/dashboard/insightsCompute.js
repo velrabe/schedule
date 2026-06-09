@@ -2,7 +2,7 @@ import { isSportSessionCategory, dayKcalOut } from "./nutritionKcal.js";
 import { isSportSessionEvent } from "./activityMetrics.js";
 import { partDurationMin, fmtSessionDuration, focusBlocksForDate } from "./sessionDisplay.js";
 import { financeTxnDeltaRub } from "./financeInsights.js";
-import { computeDisplaySleepHours } from "./dayWakeTimeline.js";
+import { computeDisplaySleepHours, addCalendarDaysISO, fmtHoursHM } from "./dayWakeTimeline.js";
 
 function timeToMin(t) {
   if (!t) return 0;
@@ -248,13 +248,14 @@ export function buildInsightsModel({
   substances = [],
 }) {
   const sorted = [...days].sort((a, b) => a.date.localeCompare(b.date));
+  const byDate = new Map(sorted.map((d) => [d.date, d]));
   const enriched = sorted.map((d) => {
     const agg = aggregateDay(d.date, sessions, sessionEvents);
     const kcalIn = meals
       .filter((m) => m.date === d.date)
       .reduce((s, m) => s + (Number(m.kcal) || 0), 0);
     const kcalOut = dayKcalOut(d.date, activities, sessionEvents, sessions);
-    const sleep_h = computeDisplaySleepHours(d, null, sessions);
+    const sleep_h = computeDisplaySleepHours(d, byDate.get(addCalendarDaysISO(d.date, -1)), sessions);
     return {
       ...d,
       ...agg,
@@ -425,7 +426,7 @@ export function buildInsightsModel({
       .sort((a, b) => a.sleep_h - b.sleep_h)[0] || null,
   };
 
-  const fmtH = (v) => (v == null ? "—" : `${v.toFixed(1)}ч`);
+  const fmtH = (v) => (v == null ? "—" : fmtHoursHM(v));
 
   const insights = [];
 
@@ -438,7 +439,7 @@ export function buildInsightsModel({
     insights.push({
       tone: diff > 1 ? "info" : "warning",
       title: "Модафинил 75 vs 100",
-      body: `75мг (n=${mod75.length}): ${fmtH(avg75)} работы в среднем. 100мг (n=${mod100.length}): ${fmtH(avg100)}. Разница ${diff >= 0 ? "+" : ""}${diff.toFixed(1)}ч — ${diff < 0.5 ? "прирост слабый относительно +25мг" : "100мг даёт заметный буст"}.`,
+      body: `75мг (n=${mod75.length}): ${fmtH(avg75)} работы в среднем. 100мг (n=${mod100.length}): ${fmtH(avg100)}. Разница ${diff >= 0 ? "+" : "−"}${fmtHoursHM(Math.abs(diff))} — ${diff < 0.5 ? "прирост слабый относительно +25мг" : "100мг даёт заметный буст"}.`,
     });
   }
 
@@ -497,7 +498,7 @@ export function buildInsightsModel({
       insights.push({
         tone: "info",
         title: "Фокус проектов",
-        body: `«${topProjects[0].label}» — ${share.toFixed(0)}% рабочего времени (${topProjects[0].hours.toFixed(1)}ч из ${totalWorkH.toFixed(1)}ч).`,
+        body: `«${topProjects[0].label}» — ${share.toFixed(0)}% рабочего времени (${fmtHoursHM(topProjects[0].hours)} из ${fmtHoursHM(totalWorkH)}).`,
       });
     }
   }

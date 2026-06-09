@@ -5,6 +5,7 @@ import { findSessionOverlapPairs, sessionOverlapLabel } from "./sessionDisplay.j
 import { fmtExpenseShort, financeHumanLabel } from "./sessionFinance.js";
 import { sportHoursFromEvents } from "./sportDuration.js";
 import { isSportSessionCategory } from "./nutritionKcal.js";
+import { fmtHoursHM } from "./dayWakeTimeline.js";
 
 export function substancesForDate(date, substances = []) {
   return substances
@@ -38,7 +39,7 @@ export function expenseRowLabel(txn) {
 
 function fmtH(h) {
   if (!h || h <= 0) return null;
-  return `${h.toFixed(h % 1 === 0 ? 0 : 1)}h`;
+  return fmtHoursHM(h);
 }
 
 /** kcal vs daily target (нетто = in − out сравнивается с целью). */
