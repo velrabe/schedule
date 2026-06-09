@@ -38,7 +38,9 @@ export function insightBucketForEvent(ev, session) {
   if (k === "social" || c === "social") return "social";
   if (c === "work_paid") return "work_paid";
   if (c === "personal" || c === "portfolio") return "personal";
-  if (c === "byt" || c === "planning") return "byt";
+  if (c === "byt" || c === "planning" || c === "admin") return "byt";
+  // Bare "work" or a work kind with no specific category still counts as business.
+  if (c === "work" || k === "work") return "work_paid";
   if (isSportSessionCategory(c)) return null;
 
   return null;
@@ -47,9 +49,9 @@ export function insightBucketForEvent(ev, session) {
 /** Map a session envelope's own category to an hour bucket (fallback when it has no child events). */
 function bucketForSessionCategory(cat) {
   const c = (cat || "").toLowerCase();
-  if (c === "work_paid") return "work_paid";
+  if (c === "work_paid" || c === "work") return "work_paid";
   if (c === "personal" || c === "portfolio") return "personal";
-  if (c === "byt" || c === "planning") return "byt";
+  if (c === "byt" || c === "planning" || c === "admin") return "byt";
   if (c === "sport_walk" || c === "walk") return "walk";
   if (isSportSessionCategory(c)) return "sport";
   if (c === "food") return "food";
