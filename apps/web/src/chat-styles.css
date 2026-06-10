@@ -972,6 +972,24 @@
   min-width: 0;
 }
 
+.session-bundle-part-static-value--link {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+  color: var(--accent, #6ea8fe);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  text-decoration-style: dotted;
+}
+
+.session-bundle-part-static-value--link:hover {
+  text-decoration-style: solid;
+}
+
 .record-drawer-attach-wrap {
   display: flex;
   flex-direction: column;

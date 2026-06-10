@@ -128,6 +128,7 @@ export default function RecordEditDrawer({
   onBack,
   onNavigateStack,
   onSwitchTarget,
+  onOpenEventsFiltered,
   liveMode = false,
   setSessions,
   sessions = [],
@@ -475,6 +476,7 @@ export default function RecordEditDrawer({
         navCtx=${ctx}
         onClose=${onClose}
         onOpenRecord=${onSwitchTarget}
+        onOpenEventsFiltered=${onOpenEventsFiltered}
         setSessions=${setSessions}
       />
     `;

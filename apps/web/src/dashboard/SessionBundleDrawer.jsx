@@ -45,12 +45,24 @@ function FieldInput({ field, value, onChange, disabled }) {
   `;
 }
 
-function BundlePartStaticRow({ label, value }) {
+function BundlePartStaticRow({ label, value, onClick }) {
   if (value == null || value === "") return null;
+  const clickable = Boolean(onClick) && value !== "—";
   return html`
     <div class="session-bundle-part-static-row-wrap">
       <span class="session-bundle-part-static-label">${label}</span>
-      <span class="session-bundle-part-static-value">${value}</span>
+      ${clickable
+        ? html`
+          <button
+            type="button"
+            class="session-bundle-part-static-value session-bundle-part-static-value--link"
+            title=${`ивенты с ${label} = ${value}`}
+            onClick=${onClick}
+          >
+            ${value}
+          </button>
+        `
+        : html`<span class="session-bundle-part-static-value">${value}</span>`}
     </div>
   `;
 }
@@ -66,7 +78,7 @@ function bundlePartTitle(part, finance, meals, sessionEvents) {
   );
 }
 
-function BundlePartCard({ part, idx, policy, finance, meals, sessionEvents, liveMode, onOpenRecord }) {
+function BundlePartCard({ part, idx, policy, finance, meals, sessionEvents, liveMode, onOpenRecord, onOpenEventsFiltered }) {
   const title = bundlePartTitle(part, finance, meals, sessionEvents) || `ивент ${idx + 1}`;
   const pexp = policy.expenseTxn ? [policy.expenseTxn] : [];
   const openAtom = () =>
@@ -94,10 +106,18 @@ function BundlePartCard({ part, idx, policy, finance, meals, sessionEvents, live
       </header>
 
       <div class="session-bundle-part-static-wrap">
-        <${BundlePartStaticRow} label="kind" value=${part.kind || "—"} />
+        <${BundlePartStaticRow}
+          label="kind"
+          value=${part.kind || "—"}
+          onClick=${onOpenEventsFiltered && part.kind ? () => onOpenEventsFiltered("kind", part.kind) : undefined}
+        />
         <${BundlePartStaticRow} label="time" value=${sessionEventTimeSpan(part)} />
         <${BundlePartStaticRow} label="title" value=${part.title || "—"} />
-        <${BundlePartStaticRow} label="category" value=${part.category} />
+        <${BundlePartStaticRow}
+          label="category"
+          value=${part.category}
+          onClick=${onOpenEventsFiltered && part.category ? () => onOpenEventsFiltered("category", part.category) : undefined}
+        />
       </div>
 
       <${DrawerLinkedBlock}
@@ -120,6 +140,7 @@ export default function SessionBundleDrawer({
   onBack,
   onNavigateStack,
   onOpenRecord,
+  onOpenEventsFiltered,
   setSessions,
 }) {
   const parts = useMemo(
@@ -246,6 +267,7 @@ export default function SessionBundleDrawer({
                     sessionEvents=${sessionEvents}
                     liveMode=${liveMode}
                     onOpenRecord=${onOpenRecord}
+                    onOpenEventsFiltered=${onOpenEventsFiltered}
                   />
                 `;
               })}

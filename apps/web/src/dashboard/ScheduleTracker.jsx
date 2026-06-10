@@ -59,6 +59,7 @@ import FinanceTab from "./FinanceTab.jsx";
 import InsightsTab from "./InsightsTab.jsx";
 import BodyTab from "./BodyTab.jsx";
 import { useSheetState, applySheet, SheetHeader, Toolbar } from "./sheetUi.js";
+import { sessionEventTimeSpan } from "./recordDisplay.js";
 import {
   dayWakeChronoMinutes,
   addCalendarDaysISO,
@@ -258,6 +259,7 @@ function App(props = {}) {
     }
   });
   const [editorStack, setEditorStack] = useState([]);
+  const [eventsFilter, setEventsFilter] = useState(null);
 
   const mergedMeals = useMemo(
     () =>
@@ -346,6 +348,12 @@ function App(props = {}) {
   );
 
   const closeRecordEditor = useCallback(() => setEditorStack([]), []);
+
+  const openEventsFiltered = useCallback((field, value) => {
+    setEditorStack([]);
+    setEventsFilter({ field, value });
+    setTab("session_events");
+  }, []);
 
   const recordEditor = editorStack.length ? editorStack[editorStack.length - 1] : null;
 
@@ -456,6 +464,7 @@ function App(props = {}) {
         <${TabBtn} id="nutrition" active=${tab} onClick=${setTab} label="Nutrition" count=${liveData ? mealCountForNutrition(sessions, liveData.meals) : null} />
         <${TabBtn} id="finance" active=${tab} onClick=${setTab} label="Finance" count=${liveData?.finance?.length ?? null} />
         <${TabBtn} id="sessions" active=${tab} onClick=${setTab} label="Sessions" count=${sessions.length} />
+        <${TabBtn} id="session_events" active=${tab} onClick=${setTab} label="Ивенты" count=${sessionEvents.length} />
         <${TabBtn} id="events" active=${tab} onClick=${setTab} label="Timeline" count=${events.length} />
         <${TabBtn} id="insights" active=${tab} onClick=${setTab} label="Insights" count=${null} />
         <${TabBtn}
@@ -527,6 +536,15 @@ function App(props = {}) {
         onOpenRecord=${openRecordEditor}
       />`}
       ${tab === "sessions" && html`<${SessionsTab} sessions=${sessions} setSessions=${setSessions} />`}
+      ${tab === "session_events" &&
+      html`<${SessionEventsTab}
+        sessionEvents=${sessionEvents}
+        sessions=${sessions}
+        liveMode=${Boolean(liveData)}
+        onOpenRecord=${openRecordEditor}
+        pendingFilter=${eventsFilter}
+        onFilterApplied=${() => setEventsFilter(null)}
+      />`}
       ${tab === "events" &&
       html`<${EventsTab}
         events=${events}
@@ -562,6 +580,7 @@ function App(props = {}) {
         onBack=${popRecordEditor}
         onNavigateStack=${navigateEditorStack}
         onSwitchTarget=${pushRecordEditor}
+        onOpenEventsFiltered=${openEventsFiltered}
         liveMode=${Boolean(liveData)}
         setSessions=${setSessions}
         sessions=${sessions}
@@ -1573,6 +1592,145 @@ function EventsTab({ events, setEvents, liveMode = false, onOpenRecord }) {
         </span>
       </div>
     `}
+  `;
+}
+
+// ---------------- Session events tab ----------------
+
+function SessionEventsTab({
+  sessionEvents = [],
+  sessions = [],
+  liveMode = false,
+  onOpenRecord,
+  pendingFilter,
+  onFilterApplied,
+}) {
+  const { sort, toggleSort, filters, setFilter, search, setSearch } = useSheetState(
+    "session_events",
+    { id: "date", dir: "desc" },
+  );
+
+  useEffect(() => {
+    if (!pendingFilter) return;
+    setFilter("kind", pendingFilter.field === "kind" ? pendingFilter.value || "" : "");
+    setFilter("category", pendingFilter.field === "category" ? pendingFilter.value || "" : "");
+    onFilterApplied?.();
+  }, [pendingFilter, setFilter, onFilterApplied]);
+
+  const kinds = useMemo(
+    () => [...new Set(sessionEvents.map((e) => e.kind).filter(Boolean))].sort(),
+    [sessionEvents],
+  );
+  const cats = useMemo(
+    () => [...new Set(sessionEvents.map((e) => e.category).filter(Boolean))].sort(),
+    [sessionEvents],
+  );
+  const sessById = useMemo(() => new Map(sessions.map((s) => [s.id, s])), [sessions]);
+
+  const columns = useMemo(
+    () => [
+      { id: "date", label: "date", thClass: "col-w--md" },
+      {
+        id: "time",
+        label: "time",
+        thClass: "col-w--md",
+        filterable: false,
+        accessor: (r) => sessionEventTimeSpan(r),
+        sortAccessor: (r) => r.start_time || "",
+      },
+      { id: "kind", label: "kind", thClass: "col-w--md", filterOptions: kinds, filterMode: "exact" },
+      {
+        id: "category",
+        label: "category",
+        thClass: "col-w--md",
+        filterOptions: cats,
+        filterMode: "exact",
+      },
+      { id: "title", label: "title", thClass: "col-w--xl" },
+      {
+        id: "project",
+        label: "session",
+        thClass: "col-w--md",
+        filterable: false,
+        sortable: false,
+        accessor: (r) => sessById.get(r.session_id)?.project || "",
+      },
+      { id: "notes", label: "notes", thClass: "col-w--lg", filterable: false },
+    ],
+    [kinds, cats, sessById],
+  );
+
+  const view = useMemo(
+    () => applySheet(sessionEvents, sort, filters, search, columns),
+    [sessionEvents, sort, filters, search, columns],
+  );
+
+  const exportCsv = useCallback(() => {
+    const headers = ["date", "start", "end", "kind", "category", "title", "session", "notes"];
+    const rows = view.map((e) => [
+      e.date,
+      e.start_time || "",
+      e.end_time || "",
+      e.kind || "",
+      e.category || "",
+      e.title || "",
+      sessById.get(e.session_id)?.project || "",
+      e.notes || "",
+    ]);
+    download("schedule-session-events.csv", toCsv([headers, ...rows]), "text/csv;charset=utf-8");
+  }, [view, sessById]);
+
+  const activeFilters = Object.entries(filters).filter(([, v]) => v);
+  const editable = liveMode && Boolean(onOpenRecord);
+
+  return html`
+    <${Toolbar}
+      search=${search}
+      setSearch=${setSearch}
+      onExport=${exportCsv}
+      extraLeft=${html`
+        ${activeFilters.length > 0 &&
+        html`
+          <button class="btn btn--ghost" onClick=${() => activeFilters.forEach(([k]) => setFilter(k, ""))}>
+            <span class="btn__icon-wrap">${I.x()}</span>
+            <span class="btn__text-wrap">сбросить фильтры</span>
+          </button>
+        `}
+      `}
+      hint=${editable ? "клик по строке — правка ивента" : ""}
+    />
+    <div class="table-wrap">
+      <table class=${`sheet ${editable ? "sheet--clickable" : ""}`}>
+        <${SheetHeader}
+          columns=${columns}
+          sort=${sort}
+          toggleSort=${toggleSort}
+          filters=${filters}
+          setFilter=${setFilter}
+        />
+        <tbody>
+          ${view.map((e) => html`
+            <tr
+              key=${e.id}
+              class=${editable ? "sheet-row--clickable" : ""}
+              onClick=${editable ? () => onOpenRecord({ kind: "session_event", record: e }) : undefined}
+            >
+              <td><div class="sheet__td">${e.date}</div></td>
+              <td><div class="sheet__td">${sessionEventTimeSpan(e) || "—"}</div></td>
+              <td><div class="sheet__td">${e.kind || "—"}</div></td>
+              <td><div class="sheet__td">${e.category || "—"}</div></td>
+              <td><div class="sheet__td sheet__td--note">${e.title || "—"}</div></td>
+              <td><div class="sheet__td">${sessById.get(e.session_id)?.project || "—"}</div></td>
+              <td><div class="sheet__td sheet__td--note">${e.notes || "—"}</div></td>
+            </tr>
+          `)}
+        </tbody>
+      </table>
+    </div>
+    <div class="footer-bar">
+      <span>${view.length} of ${sessionEvents.length} ивентов</span>
+      ${activeFilters.map(([k, v]) => html`<span>${k}: ${v}</span>`)}
+    </div>
   `;
 }
 
