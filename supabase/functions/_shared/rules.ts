@@ -8,6 +8,41 @@ const DATA_MODEL = `
 
 **How to work (interface):** Read this section + AGENTS.md scenario table + plan templates. To **write**: build \`actions[]\` for \`/agent\` or rows for \`/manual\`. Use **one** \`get-day YYYY-MM-DD\` when you need existing UUIDs for a patch — **do not** crawl the database with many \`/data\` \`get\` calls across tables to reverse-engineer schema or «what is in each column» unless the user explicitly asked for an audit or inventory.
 
+### Input grammar (user daily log → actions) — PARSE LITERALLY, DO NOT INVENT
+
+The user writes the day as **phase groups**. Map it **1:1**: never invent, reorder, merge, split, or re-time anything. Output exactly the events the user listed — same count, same order, same times.
+
+- **Group header** = a label line with **no leading time** («утро», «рабочий блок №1», «обеденный перерыв», «подготовка к прогулке», «вечер, подготовка ко сну»). Each header = **one session** (\`create_session_bundle\`, \`project\` = that label). A new header / blank line starts a new session.
+- **A line that starts with a time = exactly ONE event** inside the current session, kept in the listed order:
+  - \`HH:MM–HH:MM текст\` → **durational** event, \`title\` = текст.
+  - \`HH:MM текст\` (no end) → **instant** event (подъём, отбой, таблетка).
+- **\`(+ …)\` inside a line = ATTACHMENTS to THAT event — NOT new events.** Every \`+\`-item is a leaf entity hung on the same event and **inherits that event's time/window**. Never spawn a separate event for a \`+\`-item and **never invent a clock time** for it. One event can carry **several** \`+\`-attachments at once.
+- Keep the event \`title\` = the user's words («подготовка к прогулке», «прогулка»). Merchant / sum / order detail / счёт go into the attached row (finance_transactions.merchant+notes, meals, substance) — **do not** rename the event after the attachment («transfer Bybit → VCB» as a title is wrong).
+
+**\`+\` token → what to create (all linked to that event via \`session_event_id\`):**
+
+| user writes | create | how |
+|-------------|--------|-----|
+| \`+ расход <merchant, сумма, счёт, note>\` | finance_transaction \`txn_type: expense\` | \`session_event_id\` = the event; account required |
+| \`+ доход <сумма, счёт>\` | finance_transaction \`txn_type: income\` | \`session_event_id\` = the event |
+| \`+ трансфер <со счёта → на счёт, суммы>\` | finance_transaction \`txn_type: transfer\` | \`account\`, \`counter_account\`, \`amount\`, \`amount_counter\`, \`session_event_id\` = the event |
+| \`+ пища\` / \`+ кбжу\` | \`create_meal\` (slot + KBJU) | meal on the food event (\`meal_id\` / \`session_id\`) |
+| \`+ скуби\` / \`+ кофе\` / \`+ мода\` | \`create_substance\` (scooby / caffeine / moda) | \`time\` = the event's start; server mirrors instant |
+| \`+ активность\` | \`create_activity\` | link to the sport event (\`activity_id\`) |
+
+**Worked example — the «подготовка к прогулке» block. INPUT:**
+
+\`\`\`
+18:30-19:00 подготовка к прогулке (+ трансфер bybit → vcb: -187 usdt +4.906.000 vnd)
+19:00-21:30 прогулка (+ активность, + расход 95т VCB pharmacy eye-drops, + расход 11500 VCB groceries sprite)
+\`\`\`
+
+**RIGHT → exactly 2 events:**
+- event «подготовка к прогулке» 18:30–19:00, with **one transfer txn** (bybit→vcb) attached.
+- event «прогулка» 19:00–21:30, with **activity + two expense txns** (eye-drops, sprite) all attached to this single event.
+
+**WRONG (this is the bug to avoid):** 4 events — a «transfer» event, «прогулка», an «eye-drops» expense event at an invented 20:00, a «sprite» event at 20:05. There is **no \`kind=expense\` event**: money is a finance_transaction linked by \`session_event_id\`, taking the event's own time. Attachments never become events and never get made-up times.
+
 ### Events (\`session_events\` — atoms)
 
 1. **Start time is set** → that row is an event (diary atom).
