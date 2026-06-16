@@ -43,6 +43,48 @@ The user writes the day as **phase groups**. Map it **1:1**: never invent, reord
 
 **WRONG (this is the bug to avoid):** 4 events — a «transfer» event, «прогулка», an «eye-drops» expense event at an invented 20:00, a «sprite» event at 20:05. There is **no \`kind=expense\` event**: money is a finance_transaction linked by \`session_event_id\`, taking the event's own time. Attachments never become events and never get made-up times.
 
+### Text vs screenshots — TWO sources, strict split (READ BEFORE apply-manual)
+
+When the user attaches **text schedule + receipt/KBJU/activity screenshots**, they are **different authorities**. Mixing them is the #1 data bug (wrong session names, wrong merchants, invented times).
+
+**Source = user's TEXT schedule (always wins for structure & labels):**
+
+| Field | Rule |
+|-------|------|
+| Session \`project\` | **Only** the phase header line («утро», «день», «вечер, прогулка»). **Never** a dish name, merchant, or screenshot title. |
+| Session \`category\` | Infer from phase/events (work/chill/food/sport) — **not** from receipt brand. |
+| Event \`title\` | **Only** words on the timed line («обед», «завтрак», «прогулка»). **Never** «Popeyes», «Chicken noodles», «McDonalds». |
+| Event \`start_time\` / \`end_time\` | **Only** times on the timed line. **Never** receipt timestamp, payment time, or «now». |
+| Finance \`merchant\` | **Only** what user wrote in \`(+ расход …)\` («GrabFood», «GrabMarket», «досуг»). Screenshot brand goes to \`notes\`, not \`merchant\`. |
+| Finance \`account\` / \`counter_account\` | **Only** account slug from text («vcb_vnd», «brex», «bybit»). |
+| Finance \`time\` | **= parent event \`start_time\`** (inherit). **Never** invent 21:11 / 04:13 / end-of-window unless user gave that time. |
+| Which event gets which \`+\` | **Only** from text: \`(+ пища)\` on «15:00–15:30 обед» → meal on **that** event; \`(+ расход …)\` on «19:00–21:00 прогулка» → txn on **walk** event. |
+| Substance \`time\` | **= start of the event** where user wrote \`+скуби\` / \`+кофе\`. |
+| Meal \`slot\` | From event title/time («завтрак»→breakfast, «обед»→lunch, «ужин»→dinner; 04:00 «перерыв»+food → snack, not dinner). |
+| Activity row | Create **only** if user wrote \`+ активность\` on that event. **Never** add a day-total «792 kcal move» from a health screenshot unless user asked. |
+
+**Source = SCREENSHOTS (numbers & detail only — never override text):**
+
+| Field | From screenshot |
+|-------|-----------------|
+| Meal \`kcal\`, \`protein_g\`, \`fat_g\`, \`carbs_g\`, \`portion_grams\` | Yes — macros/KBJU |
+| Meal \`name\` | Yes — dish name (**meals.name only**, e.g. «Chicken noodles»). Does **not** rename session or event. |
+| Finance \`amount\`, \`currency\` | Yes — if not in text; use receipt total |
+| Finance / meal \`notes\` | Yes — line items, VND receipt text, pace/km/kcal for sport, «КБЖU со скрина: …» |
+| Activity metrics (\`calories_burned\`, \`distance_km\`, \`pace\`) | Yes — **when** \`+ активность\` on that event |
+
+**Never take from screenshots:** session \`project\`, event \`title\`, event times, \`merchant\`, \`account\`, attachment parent, currency conversion rate (unless user stated), invented USD from VND unless user explicitly asked.
+
+**WRONG (June 15–style bugs):**
+- Session header «день» but \`sessions.project = "Chicken noodles"\` because lunch screenshot — **project must stay «день»**.
+- Text «GrabFood, brex» on ужин but \`merchant = "Popeyes"\` from receipt — **merchant = GrabFood**, Popeyes detail in \`notes\`.
+- \`finance_transactions.time = 21:11\` while event is 22:00–23:30 — **time = 22:00:00**.
+- Daily calories screenshot → orphan \`activities\` row with no \`activity_id\` on walk event — **do not create**.
+
+**Workflow:** Build **full day in one \`apply\`** (bundles + inline attachments). Use \`apply-manual\` only to patch **KBJU/amount/notes** onto **existing event ids from get-day** — never to rewrite session names, event titles, merchants, or times from screenshots.
+
+**Self-check before replying «готово»:** For each session, \`project\` equals a **header line from text**, not a meal/brand. For each finance row, \`merchant\`+account match **text**, \`time\` equals **parent event start**, \`session_event_id\` matches the event that had the \`(+ …)\` in text.
+
 ### Events (\`session_events\` — atoms)
 
 1. **Start time is set** → that row is an event (diary atom).
