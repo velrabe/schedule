@@ -4,6 +4,7 @@ import { clearToken } from "../api/token";
 import { summarizeActions } from "./actionSummary";
 import { formatApiError } from "./formatApiError";
 import { prepareImageFile, isImagePasteItem, type PreparedImage } from "./imageAttach";
+import { looksLikeDayLog } from "./dayLogDetect";
 
 export type Action = {
   type: string;
@@ -91,7 +92,7 @@ export default function ChatSidebar({ open, onClose }: { open: boolean; onClose:
   const [messages, setMessages] = useState<Message[]>(() => loadHistory());
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
-  const [pendingImage, setPendingImage] = useState<PreparedImage | null>(null);
+  const [pendingImages, setPendingImages] = useState<PreparedImage[]>([]);
   const [imageBusy, setImageBusy] = useState(false);
   const listRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -115,7 +116,7 @@ export default function ChatSidebar({ open, onClose }: { open: boolean; onClose:
     setImageBusy(true);
     try {
       const prepared = await prepareImageFile(file);
-      setPendingImage(prepared);
+      setPendingImages((prev) => [...prev, prepared].slice(0, 8));
     } catch (e) {
       alert(e instanceof Error ? e.message : String(e));
     } finally {
@@ -127,8 +128,10 @@ export default function ChatSidebar({ open, onClose }: { open: boolean; onClose:
 
   const onFileChange = (e: Event) => {
     const inputEl = e.currentTarget as HTMLInputElement;
-    const file = inputEl.files?.[0];
-    if (file) void attachFile(file);
+    const files = inputEl.files;
+    if (files?.length) {
+      for (const file of files) void attachFile(file);
+    }
     inputEl.value = "";
   };
 
@@ -149,38 +152,48 @@ export default function ChatSidebar({ open, onClose }: { open: boolean; onClose:
 
   const send = async () => {
     const text = input.trim();
-    const img = pendingImage;
-    if ((!text && !img) || busy || imageBusy) return;
+    const imgs = pendingImages;
+    if ((!text && !imgs.length) || busy || imageBusy) return;
     const userMsg: Message = {
       id: uid(),
       role: "user",
-      text: text || (img ? "📷 скрин" : ""),
+      text: text || (imgs.length ? `📷 ${imgs.length} скрин(ов)` : ""),
       ts: Date.now(),
-      imagePreview: img?.previewUrl,
-      imageName: img?.name,
+      imagePreview: imgs[0]?.previewUrl,
+      imageName: imgs.length > 1 ? `${imgs.length} images` : imgs[0]?.name,
     };
     const loadingId = uid();
     const loadingMsg: Message = {
       id: loadingId,
       role: "assistant",
-      text: "думаю…",
+      text: looksLikeDayLog(text) ? "разбираю день…" : "думаю…",
       status: "loading",
       ts: Date.now(),
     };
     setMessages((m) => [...m, userMsg, loadingMsg]);
     setInput("");
-    setPendingImage(null);
+    setPendingImages([]);
     setBusy(true);
     try {
       const history = messages
         .filter((m) => m.role === "user" || (m.role === "assistant" && m.status !== "loading"))
         .slice(-8)
         .map((m) => ({ role: m.role as "user" | "assistant", text: m.text }));
-      const res = await call<ChatResponse>("chat", {
-        message: text,
-        history,
-        ...(img ? { image_base64: img.base64, image_mime: img.mime } : {}),
-      });
+
+      const useParser = looksLikeDayLog(text);
+      const endpoint = useParser ? "parse-day" : "chat";
+      const payload = useParser
+        ? {
+            message: text,
+            images: imgs.map((img) => ({ base64: img.base64, mime: img.mime })),
+          }
+        : {
+            message: text,
+            history,
+            ...(imgs[0] ? { image_base64: imgs[0].base64, image_mime: imgs[0].mime } : {}),
+          };
+
+      const res = await call<ChatResponse>(endpoint, payload);
       const assistantMsg: Message = {
         id: uid(),
         role: "assistant",
@@ -332,7 +345,7 @@ export default function ChatSidebar({ open, onClose }: { open: boolean; onClose:
         <div class="chat-header-wrap">
           <div class="chat-header-title-wrap">
             <span class="chat-header-title">log</span>
-            <span class="chat-header-subtitle">текст · скрин · вставка Ctrl+V</span>
+            <span class="chat-header-subtitle">день = парсер · короткое = chat · до 8 скринов</span>
           </div>
           <div class="chat-header-actions-wrap">
             <button class="btn btn--ghost btn--icon" onClick={clear} title="clear history" type="button">
@@ -364,7 +377,7 @@ export default function ChatSidebar({ open, onClose }: { open: boolean; onClose:
             <div class="chat-empty-wrap">
               <span class="chat-empty-title">empty</span>
               <span class="chat-empty-hint">
-                «начал приложение», «поел пасту», «вес 82.4», «75 мг модафинила»
+                Полный день: дата + фазы + ивенты (+ вложения) → парсер. Короткое: «75 мг мода», «вес 82.4»
               </span>
             </div>
           )}
@@ -378,21 +391,37 @@ export default function ChatSidebar({ open, onClose }: { open: boolean; onClose:
             ref={fileInputRef}
             type="file"
             accept="image/*"
+            multiple
             class="chat-file-input"
             onChange={onFileChange}
           />
-          {pendingImage && (
+          {pendingImages.length > 0 && (
             <div class="chat-attach-preview-wrap">
-              <img class="chat-attach-preview-img" src={pendingImage.previewUrl} alt="" />
+              <div class="chat-attach-preview-list-wrap">
+                {pendingImages.map((img, idx) => (
+                  <div key={idx} class="chat-attach-preview-item-wrap">
+                    <img class="chat-attach-preview-img" src={img.previewUrl} alt="" />
+                    <button
+                      type="button"
+                      class="btn btn--ghost btn--icon"
+                      onClick={() => setPendingImages((prev) => prev.filter((_, i) => i !== idx))}
+                      disabled={busy}
+                      title="убрать"
+                    >
+                      <span class="btn__icon-wrap">×</span>
+                    </button>
+                  </div>
+                ))}
+              </div>
               <div class="chat-attach-preview-meta-wrap">
-                <span class="chat-attach-preview-name">{pendingImage.name}</span>
+                <span class="chat-attach-preview-name">{pendingImages.length} скрин(ов)</span>
                 <button
                   type="button"
                   class="btn btn--ghost"
-                  onClick={() => setPendingImage(null)}
+                  onClick={() => setPendingImages([])}
                   disabled={busy}
                 >
-                  <span class="btn__text-wrap">убрать</span>
+                  <span class="btn__text-wrap">убрать все</span>
                 </button>
               </div>
             </div>
@@ -400,12 +429,12 @@ export default function ChatSidebar({ open, onClose }: { open: boolean; onClose:
           <textarea
             ref={textareaRef}
             class="chat-textarea"
-            placeholder="напиши или прикрепи скрин… enter — отправить"
+            placeholder="полный день текстом + скрины Grab/ккал/спорт… enter — отправить"
             value={input}
             onInput={(e) => setInput((e.currentTarget as HTMLTextAreaElement).value)}
             onKeyDown={onKey}
             onPaste={onPaste}
-            rows={2}
+            rows={4}
             disabled={busy || imageBusy}
           ></textarea>
           <div class="chat-input-actions-wrap">
@@ -430,7 +459,7 @@ export default function ChatSidebar({ open, onClose }: { open: boolean; onClose:
             <button
               class="btn btn--primary"
               onClick={() => void send()}
-              disabled={busy || imageBusy || (!input.trim() && !pendingImage)}
+              disabled={busy || imageBusy || (!input.trim() && !pendingImages.length)}
               type="button"
             >
               <span class="btn__text-wrap">{busy ? "…" : "send"}</span>

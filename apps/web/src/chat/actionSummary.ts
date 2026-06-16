@@ -52,6 +52,11 @@ export function summarizeAction(a: Action): string {
       const proj = d.project ? ` · ${d.project}` : "";
       return `${start && end ? `${start}–${end}` : start || "сессия"} · ${cat}${proj}${date ? ` · ${date}` : ""}`;
     }
+    case "create_session_bundle": {
+      const proj = d.project ? String(d.project) : d.title ? String(d.title) : "сессия";
+      const evts = Array.isArray(d.events) ? d.events.length : 0;
+      return `Сессия «${proj}» · ${evts} ивентов${date ? ` · ${date}` : ""}`;
+    }
     case "update_session": {
       const start = d.start_time != null ? trimTime(d.start_time) : "";
       const end = d.end_time != null ? trimTime(d.end_time) : "";

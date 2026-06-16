@@ -29,7 +29,7 @@ function toMin(t: string): number {
   return (h ?? 0) * 60 + (m ?? 0);
 }
 
-async function executeOne(
+export async function executeOne(
   db: SupabaseClient,
   action: Action,
   sourceLogId: string | null,

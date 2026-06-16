@@ -5,6 +5,8 @@ import { preflight, json } from "../_shared/cors.ts";
 import { requireAuth } from "../_shared/jwt.ts";
 import { admin } from "../_shared/db.ts";
 import { applyActions, type Action } from "../_shared/applyActions.ts";
+import { executeDayPlan } from "../_shared/dayPlanExecute.ts";
+import type { DayPlan } from "../_shared/dayLogParser.ts";
 
 Deno.serve(async (req) => {
   const pre = preflight(req);
@@ -44,8 +46,30 @@ Deno.serve(async (req) => {
     return json({ ok: true, status: "rejected" });
   }
 
-  const rawActions: Action[] = body.overrides ||
-    ((log.parsed_json as { actions?: Action[] } | null)?.actions ?? []);
+  const parsed = log.parsed_json as {
+    actions?: Action[];
+    pipeline?: string;
+    plan?: DayPlan;
+  } | null;
+
+  if (parsed?.pipeline === "day_plan_v1" && parsed.plan) {
+    const out = await executeDayPlan(db, parsed.plan, log.id);
+    const logStatus = out.ok ? "saved" : "error";
+    await db
+      .from("raw_logs")
+      .update({
+        status: logStatus,
+        status_reason: out.ok ? null : JSON.stringify(out.results),
+      })
+      .eq("id", log.id);
+    return json({
+      ok: out.ok,
+      pipeline: "day_plan_v1",
+      results: out.results.map((r) => ({ type: r.step, ok: r.ok, error: r.error })),
+    });
+  }
+
+  const rawActions: Action[] = body.overrides || (parsed?.actions ?? []);
 
   const out = await applyActions(db, rawActions, {
     sourceLogId: log.id,

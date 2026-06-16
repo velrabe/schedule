@@ -31,3 +31,4 @@ jobs:
           supabase functions deploy data --no-verify-jwt
           supabase functions deploy manual --no-verify-jwt
           supabase functions deploy agent --no-verify-jwt
+          supabase functions deploy parse-day --no-verify-jwt

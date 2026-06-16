@@ -3773,10 +3773,23 @@ button.kanban-card:hover {
 
 .chat-attach-preview-wrap {
   display: flex;
-  flex-direction: row;
+  flex-direction: column;
   width: 100%;
   gap: 8px;
-  align-items: flex-start;
+}
+
+.chat-attach-preview-list-wrap {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  width: 100%;
+  gap: 8px;
+}
+
+.chat-attach-preview-item-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
 }
 
 .chat-attach-preview-img {
