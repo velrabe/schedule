@@ -144,6 +144,7 @@ export default function RecordEditDrawer({
       current.record.id,
       sessionEvents,
       current.record.start || current.record.start_time,
+      current.record.end || current.record.end_time,
     );
   }, [current, sessionEvents]);
 

@@ -33,20 +33,85 @@ export function expensesForSessionEvent(eventId, finance = []) {
   );
 }
 
+function toClockMin(t) {
+  const [h, m] = String(t || "00:00").slice(0, 5).split(":").map(Number);
+  return (h || 0) * 60 + (m || 0);
+}
+
+function fromClockMin(m) {
+  const x = ((m % (24 * 60)) + 24 * 60) % (24 * 60);
+  return `${String(Math.floor(x / 60)).padStart(2, "0")}:${String(x % 60).padStart(2, "0")}`;
+}
+
+/** Session envelope crosses midnight on the clock. */
+export function sessionCrossesMidnight(sessionStart, sessionEnd) {
+  if (!sessionStart || !sessionEnd) return false;
+  return toClockMin(sessionEnd) <= toClockMin(sessionStart);
+}
+
+/** Events contain both late evening and early-morning times. */
+export function eventsSpanMidnight(events) {
+  if (!events?.length) return false;
+  const mins = events.map((e) => toClockMin(e.start_time));
+  const hasEarly = mins.some((m) => m < 6 * 60);
+  const hasLate = mins.some((m) => m >= 18 * 60);
+  return hasEarly && hasLate;
+}
+
+/**
+ * Anchor for chrono ordering inside a session.
+ * When the envelope is broken (e.g. 02:00–02:00) but events span evening→night,
+ * infer anchor from the earliest evening event instead of post-midnight clock time.
+ */
+export function resolveSessionAnchor(sessionStart, sessionEnd, events = []) {
+  if (!events.length) return sessionStart ? String(sessionStart).slice(0, 5) : null;
+
+  const crosses =
+    sessionCrossesMidnight(sessionStart, sessionEnd) || eventsSpanMidnight(events);
+
+  if (!crosses) {
+    if (sessionStart) return String(sessionStart).slice(0, 5);
+    return fromClockMin(Math.min(...events.map((e) => toClockMin(e.start_time))));
+  }
+
+  const sessionStartMin = sessionStart ? toClockMin(sessionStart) : null;
+  const brokenEnvelope =
+    sessionStart &&
+    sessionEnd &&
+    toClockMin(sessionStart) === toClockMin(sessionEnd) &&
+    eventsSpanMidnight(events);
+
+  const anchorLooksPostMidnight =
+    sessionStartMin != null &&
+    sessionStartMin < 6 * 60 &&
+    events.some((e) => toClockMin(e.start_time) >= 18 * 60);
+
+  if (brokenEnvelope || !sessionStart || anchorLooksPostMidnight) {
+    const evening = events
+      .map((e) => toClockMin(e.start_time))
+      .filter((m) => m >= 12 * 60);
+    if (evening.length) return fromClockMin(Math.min(...evening));
+  }
+
+  if (sessionStart) return String(sessionStart).slice(0, 5);
+  return fromClockMin(Math.min(...events.map((e) => toClockMin(e.start_time))));
+}
+
 function chronoMinutes(clock, anchor) {
-  const toMin = (t) => {
-    const [h, m] = String(t || "00:00").slice(0, 5).split(":").map(Number);
-    return (h || 0) * 60 + (m || 0);
-  };
-  return (toMin(clock) - toMin(anchor) + 24 * 60) % (24 * 60);
+  return (toClockMin(clock) - toClockMin(anchor) + 24 * 60) % (24 * 60);
 }
 
 /**
  * Events of a diary session (session_events table).
- * When `anchorStart` (the session's start time) is given, events are ordered
- * chronologically relative to it, so a 02:00 event sorts AFTER a 22:00 one.
+ * When session times are given, events are ordered on an overnight-aware timeline
+ * so a 02:00 отбой sorts after 22:00 ужин.
  */
-export function childEventsForSession(sessionId, sessionEvents = [], anchorStart = null) {
+export function childEventsForSession(
+  sessionId,
+  sessionEvents = [],
+  anchorStart = null,
+  sessionEnd = null,
+) {
   if (!sessionId) return [];
   const list = sessionEvents.filter(
     (e) =>
@@ -54,15 +119,30 @@ export function childEventsForSession(sessionId, sessionEvents = [], anchorStart
       !e.substance_id &&
       (e.kind || "").toLowerCase() !== "substance",
   );
-  if (anchorStart) {
+  const anchor = resolveSessionAnchor(anchorStart, sessionEnd, list);
+  if (anchor) {
     return list.sort(
       (a, b) =>
-        chronoMinutes(a.start_time, anchorStart) - chronoMinutes(b.start_time, anchorStart),
+        chronoMinutes(a.start_time, anchor) - chronoMinutes(b.start_time, anchor),
     );
   }
   return list.sort((a, b) =>
     String(a.start_time || "").localeCompare(String(b.start_time || "")),
   );
+}
+
+/** Chronological span label for sorted session events (handles overnight). */
+export function sessionEventsTimeSpan(sortedEvents, sessionStart, sessionEnd) {
+  if (!sortedEvents?.length) return "";
+  const anchor = resolveSessionAnchor(sessionStart, sessionEnd, sortedEvents);
+  const first = sortedEvents[0];
+  const last = sortedEvents[sortedEvents.length - 1];
+  const start = String(first.start_time || "").slice(0, 5);
+  const end = String(last.end_time || last.start_time || "").slice(0, 5);
+  if (anchor && chronoMinutes(end, anchor) < chronoMinutes(start, anchor)) {
+    return `${start}–${end}`;
+  }
+  return `${start}–${end}`;
 }
 
 /** Primary expense for simple UI (first linked txn). */

@@ -63,11 +63,13 @@ function minMaxTime(
   const start_time = `${String(Math.floor(minS / 60) % 24).padStart(2, "0")}:${String(minS % 60).padStart(2, "0")}:00`;
   const endMin = maxE % (24 * 60);
   const end_time = `${String(Math.floor(endMin / 60)).padStart(2, "0")}:${String(endMin % 60).padStart(2, "0")}:00`;
-  const duration_min = diffMinutesExact(start_time, end_time);
+  const duration_min = maxE > minS
+    ? maxE - minS
+    : diffMinutesExact(start_time, end_time) || diffMinutes(start_time, end_time);
   return {
     start_time,
     end_time,
-    duration_min: duration_min > 0 ? duration_min : diffMinutes(start_time, end_time),
+    duration_min,
   };
 }
 

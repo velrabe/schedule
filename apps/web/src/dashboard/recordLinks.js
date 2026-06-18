@@ -200,6 +200,7 @@ export function getRelatedLinks(kind, record, ctx = {}) {
       record.id,
       sessionEvents,
       record.start || record.start_time,
+      record.end || record.end_time,
     );
     for (const p of parts.slice(0, 6)) {
       if (p.substance_id) continue;

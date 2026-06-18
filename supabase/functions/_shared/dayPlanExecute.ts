@@ -117,7 +117,6 @@ export async function executeDayPlan(
                 portion_grams: att.meal!.portion_grams,
                 confidence: "estimate",
                 notes: att.meal!.notes,
-                session_id: sessionId,
               },
             }, sourceLogId);
             const mealId = (mealRow as { id?: string })?.id;

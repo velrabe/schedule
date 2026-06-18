@@ -189,7 +189,7 @@ User mental model: day = ordered **phases**, each phase = one session envelope +
 
 **Food / meals:**
 - **Dedicated meal phase** (завтрак / обед / ужин block) → food session OR bundle with kind=food event + create_meal for macros.
-- **Snack/lunch order during work** → kind=food or chore event **inside** work phase bundle, expense on that event; optional create_meal linked via session_id of work session only if macros given — do NOT spawn overlapping food session.
+- **Snack/lunch order during work** → kind=food or chore event **inside** work phase bundle, expense on that event; optional create_meal for macros linked via **session_events.meal_id** on that atom — **never** set meal.session_id on a multi-event phase (server must not rewrite session project/notes/category from meal OCR).
 
 **Substances:** \`create_substance\` (scooby/moda/caffeine) for analytics; time must match the parent atom the user described. Server may mirror an instant timeline row — logical parent is still that phase atom (see Logical event model).
 

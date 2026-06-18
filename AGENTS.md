@@ -136,3 +136,18 @@ finance_transactions.session_event_id
 ## Если сомневаешься
 
 Один вопрос пользователю вместо массового `delete` или новой миграции. Конфликт сессий на уже правильном дне — `update_session` цепочкой; на «переделай день» — **CODEX_REBUILD**, не 36× manual.
+
+## Ponytail (YAGNI / lazy senior dev)
+
+Upstream: [`vendor/ponytail`](vendor/ponytail) (submodule). Cursor: always-on rule `.cursor/rules/ponytail.mdc` + skills `.cursor/skills/ponytail*`.
+
+| Когда | Что сказать агенту |
+|-------|-------------------|
+| Меньше кода, проще решение | «ponytail», «yagni», «самое простое» |
+| Ревью diff на over-engineering | «ponytail-review» / skill `ponytail-review` |
+| Аудит всего репо | «ponytail-audit» |
+| Список отложенных `ponytail:` shortcuts | «ponytail-debt» |
+
+Обновить из upstream: `git submodule update --remote vendor/ponytail && ./scripts/sync-ponytail-cursor.sh`
+
+**Не применять ponytail к доменным правилам** (фазы, finance, meals) — они в этом файле и `rules.ts` важнее. Ponytail — про объём и сложность кода, не про модель данных.

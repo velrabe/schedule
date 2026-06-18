@@ -3,7 +3,7 @@ import { useState, useCallback, useMemo } from "preact/hooks";
 import htm from "htm";
 import { ApiError } from "../api/client.ts";
 import { manualPatch } from "./manualSave.js";
-import { childEventsForSession, fmtExpensesShort, linkedEventLabel } from "./sessionFinance.js";
+import { childEventsForSession, fmtExpensesShort, linkedEventLabel, sessionEventsTimeSpan } from "./sessionFinance.js";
 import { sessionEventDrawerPolicy } from "./drawerFieldPolicy.js";
 import { sessionEventTimeSpan } from "./recordDisplay.js";
 import { DrawerLinkedBlock } from "./DrawerLinkedBlock.jsx";
@@ -144,8 +144,14 @@ export default function SessionBundleDrawer({
   setSessions,
 }) {
   const parts = useMemo(
-    () => childEventsForSession(session.id, sessionEvents, session.start || session.start_time),
-    [session.id, sessionEvents, session.start, session.start_time],
+    () =>
+      childEventsForSession(
+        session.id,
+        sessionEvents,
+        session.start || session.start_time,
+        session.end || session.end_time,
+      ),
+    [session.id, sessionEvents, session.start, session.start_time, session.end, session.end_time],
   );
 
   const ctx = useMemo(
@@ -176,9 +182,11 @@ export default function SessionBundleDrawer({
 
   const envelopeSpan = useMemo(() => {
     if (!parts.length) return `${session.start}–${session.end}`;
-    const starts = parts.map((p) => String(p.start_time || "").slice(0, 5));
-    const ends = parts.map((p) => String(p.end_time || "").slice(0, 5));
-    return `${starts.sort()[0]}–${ends.sort().reverse()[0]}`;
+    return sessionEventsTimeSpan(
+      parts,
+      session.start || session.start_time,
+      session.end || session.end_time,
+    );
   }, [parts, session]);
 
   const onSave = async () => {
@@ -188,7 +196,7 @@ export default function SessionBundleDrawer({
       await manualPatch("sessions", session.id, {
         category: envelope.category || null,
         project: envelope.project || null,
-        notes: envelope.note || null,
+        notes: null,
       });
 
       if (setSessions) {
@@ -242,8 +250,6 @@ export default function SessionBundleDrawer({
               <${FieldInput} field=${{ key: "category", label: "category", type: "text" }} value=${envelope.category}
                 onChange=${(k, v) => setEnvelope((e) => ({ ...e, [k]: v }))} disabled=${!liveMode || saving} />
               <${FieldInput} field=${{ key: "project", label: "project", type: "text" }} value=${envelope.project}
-                onChange=${(k, v) => setEnvelope((e) => ({ ...e, [k]: v }))} disabled=${!liveMode || saving} />
-              <${FieldInput} field=${{ key: "note", label: "notes", type: "textarea", optional: true }} value=${envelope.note}
                 onChange=${(k, v) => setEnvelope((e) => ({ ...e, [k]: v }))} disabled=${!liveMode || saving} />
             </div>
           </section>

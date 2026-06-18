@@ -1976,7 +1976,12 @@ function SessionCompactContent({
   compact = false,
   scheduleLayout = false,
 }) {
-  const allParts = childEventsForSession(s.id, sessionEvents, s.start || s.start_time);
+  const allParts = childEventsForSession(
+    s.id,
+    sessionEvents,
+    s.start || s.start_time,
+    s.end || s.end_time,
+  );
   const redundant = scheduleLayout && isRedundantMirrorPart(s, allParts);
   const parts = redundant ? [] : allParts;
   const displayParts = parts;

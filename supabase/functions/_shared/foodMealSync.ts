@@ -185,6 +185,14 @@ export async function syncFoodSessionFromMeal(
 
   const existingSid = meal.session_id != null ? String(meal.session_id) : null;
   if (existingSid) {
+    const multiAtom = await sessionHasMultipleAtoms(db, existingSid);
+    if (multiAtom) {
+      // Meal on one atom inside a phase bundle — keep session envelope/title as-is.
+      const { data, error } = await db.from("sessions").select("*").eq("id", existingSid).single();
+      if (error) throw error;
+      return data as Record<string, unknown>;
+    }
+
     const endMin = (Number(start.split(":")[0]) * 60 + Number(start.split(":")[1])) + duration;
     const endH = Math.floor((endMin % (24 * 60)) / 60);
     const endM = (endMin % (24 * 60)) % 60;
