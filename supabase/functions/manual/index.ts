@@ -35,7 +35,7 @@ import {
   replaceFinanceWrite,
   type FinanceRow,
 } from "../_shared/financeBalanceSync.ts";
-import { afterFinanceLinkedWrite, syncFinanceToSessionEvent } from "../_shared/financeEventSync.ts";
+import { afterFinanceLinkedWrite } from "../_shared/financeEventSync.ts";
 import { afterEventWrite, beforeEventDelete } from "../_shared/eventFinanceSync.ts";
 import { afterSubstanceWrite, beforeSubstanceDelete } from "../_shared/substanceEventSync.ts";
 import { afterActivityWrite } from "../_shared/activityEventSync.ts";
@@ -290,7 +290,6 @@ Deno.serve(async (req) => {
         const newId = String(row0.id);
         if (oldFinance) {
           await replaceFinanceWrite(db, oldFinance, newId);
-          await syncFinanceToSessionEvent(db, row0 as FinanceRow);
         } else {
           await afterFinanceLinkedWrite(db, newId);
         }

@@ -261,7 +261,6 @@ function classifyAttachment(raw: string): ParsedAttachment {
       currency,
       account: parseAccount(part),
       merchant: parseMerchant(part),
-      notes: part,
     };
   }
   if (/groceries|гросер/i.test(part)) {
@@ -274,7 +273,6 @@ function classifyAttachment(raw: string): ParsedAttachment {
       currency,
       account: parseAccount(part),
       merchant: parseMerchant(part) || "groceries",
-      notes: part,
     };
   }
   return { kind: "skip", raw: part };

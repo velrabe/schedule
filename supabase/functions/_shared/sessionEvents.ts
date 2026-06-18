@@ -180,13 +180,9 @@ export async function syncEventExpense(
   if (!Number.isFinite(amount) || amount <= 0) return;
 
   const { afterFinanceWrite, replaceFinanceWrite } = await import("./financeBalanceSync.ts");
-  const { financeHumanLabel, syncFinanceToSessionEvent } = await import("./financeEventSync.ts");
+  const { financeTxnNotes } = await import("./financeEventSync.ts");
   const currency = (expense?.currency || "VND").toUpperCase();
   const account = expense?.account || (currency === "RUB" ? "savings_rub" : "cash_vnd");
-  const humanLabel = financeHumanLabel({
-    notes: expense?.notes ?? ctx.title ?? ctx.notes,
-    merchant: expense?.merchant ?? null,
-  }) || (ctx.title || "").trim() || null;
   const merchant = (expense?.merchant || "").trim() || null;
   const payload = {
     date: ctx.date,
@@ -199,7 +195,7 @@ export async function syncEventExpense(
     txn_type: "expense",
     session_id: ctx.session_id,
     session_event_id: eventId,
-    notes: humanLabel,
+    notes: financeTxnNotes(expense),
   };
 
   if (existing) {
@@ -211,7 +207,6 @@ export async function syncEventExpense(
       .single();
     if (upErr) throw upErr;
     await replaceFinanceWrite(db, existing as never, String(updated.id));
-    if (humanLabel) await syncFinanceToSessionEvent(db, { session_event_id: eventId, ...payload });
     return;
   }
 
@@ -222,7 +217,6 @@ export async function syncEventExpense(
     .single();
   if (insErr) throw insErr;
   await afterFinanceWrite(db, String(inserted.id));
-  if (humanLabel) await syncFinanceToSessionEvent(db, { session_event_id: eventId, ...payload });
 }
 
 export async function ensureSessionEventMirror(

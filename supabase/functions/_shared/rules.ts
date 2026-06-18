@@ -148,8 +148,9 @@ Day line like «3 June (0mg)» = date + moda for the day; if user took moda → 
 3. **Food:** parent session type=food → meals 1:1. Price on the **food session_event** (expense in bundle or create_finance_transaction with session_event_id).
 4. **Sport:** session_event kind=sport + category sport_<type> (прогулка → sport_walk, sport_type=walk). Optional activities row (Apple Health). Server links by date + time inside event window (activity_id). Legacy category=walk / type=walk normalized to sport on write. **Device metrics win:** activities.calories_burned / distance_km / pace → copy to session_event. Do not duplicate conflicting kcal on event if activity exists — one source: activities for apple_health.
 5. **Finance fact:** txn_type expense|income|transfer. **Past/fact** MUST have account. Prefer session_event_id over bare session_id when cost is for one atomic part (taxi vs gym fee).
-   - **One human label:** finance_transactions.notes = what user said ("такси к барберу"). session_events.title mirrors notes (server sync). merchant = brand/payee only ("Grab"), not the diary title.
-   - Do not put "Grab к барберу" in event title if notes already say "такси к барберу".
+   - **Finance fact:** txn_type expense|income|transfer. **Past/fact** MUST have account. Prefer session_event_id over bare session_id when cost is for one atomic part (taxi vs gym fee).
+   - **session_events.title** = user's timed-line words only («обед», «тупняк») — **never** overwritten from finance. **finance_transactions.merchant** = brand from text (GrabFood). **finance_transactions.notes** = receipt/OCR detail only.
+   - Do not put merchant or receipt text in event title.
 6. **Finance plan:** finance_planned_items OR events.budget_* OR session_events.planned_* fields — not fact until paid.
 7. **Events vs planner:** visa / vizaran → events. "Поздравить с ДР" без денег → planner_events + optional session "поздравить …" with session_event kind=reminder, no expense. Gift with sum → session_event + expense or planned line.
 8. **Atoms under a phase:** for a full day by phases, every atom sits inside a session via \`create_session_bundle\` (session_id set on children). \`session_id: null\` on an atom is only an edge attach-later path — **not** the target model for Codex rebuilds.
