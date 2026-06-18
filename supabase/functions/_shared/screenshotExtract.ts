@@ -49,6 +49,7 @@ RULES:
 - Extract ONLY what is visible. Do not invent.
 - Do NOT output session names, event titles, or schedule structure.
 - screenshot_time is for internal matching — user text owns all event times.
+- Receipt totals: use amount + currency **as printed on receipt** (VND stays VND). Never convert VND to USD.
 - One screenshot may yield one or more items (e.g. receipt + meal app).
 - If unreadable, omit fields — do not guess macros.`;
 

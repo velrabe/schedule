@@ -84,7 +84,13 @@ export function mergeScreenshotsIntoPlan(
       if (match) {
         const att = plan.sessions[match.sessionIdx].events[match.eventIdx].attachments[match.attIdx];
         att.amount = att.amount ?? item.finance.amount;
-        att.currency = att.currency ?? item.finance.currency;
+        // brex: receipt currency (VND) wins — never store LLM USD conversion
+        if (att.account === "brex" && item.finance.currency === "VND") {
+          att.amount = item.finance.amount ?? att.amount;
+          att.currency = "VND";
+        } else {
+          att.currency = att.currency ?? item.finance.currency;
+        }
         att.notes = [att.notes, item.finance.notes].filter(Boolean).join(" | ") ||
           (item.finance.notes ? `Чек: ${item.finance.notes}` : att.notes);
         att.screenshot_time = item.screenshot_time;

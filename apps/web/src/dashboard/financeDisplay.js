@@ -3,7 +3,35 @@ export const ACCOUNT_LABELS = {
   ip_rub: "Business RUB",
   vcb_vnd: "Bank VND",
   cash_vnd: "Наличные",
+  brex: "BREX",
+  bybit: "Bybit",
 };
+
+const CURRENCY_ORDER = ["VND", "USD", "USDT", "RUB"];
+
+/** Sum expenses grouped by currency — never mix currencies in one number. */
+export function groupExpensesByCurrency(expenses) {
+  const map = new Map();
+  for (const t of expenses || []) {
+    const cur = (t.currency || "VND").toUpperCase();
+    const prev = map.get(cur) || 0;
+    map.set(cur, prev + Math.abs(Number(t.amount) || 0));
+  }
+  return [...map.entries()]
+    .filter(([, total]) => total > 0)
+    .sort(([a], [b]) => {
+      const ia = CURRENCY_ORDER.indexOf(a);
+      const ib = CURRENCY_ORDER.indexOf(b);
+      return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib);
+    });
+}
+
+/** One line for day column header, e.g. «1 715 696 ₫ · 17.26 USD». */
+export function fmtExpenseDayTotal(expenses) {
+  const groups = groupExpensesByCurrency(expenses);
+  if (!groups.length) return "";
+  return groups.map(([cur, total]) => fmtMoney(total, cur)).join(" · ");
+}
 
 export function fmtMoney(amount, currency) {
   const n = Number(amount) || 0;

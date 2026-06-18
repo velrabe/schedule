@@ -6,6 +6,7 @@ import { RecordOpenRow } from "./RecordOpenRow.jsx";
 import {
   ACCOUNT_LABELS,
   fmtMoney,
+  fmtExpenseDayTotal,
   financeTxnCompactLabel,
   financeTxnCompactMeta,
   financeTxnRowTitle,
@@ -85,7 +86,7 @@ function FinanceDaysView({ days, accounts = [], finance = [], active = true, liv
           const dayTx = txByDate.get(date) || [];
           const isToday = date === today;
           const expenses = dayTx.filter((t) => (t.txn_type || "expense") === "expense");
-          const expense = expenses.reduce((a, t) => a + Math.abs(Number(t.amount) || 0), 0);
+          const expenseTotal = fmtExpenseDayTotal(expenses);
           const transferCount = dayTx.filter((t) => (t.txn_type || "") === "transfer").length;
           return html`
             <div
@@ -95,8 +96,8 @@ function FinanceDaysView({ days, accounts = [], finance = [], active = true, liv
             >
               <div class="finance-day-head-wrap">
                 <span class="finance-day-date">${date}${isToday ? " · today" : ""}</span>
-                ${expense > 0 &&
-                html`<span class="finance-day-total">расход ${fmtMoney(expense, expenses[0]?.currency || "VND")}</span>`}
+                ${expenseTotal &&
+                html`<span class="finance-day-total">расход ${expenseTotal}</span>`}
                 ${transferCount > 0 &&
                 html`<span class="finance-day-total finance-day-total--transfer">переводов ${transferCount}</span>`}
               </div>

@@ -10,35 +10,15 @@ export type SessionExpenseInput = {
   notes?: string | null;
 };
 
-/** Reverse an expense: add amount back to account balance. */
-async function applyBalanceDelta(
-  db: SupabaseClient,
-  accountId: string | null,
-  amount: number,
-  direction: "charge" | "refund",
-): Promise<void> {
-  if (!accountId || !amount) return;
-  const { data: acc, error } = await db.from("accounts").select("balance").eq("id", accountId).single();
-  if (error) throw error;
-  const bal = Number(acc?.balance) || 0;
-  const next = direction === "charge" ? bal - amount : bal + amount;
-  const { error: upErr } = await db
-    .from("accounts")
-    .update({ balance: next, updated_at: new Date().toISOString() })
-    .eq("id", accountId);
-  if (upErr) throw upErr;
-}
-
 export async function deleteSessionExpenses(db: SupabaseClient, sessionId: string): Promise<void> {
   const { data: rows, error } = await db
     .from("finance_transactions")
     .select("*")
     .eq("session_id", sessionId);
   if (error) throw error;
+  const { reverseFinanceWrite } = await import("./financeBalanceSync.ts");
   for (const row of rows || []) {
-    if ((row.txn_type || "expense") === "expense" && row.account) {
-      await applyBalanceDelta(db, String(row.account), Number(row.amount) || 0, "refund");
-    }
+    await reverseFinanceWrite(db, row as never);
   }
   const { error: delErr } = await db.from("finance_transactions").delete().eq("session_id", sessionId);
   if (delErr) throw delErr;
