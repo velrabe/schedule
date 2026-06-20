@@ -120,7 +120,7 @@ Full contract: **[AGENTS.md](./AGENTS.md)**. Business rules: **`supabase/functio
 1. `POST /chat` → proposed `actions[]` in `raw_logs`.
 2. User confirms → `POST /confirm`.
 
-Models: prefer `gemini-2.0-flash-lite` (text) / `gemini-2.0-flash` (images). See comments in old commits or AI Studio for quota notes.
+Models: prefer `gemini-2.0-flash-lite` (text) / `gemini-2.0-flash` (images).
 
 ---
 
@@ -128,18 +128,4 @@ Models: prefer `gemini-2.0-flash-lite` (text) / `gemini-2.0-flash` (images). See
 
 `apps/web/src/dashboard/ScheduleTracker.jsx` loads live data via `useSupabaseSnapshot()` → `POST /data` (days, sessions, meals, finance, …). Manual edits in UI use `POST /manual`. Local `seed.js` is legacy/offline only when `liveData` is absent.
 
----
-
-## Privacy / public repo
-
-**Do not commit:** real account display names, balances, day logs, Supabase project ref, tokens, or personal schedule imports.
-
-| Local only (gitignored) | Purpose |
-|-------------------------|---------|
-| `schedule.project.ref` | Supabase project ref for CLI (copy from `.example`) |
-| `scripts/plans/opening-balances.json` | Reconcile script opening balances (copy from `.example.json`) |
-| `codex.env`, `.schedule-token`, `logs.txt` | Auth + personal logs |
-
-Account **labels** live in the `accounts` table (Supabase), not in this repo. Agent account **slugs** (`savings_rub`, …) are in `rules.ts` for parsing only.
-
-Historical git commits may still contain old seed migrations with personal data — treat as leaked if the repo was ever public; rotate secrets and consider `git filter-repo` or a private fork.
+Sensitive config (`schedule.project.ref`, `codex.env`, `.schedule-token`, `opening-balances.json`, day logs) stays **local only** — see `.gitignore` and `*.example` files.
