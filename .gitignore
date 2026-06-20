@@ -17,6 +17,4 @@ agent.api.key
 supabase/.branches/
 supabase/.temp/
 coverage/
-schedule.project.ref
-scripts/plans/opening-balances.json
 local-data/

@@ -61,7 +61,7 @@ node scripts/schedule-api.mjs apply-manual scripts/plans/….manual.json
 ## Жёсткие запреты
 
 1. **Не трогай** `supabase/migrations/*.sql` без явной просьбы.
-2. **Не коммить** `.env`, `.schedule-token`, ключи, `schedule.project.ref`, `scripts/plans/opening-balances.json`, `logs.txt`, личные day-log / xlsx импорты.
+2. **Не коммить** `.env`, `.schedule-token`, ключи, `scripts/plans/opening-balances.json`, `logs.txt`, личные day-log / xlsx импорты.
 3. **Не** `service_role` в скриптах агента.
 4. **Не** счёт `loco_rub` — ИП = `ip_rub`.
 5. **UUID** только из ответа API (`[0-9a-f-]{36}`), не выдумывать.

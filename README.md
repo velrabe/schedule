@@ -4,7 +4,7 @@ Personal life-logging tracker: schedule, nutrition, finance, events.
 
 ```
 UI (GitHub Pages) ──read/write──► Supabase Edge Functions ──► Postgres
-                                        ▲
+                                          ▲
 Codex / scripts ──/manual, /agent, /data──┘
 Chat UI (optional) ──/chat (Gemini)──► /confirm
 ```
@@ -128,4 +128,4 @@ Models: prefer `gemini-2.0-flash-lite` (text) / `gemini-2.0-flash` (images).
 
 `apps/web/src/dashboard/ScheduleTracker.jsx` loads live data via `useSupabaseSnapshot()` → `POST /data` (days, sessions, meals, finance, …). Manual edits in UI use `POST /manual`. Local `seed.js` is legacy/offline only when `liveData` is absent.
 
-Sensitive config (`schedule.project.ref`, `codex.env`, `.schedule-token`, `opening-balances.json`, day logs) stays **local only** — see `.gitignore` and `*.example` files.
+Sensitive config (`codex.env`, `.schedule-token`, `opening-balances.json`, day logs) stays **local only** — see `.gitignore`. `schedule.project.ref` is in the repo so Codex cloud can reach Edge Functions after clone.

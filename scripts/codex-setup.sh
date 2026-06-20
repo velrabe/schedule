@@ -3,8 +3,7 @@
 # Secrets / Environment variables in Codex UI often do NOT reach the agent shell.
 #
 # 1) Replace PASTE_AGENT_API_KEY with the same value as Supabase secret AGENT_API_KEY
-# 2) Set SCHEDULE_FUNCTIONS_URL or create schedule.project.ref locally (gitignored)
-# 3) Save and start a NEW Codex session (restart container)
+# 2) Save and start a NEW Codex session (restart container)
 
 set -euo pipefail
 
@@ -16,10 +15,8 @@ fi
 if [[ -z "${SCHEDULE_FUNCTIONS_URL:-}" && -n "$REF" ]]; then
   export SCHEDULE_FUNCTIONS_URL="https://${REF}.functions.supabase.co"
 fi
-if [[ -z "${SCHEDULE_FUNCTIONS_URL:-}" ]]; then
-  echo "schedule codex-setup: set SCHEDULE_FUNCTIONS_URL or schedule.project.ref" >&2
-  exit 1
-fi
+# Fallback for Codex cloud clone (same as committed schedule.project.ref)
+export SCHEDULE_FUNCTIONS_URL="${SCHEDULE_FUNCTIONS_URL:-https://btkfvznzlzutnhxjjqlb.functions.supabase.co}"
 
 export SCHEDULE_API_KEY="PASTE_AGENT_API_KEY"
 export SCHEDULE_USE_CURL=1

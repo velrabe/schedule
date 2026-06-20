@@ -57,7 +57,7 @@ function defaultFunctionsUrl() {
   const ref = (
     process.env.SCHEDULE_PROJECT_REF ||
     readSecretFile(resolve(ROOT, "schedule.project.ref")) ||
-    ""
+    "btkfvznzlzutnhxjjqlb"
   ).trim();
   if (!ref) return null;
   return `https://${ref}.functions.supabase.co`;
