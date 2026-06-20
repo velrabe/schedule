@@ -1,0 +1,9 @@
+{
+  "_note": "Copy to opening-balances.json (gitignored). Balances BEFORE first finance_transaction in your DB.",
+  "savings_rub": 0,
+  "ip_rub": 0,
+  "vcb_vnd": 0,
+  "cash_vnd": 0,
+  "brex": 0,
+  "bybit": 0
+}

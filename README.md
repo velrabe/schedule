@@ -11,7 +11,7 @@ Chat UI (optional) ──/chat (Gemini)──► /confirm
 
 > **Codex / Cursor agents:** read **[AGENTS.md](./AGENTS.md)** first. Day-to-day data → API, not SQL migrations.
 
-- **Frontend**: Vite + Preact → [velrabe.github.io/schedule](https://velrabe.github.io/schedule)
+- **Frontend**: Vite + Preact → GitHub Pages (see `VITE_BASE_PATH` in deploy secrets)
 - **Backend**: Supabase Edge Functions (Deno)
 - **Database**: Supabase Postgres (migrations in `supabase/migrations/`)
 - **Auth**: shared password → HS256 JWT (`APP_PASSWORD` + `JWT_SECRET`)
@@ -130,13 +130,16 @@ Models: prefer `gemini-2.0-flash-lite` (text) / `gemini-2.0-flash` (images). See
 
 ---
 
-## Accounts (current)
+## Privacy / public repo
 
-| id | Label |
-|----|--------|
-| `savings_rub` | Savings RUB |
-| `ip_rub` | Business RUB |
-| `vcb_vnd` | Bank VND |
-| `cash_vnd` | Наличные |
+**Do not commit:** real account display names, balances, day logs, Supabase project ref, tokens, or personal schedule imports.
 
-`loco_rub` was removed (merged into `ip_rub`).
+| Local only (gitignored) | Purpose |
+|-------------------------|---------|
+| `schedule.project.ref` | Supabase project ref for CLI (copy from `.example`) |
+| `scripts/plans/opening-balances.json` | Reconcile script opening balances (copy from `.example.json`) |
+| `codex.env`, `.schedule-token`, `logs.txt` | Auth + personal logs |
+
+Account **labels** live in the `accounts` table (Supabase), not in this repo. Agent account **slugs** (`savings_rub`, …) are in `rules.ts` for parsing only.
+
+Historical git commits may still contain old seed migrations with personal data — treat as leaked if the repo was ever public; rotate secrets and consider `git filter-repo` or a private fork.

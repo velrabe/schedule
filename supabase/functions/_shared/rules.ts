@@ -393,29 +393,29 @@ Always confirm meal entries (set needs_confirmation=true).
 
 const FINANCE = `
 # finance
-Accounts (use the slug as data.account):
-- savings_rub — Savings RUB, RUB
-- ip_rub — Business RUB, RUB (счёт ИП = Business bank)
-- vcb_vnd — Bank VND, VND
-- cash_vnd — Наличные, VND
-- brex — BREX card, **USD** (баланс счёта в USD; см. правило ниже)
-- bybit — Bybit, USDT
+Accounts (use the slug as data.account — display names live in DB `accounts.name`, not in repo):
+- savings_rub — RUB savings
+- ip_rub — RUB business / sole prop
+- vcb_vnd — VND bank card
+- cash_vnd — VND cash
+- brex — multi-currency card, **USD balance** (see below)
+- bybit — crypto USDT
 
-### BREX account — multi-currency card (READ FIRST)
+### Multi-currency card (brex) — READ FIRST
 
-User created brex on **2026-06-13** with **~200 USD** opening balance. Grab/receipt totals are **VND**; BREX card debits **USD** at approximate FX.
+Receipt totals are usually **VND**; card balance may be **USD** at approximate FX.
 
 | Field | Rule |
 |-------|------|
-| \`amount\` + \`currency\` on txn | **Receipt total as printed** — **VND** from screenshot/text |
+| \`amount\` + \`currency\` on txn | **Receipt total as printed** — usually **VND** |
 | \`account\` | \`brex\` when user said brex/BREX |
-| \`merchant\` | From **text** (GrabFood), not Popeyes/McDonalds from receipt |
-| USD balance sync | Server converts VND→USD at **~26 333 VND/USD** for \`accounts.brex\` only — do **not** store USD in txn |
+| \`merchant\` | From **text**, not receipt brand in \`merchant\` |
+| USD balance sync | Server converts VND→USD at configured FX for \`accounts.brex\` only |
 | User wrote explicit USD | e.g. «-22.4 USD» on brex → \`amount: 22.4, currency: USD\` |
-| \`notes\` | Line items, original VND receipt text |
+| \`notes\` | Line items, original receipt text |
 
-**WRONG:** \`amount: 6.95, currency: USD\` invented from VND receipt (agent conversion in txn row).
-**RIGHT:** \`amount: 183040, currency: VND, account: brex\` — server deducts ~6.95 USD from brex balance.
+**WRONG:** invent USD amount from VND receipt in txn row.
+**RIGHT:** \`amount: <vnd>, currency: VND, account: brex\` — server applies FX to balance.
 
 Currency parsing:
 - "120к донгов", "120к VND", "120k vnd", "120 тысяч донгов" → amount=120000 currency=VND
@@ -460,8 +460,8 @@ When user moves money between own accounts ("перевёл", "перекину�
 - amount + currency = what left the source account
 - amount_counter = what arrived on destination (in destination currency)
 - category = transfer
-- Example: 10 000 RUB from savings_rub to vcb_vnd as 3 692 220 VND:
-  { "txn_type": "transfer", "account": "savings_rub", "counter_account": "vcb_vnd", "amount": 10000, "currency": "RUB", "amount_counter": 3692220, "category": "transfer", "notes": "..." }
+- Example transfer (amounts illustrative):
+  { "txn_type": "transfer", "account": "savings_rub", "counter_account": "vcb_vnd", "amount": 10000, "currency": "RUB", "amount_counter": 3500000, "category": "transfer", "notes": "..." }
 
 Server updates both account balances automatically. Not an expense — do not use category=food.
 

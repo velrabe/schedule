@@ -1,15 +1,4 @@
-export const ACCOUNT_LABELS = {
-  savings_rub: "Savings RUB",
-  ip_rub: "Business RUB",
-  vcb_vnd: "Bank VND",
-  cash_vnd: "Наличные",
-  brex: "BREX",
-  bybit: "Bybit",
-};
-
 const CURRENCY_ORDER = ["VND", "USD", "USDT", "RUB"];
-
-/** Sum expenses grouped by currency — never mix currencies in one number. */
 export function groupExpensesByCurrency(expenses) {
   const map = new Map();
   for (const t of expenses || []) {
@@ -40,13 +29,17 @@ export function fmtMoney(amount, currency) {
   return `${n} ${currency || ""}`;
 }
 
-export function accountLabel(id) {
+export function accountLabel(id, accounts) {
   if (!id) return "—";
-  return ACCOUNT_LABELS[id] || id;
+  if (Array.isArray(accounts)) {
+    const row = accounts.find((a) => a.id === id);
+    if (row?.name) return String(row.name).trim();
+  }
+  return id;
 }
 
 /** Human label for a finance row in lists. */
-export function financeTxnLabel(t) {
+export function financeTxnLabel(t, accounts) {
   if (t._planned || (t.txn_type || "").toLowerCase() === "planned") {
     const kind = (t._planned_txn_type || "expense").toLowerCase();
     const sign = kind === "income" ? "+" : "−";
@@ -54,12 +47,12 @@ export function financeTxnLabel(t) {
   }
   const type = (t.txn_type || "expense").toLowerCase();
   if (type === "transfer" && t.counter_account && t.amount_counter != null) {
-    return `перевод ${accountLabel(t.account)} → ${accountLabel(t.counter_account)}: −${fmtMoney(t.amount, t.currency)} / +${fmtMoney(t.amount_counter, inferCounterCurrency(t))}`;
+    return `перевод ${accountLabel(t.account, accounts)} → ${accountLabel(t.counter_account, accounts)}: −${fmtMoney(t.amount, t.currency)} / +${fmtMoney(t.amount_counter, inferCounterCurrency(t))}`;
   }
   if (type === "income") {
-    return `приход +${fmtMoney(t.amount, t.currency)} · ${accountLabel(t.account)}`;
+    return `приход +${fmtMoney(t.amount, t.currency)} · ${accountLabel(t.account, accounts)}`;
   }
-  return `расход −${fmtMoney(t.amount, t.currency)} · ${accountLabel(t.account)}`;
+  return `расход −${fmtMoney(t.amount, t.currency)} · ${accountLabel(t.account, accounts)}`;
 }
 
 function inferCounterCurrency(t) {
@@ -97,16 +90,16 @@ export function financeTxnCompactLabel(t) {
 }
 
 /** Short second line: merchant or category only. */
-export function financeTxnCompactMeta(t) {
+export function financeTxnCompactMeta(t, accounts) {
   if (t._planned || (t.txn_type || "").toLowerCase() === "planned") {
     return (t.merchant || t.category || "план").trim();
   }
   if ((t.txn_type || "").toLowerCase() === "transfer") {
-    const from = accountLabel(t.account);
-    const to = t.counter_account ? accountLabel(t.counter_account) : "";
+    const from = accountLabel(t.account, accounts);
+    const to = t.counter_account ? accountLabel(t.counter_account, accounts) : "";
     return to ? `${from} → ${to}` : from;
   }
-  return (t.merchant || t.category || accountLabel(t.account) || "—").trim();
+  return (t.merchant || t.category || accountLabel(t.account, accounts) || "—").trim();
 }
 
 export function financeTxnRowTitle(t) {

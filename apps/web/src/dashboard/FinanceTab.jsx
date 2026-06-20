@@ -4,7 +4,6 @@ import htm from "htm";
 import { useDateStrip } from "./useDateStrip.js";
 import { RecordOpenRow } from "./RecordOpenRow.jsx";
 import {
-  ACCOUNT_LABELS,
   fmtMoney,
   fmtExpenseDayTotal,
   financeTxnCompactLabel,
@@ -70,7 +69,7 @@ function FinanceDaysView({ days, accounts = [], finance = [], active = true, liv
         ${activeAccounts.length === 0 && html`<span class="finance-empty">счета не загружены</span>`}
         ${activeAccounts.map((a) => html`
           <div class="finance-account-card-wrap" key=${a.id}>
-            <span class="finance-account-name">${a.name || ACCOUNT_LABELS[a.id] || a.id}</span>
+            <span class="finance-account-name">${a.name || a.id}</span>
             <span class="finance-account-balance">${fmtMoney(a.balance, a.currency)}</span>
           </div>
         `)}
@@ -115,7 +114,7 @@ function FinanceDaysView({ days, accounts = [], finance = [], active = true, liv
                     >
                       <div class="finance-tx-lines-wrap">
                         <span class="finance-tx-amount u-truncate-1">${financeTxnCompactLabel(t)}</span>
-                        <span class="finance-tx-meta u-truncate-1">${financeTxnCompactMeta(t)}</span>
+                        <span class="finance-tx-meta u-truncate-1">${financeTxnCompactMeta(t, accounts)}</span>
                         ${t.notes &&
                         html`<span class="finance-tx-note u-truncate-2 finance-tx-note--desk-only">${t.notes}</span>`}
                       </div>
@@ -205,6 +204,7 @@ export default function FinanceTab({
         ${sub === "table" &&
         html`
           <${FinanceTransactionsTab}
+            accounts=${accounts}
             finance=${finance}
             finance_planned_items=${finance_planned_items}
             liveMode=${liveMode}

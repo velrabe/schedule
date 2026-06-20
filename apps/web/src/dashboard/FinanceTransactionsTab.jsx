@@ -10,6 +10,7 @@ const html = htm.bind(h);
 const I = sheetIcons;
 
 export default function FinanceTransactionsTab({
+  accounts = [],
   finance = [],
   finance_planned_items = [],
   liveMode = false,
@@ -52,7 +53,7 @@ export default function FinanceTransactionsTab({
         label: "сумма",
         thClass: "col-w--md",
         sortAccessor: (r) => Number(r.amount) || 0,
-        accessor: (r) => financeTxnLabel(r),
+        accessor: (r) => financeTxnLabel(r, accounts),
       },
       {
         id: "currency",
@@ -78,7 +79,7 @@ export default function FinanceTransactionsTab({
         accessor: (r) => financeTxnShortMeta(r),
       },
     ],
-    [txnTypes, currencies],
+    [txnTypes, currencies, accounts],
   );
 
   const view = useMemo(
@@ -170,7 +171,7 @@ export default function FinanceTransactionsTab({
                   </td>
                   <td>
                     <div class="sheet__td">
-                      <span>${financeTxnLabel(t)}</span>
+                      <span>${financeTxnLabel(t, accounts)}</span>
                     </div>
                   </td>
                   <td>

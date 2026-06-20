@@ -1,11 +1,18 @@
 #!/usr/bin/env node
+/** Generate a one-off migration from scale .xlsx — run locally, do not commit personal output. */
 import { readFileSync, writeFileSync, existsSync } from "node:fs";
 import { execSync } from "node:child_process";
 
-const xlsx =
-  process.argv[2] ||
-  "/path/to/export.xlsx";
-const out = "supabase/migrations/0019_import_weight_lafkigafk.sql";
+const xlsx = process.argv[2];
+const out = process.argv[3] || "local-data/import_body_metrics.sql";
+if (!xlsx) {
+  console.error("Usage: node scripts/generate-weight-migration.mjs /path/to/export.xlsx [output.sql]");
+  process.exit(1);
+}
+if (!existsSync(xlsx)) {
+  console.error("File not found:", xlsx);
+  process.exit(1);
+}
 
 function parseXlsx(path) {
   const tmp = "/tmp/schedule-xlsx-gen";

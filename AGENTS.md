@@ -61,7 +61,7 @@ node scripts/schedule-api.mjs apply-manual scripts/plans/….manual.json
 ## Жёсткие запреты
 
 1. **Не трогай** `supabase/migrations/*.sql` без явной просьбы.
-2. **Не коммить** `.env`, `.schedule-token`, ключи.
+2. **Не коммить** `.env`, `.schedule-token`, ключи, `schedule.project.ref`, `scripts/plans/opening-balances.json`, `logs.txt`, личные day-log / xlsx импорты.
 3. **Не** `service_role` в скриптах агента.
 4. **Не** счёт `loco_rub` — ИП = `ip_rub`.
 5. **UUID** только из ответа API (`[0-9a-f-]{36}`), не выдумывать.
@@ -120,7 +120,7 @@ finance_transactions.session_event_id
 
 ## Счета
 
-`savings_rub`, `ip_rub`, `vcb_vnd`, `cash_vnd`. Transfer: `txn_type=transfer`, `account`, `counter_account`, `amount`, `amount_counter`.
+Slug-и счетов — в `rules.ts` → finance. **Отображаемые названия** — только в таблице `accounts` (Supabase), не в репозитории.
 
 ## Workflow Codex (кратко)
 

@@ -2,8 +2,8 @@
 /**
  * One-off: align vcb_vnd DB balance with actual by adding June 1 expense.
  *
- *   node scripts/apply-vcb-may-adjustment.mjs --target REDACTED
- *   node scripts/apply-vcb-may-adjustment.mjs --target REDACTED --apply
+ *   node scripts/apply-vcb-may-adjustment.mjs --target <balance>
+ *   node scripts/apply-vcb-may-adjustment.mjs --target <balance> --apply
  */
 
 import { readFileSync, existsSync } from "node:fs";

@@ -44,15 +44,9 @@ import { balanceDeltas } from "./finance-fx.mjs";
 
 function loadOpening() {
   if (!existsSync(OPENING_FILE)) {
-    return {
-      savings_rub: 155000,
-      ip_rub: 60000,
-      vcb_vnd: 450000,
-      cash_vnd: 200000,
-      brex: 200,
-      bybit: 0,
-      _note: "Edit scripts/plans/opening-balances.json — balances BEFORE first tracked txn",
-    };
+    throw new Error(
+      "Missing scripts/plans/opening-balances.json — copy from opening-balances.example.json and fill locally (gitignored)",
+    );
   }
   return JSON.parse(readFileSync(OPENING_FILE, "utf8"));
 }

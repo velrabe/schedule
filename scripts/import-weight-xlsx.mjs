@@ -1,10 +1,10 @@
 #!/usr/bin/env node
 /**
- * Import lafkigafk scale export (.xlsx) → body_metrics + days.weight_kg
+ * Import body-composition scale export (.xlsx) → body_metrics + days.weight_kg
  *
  *   SUPABASE_URL=https://xxx.supabase.co \
  *   SUPABASE_SERVICE_ROLE_KEY=sb_secret_... \
- *   node scripts/import-weight-xlsx.mjs "/path/to/weight_lafkigafk.xlsx"
+ *   node scripts/import-weight-xlsx.mjs "/path/to/export.xlsx"
  */
 
 import { readFileSync, existsSync } from "node:fs";
@@ -13,7 +13,11 @@ import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const DEFAULT_XLSX = "/path/to/export.xlsx";
+const xlsxPath = process.argv[2];
+if (!xlsxPath) {
+  console.error("Usage: node scripts/import-weight-xlsx.mjs /path/to/export.xlsx");
+  process.exit(1);
+}
 
 const URL = process.env.SUPABASE_URL;
 const KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -116,7 +120,6 @@ async function insertMetric(row) {
 }
 
 async function main() {
-  const xlsxPath = process.argv[2] || DEFAULT_XLSX;
   if (!existsSync(xlsxPath)) {
     console.error("File not found:", xlsxPath);
     process.exit(1);
