@@ -224,7 +224,7 @@ export async function fetchDashboardSnapshot(opts: { from?: string; to?: string 
       fetchRows<BalanceSnapshotRow>("balance_snapshots", { ...opts, limit: 2000, order: "asc" }),
       fetchRows<PlannedItemRow>("finance_planned_items", { limit: 500, order: "asc" }),
       fetchRows<ActivityRow>("activities", { ...opts, limit: 2000, order: "asc" }),
-      fetchRows<EventRow>("events", { ...opts, limit: 1000, order: "asc" }),
+      fetchRows<EventRow>("events", { ...opts, limit: 2000, order: "asc" }),
     ]);
   return {
     days,
