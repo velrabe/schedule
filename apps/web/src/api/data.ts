@@ -209,22 +209,48 @@ export async function fetchRows<T = unknown>(
   return res.rows ?? [];
 }
 
+function chronologicalKey(row: unknown): string {
+  if (!row || typeof row !== "object") return "";
+  const r = row as Record<string, unknown>;
+  const date =
+    r.date ??
+    r.start_date ??
+    r.effective_from ??
+    r.occurred_at ??
+    r.updated_at ??
+    "";
+  const time = r.start_time ?? r.time ?? "";
+  return `${String(date)}T${String(time)}`;
+}
+
+function sortChronological<T>(rows: T[]): T[] {
+  return [...rows].sort((a, b) => chronologicalKey(a).localeCompare(chronologicalKey(b)));
+}
+
+async function fetchLatestRows<T = unknown>(
+  resource: Resource,
+  opts: { from?: string; to?: string; limit: number },
+): Promise<T[]> {
+  const rows = await fetchRows<T>(resource, { ...opts, order: "desc" });
+  return sortChronological(rows);
+}
+
 // Bulk fetcher for the dashboard's initial load.
 export async function fetchDashboardSnapshot(opts: { from?: string; to?: string } = {}) {
   const [days, sessions, session_events, meals, substances, body_metrics, finance, accounts, balance_snapshots, finance_planned_items, activities, events] =
     await Promise.all([
-      fetchRows<DayRow>("days", { ...opts, limit: 1000, order: "asc" }),
-      fetchRows<SessionRow>("sessions", { ...opts, limit: 5000, order: "asc" }),
-      fetchRows<SessionEventRow>("session_events", { ...opts, limit: 5000, order: "asc" }),
-      fetchRows<MealRow>("meals", { ...opts, limit: 2000, order: "asc" }),
-      fetchRows<SubstanceRow>("substances", { ...opts, limit: 2000, order: "asc" }),
-      fetchRows<BodyMetricRow>("body_metrics", { ...opts, limit: 2000, order: "asc" }),
-      fetchRows<FinanceRow>("finance_transactions", { ...opts, limit: 2000, order: "asc" }),
+      fetchLatestRows<DayRow>("days", { ...opts, limit: 1000 }),
+      fetchLatestRows<SessionRow>("sessions", { ...opts, limit: 5000 }),
+      fetchLatestRows<SessionEventRow>("session_events", { ...opts, limit: 5000 }),
+      fetchLatestRows<MealRow>("meals", { ...opts, limit: 2000 }),
+      fetchLatestRows<SubstanceRow>("substances", { ...opts, limit: 2000 }),
+      fetchLatestRows<BodyMetricRow>("body_metrics", { ...opts, limit: 2000 }),
+      fetchLatestRows<FinanceRow>("finance_transactions", { ...opts, limit: 2000 }),
       fetchRows<AccountRow>("accounts", { limit: 50, order: "asc" }),
-      fetchRows<BalanceSnapshotRow>("balance_snapshots", { ...opts, limit: 2000, order: "asc" }),
+      fetchLatestRows<BalanceSnapshotRow>("balance_snapshots", { ...opts, limit: 2000 }),
       fetchRows<PlannedItemRow>("finance_planned_items", { limit: 500, order: "asc" }),
-      fetchRows<ActivityRow>("activities", { ...opts, limit: 2000, order: "asc" }),
-      fetchRows<EventRow>("events", { ...opts, limit: 2000, order: "asc" }),
+      fetchLatestRows<ActivityRow>("activities", { ...opts, limit: 2000 }),
+      fetchLatestRows<EventRow>("events", { ...opts, limit: 2000 }),
     ]);
   return {
     days,
