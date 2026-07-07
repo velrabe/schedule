@@ -8,6 +8,7 @@ import {
   isMealPhaseFoodEvent,
 } from "./sessionEventLinks.js";
 import { substanceRowLabel } from "./substanceSession.js";
+import { parseAmount } from "./money.js";
 
 function isFoodAtom(event) {
   if (!event) return false;
@@ -238,9 +239,7 @@ export function fmtExpenseShort(txn) {
 }
 
 export function expenseFromForm(form) {
-  const amount = form.expense_amount === "" || form.expense_amount == null
-    ? null
-    : Number(form.expense_amount);
+  const amount = parseAmount(form.expense_amount);
   if (!Number.isFinite(amount) || amount <= 0) return null;
   const notes = String(form.expense_notes || form.title || "").trim() || null;
   return {

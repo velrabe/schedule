@@ -64,6 +64,7 @@ import {
   dayWakeChronoMinutes,
   addCalendarDaysISO,
   computeDisplaySleepHours,
+  effectiveWakeClock,
   fmtHoursHM,
   fmtMinutesHM,
 } from "./dayWakeTimeline.js";
@@ -908,12 +909,11 @@ function DayRow({ row, expanded, onToggle, sessions, setSessions, updateDay }) {
 
 function DayExpand({ date, row, sessions, setSessions, updateDay }) {
   const list = useMemo(() => {
-    const wake = row.wake || "00:00";
-    return sessions
-      .filter((s) => s.date === date)
-      .sort(
-        (a, b) => dayWakeChronoMinutes(a.start, wake) - dayWakeChronoMinutes(b.start, wake),
-      );
+    const forDate = sessions.filter((s) => s.date === date);
+    const wake = effectiveWakeClock(row, date, forDate);
+    return [...forDate].sort(
+      (a, b) => dayWakeChronoMinutes(a.start, wake) - dayWakeChronoMinutes(b.start, wake),
+    );
   }, [sessions, date, row.wake]);
 
   const addSession = useCallback(() => {
@@ -2106,7 +2106,7 @@ function CalendarDayDetail({
   setDays,
   onOpenRecord,
 }) {
-  const wake = day?.wake || "06:00";
+  const wake = effectiveWakeClock(day, date, sessions);
 
   const allMealSlots = useMemo(
     () => mealsForNutritionDay(date, sessions, rawMeals),
@@ -2635,7 +2635,7 @@ function KanbanTab({
         ${visibleDates.map((date) => {
           const day = byDate.get(date);
           const list = sessionsByDate.get(date) || [];
-          const wake = day?.wake || "06:00";
+          const wake = effectiveWakeClock(day, date, list);
           const sorted = [...list].sort(
             (a, b) => dayWakeChronoMinutes(a.start, wake) - dayWakeChronoMinutes(b.start, wake),
           );

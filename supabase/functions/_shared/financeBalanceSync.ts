@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
-import { multiCurrencyBalanceUsd } from "./financeFx.ts";
+import { convertAmount, multiCurrencyBalanceUsd } from "./financeFx.ts";
 
 export type FinanceRow = {
   id: string;
@@ -85,6 +85,22 @@ export function balanceDeltas(
       out.push({ account: to, delta: balanceAmount(to, destCur, counter, accounts) });
     }
     return out;
+  }
+  // Transfer without an explicit amount_counter: a transfer never destroys money,
+  // so always credit the destination too. Same currency → same amount; otherwise
+  // convert via FX so the total balance stays value-preserving (the outflow used
+  // to be counted while the inflow silently vanished).
+  if (type === "transfer" && from && to) {
+    const out: Array<{ account: string; delta: number }> = [];
+    if (currencyMatches(from, cur, accounts)) {
+      out.push({ account: from, delta: -balanceAmount(from, cur, amount, accounts) });
+    }
+    const destCur = (accounts[to] || cur).toUpperCase();
+    const credit = destCur === cur ? amount : convertAmount(amount, cur, destCur);
+    if (credit != null && credit > 0 && currencyMatches(to, destCur, accounts)) {
+      out.push({ account: to, delta: balanceAmount(to, destCur, credit, accounts) });
+    }
+    if (out.length) return out;
   }
   if (type === "transfer" && from && currencyMatches(from, cur, accounts)) {
     return [{ account: from, delta: -balanceAmount(from, cur, amount, accounts) }];

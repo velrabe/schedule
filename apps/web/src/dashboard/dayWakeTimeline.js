@@ -66,20 +66,44 @@ function latestSessionEndClock(date, wake, sessions = []) {
   return best;
 }
 
-function earliestSessionStartClock(date, sessions = []) {
-  let best = null;
-  let bestMin = Infinity;
+/**
+ * Wake clock inferred from a day's sessions when `days.wake_time` is empty:
+ * the day begins right after the longest inactivity gap (the sleep). This is
+ * anchor-free, so it handles days that start before dawn (a continuous night,
+ * «без пробуждения» — wake 04:35) AND days whose wake is in the evening
+ * (wake 19:30 with sessions running past midnight) — a fixed clock anchor
+ * mis-sorts both. Returns "HH:MM" or null when the day has no sessions.
+ * ponytail: assumes one dominant sleep gap per day; a nap longer than the night
+ * would move the anchor. Upgrade path: set days.wake_time explicitly.
+ */
+export function inferWakeClock(date, sessions = []) {
+  const spans = [];
   for (const s of sessions) {
     if (s.date !== date) continue;
     const start = trimTime(s.start ?? s.start_time);
     if (!start) continue;
-    const m = timeToMin(start);
-    if (m < bestMin) {
-      bestMin = m;
-      best = start;
+    const end = trimTime(s.end ?? s.end_time);
+    spans.push({ clock: start, start: timeToMin(start), end: timeToMin(end || start) });
+  }
+  if (spans.length === 0) return null;
+  spans.sort((a, b) => a.start - b.start);
+  if (spans.length === 1) return spans[0].clock;
+  let wake = spans[0].clock;
+  let bestGap = -1;
+  for (let i = 0; i < spans.length; i++) {
+    const prev = spans[(i - 1 + spans.length) % spans.length];
+    const gap = (spans[i].start - prev.end + DAY_MIN) % DAY_MIN;
+    if (gap > bestGap) {
+      bestGap = gap;
+      wake = spans[i].clock;
     }
   }
-  return best;
+  return wake;
+}
+
+/** Wake clock to order a day by: explicit `wake`, else inferred, else dawn. */
+export function effectiveWakeClock(day, date, sessions = []) {
+  return trimTime(day?.wake) || inferWakeClock(date ?? day?.date, sessions) || "06:00";
 }
 
 /**
@@ -96,11 +120,12 @@ export function computeDisplaySleepHours(day, prevDay, allSessions = []) {
   const prevDate = addCalendarDaysISO(day.date, -1);
 
   let riseClock = trimTime(day.wake);
-  if (!riseClock) riseClock = earliestSessionStartClock(day.date, allSessions);
+  if (!riseClock) riseClock = inferWakeClock(day.date, allSessions);
 
   let bedClock = trimTime(prevDay?.sleep_start);
   if (!bedClock) {
-    bedClock = latestSessionEndClock(prevDate, trimTime(prevDay?.wake) || "06:00", allSessions);
+    const prevWake = trimTime(prevDay?.wake) || inferWakeClock(prevDate, allSessions) || "06:00";
+    bedClock = latestSessionEndClock(prevDate, prevWake, allSessions);
   }
 
   if (bedClock && riseClock) {

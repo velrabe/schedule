@@ -16,6 +16,7 @@ export function filterSessionEventFields(record, fields = []) {
   return fields.filter((f) => !SPORT_EVENT_FIELD_KEYS.has(f.key));
 }
 import { expensesForSessionEvent } from "./sessionFinance.js";
+import { parseAmount } from "./money.js";
 import { mapSessionEventForDrawer, sessionEventDisplayLabel } from "./recordDisplay.js";
 import { metricsFromActivity } from "./activityMetrics.js";
 
@@ -27,7 +28,7 @@ export const DEFAULT_ACCOUNTS = ["cash_vnd", "vcb_vnd", "savings_rub", "ip_rub"]
 
 // Labels mirror the finance_transactions columns these map to.
 const EXPENSE_FIELDS = [
-  { key: "expense_amount", label: "amount", type: "number", optional: true, group: "expense" },
+  { key: "expense_amount", label: "amount", type: "text", optional: true, group: "expense" },
   { key: "expense_currency", label: "currency", type: "select", options: CURRENCY_OPTIONS, optional: true, group: "expense" },
   { key: "expense_account", label: "account", type: "select", options: DEFAULT_ACCOUNTS, optional: true, group: "expense" },
   { key: "expense_category", label: "category", type: "text", optional: true, group: "expense" },
@@ -195,9 +196,9 @@ const KIND_META = {
       { key: "txn_type", label: "txn_type", type: "select", options: ["expense", "income", "transfer"] },
       { key: "account", label: "account", type: "select", options: DEFAULT_ACCOUNTS },
       { key: "counter_account", label: "counter_account", type: "select", options: DEFAULT_ACCOUNTS, optional: true },
-      { key: "amount", label: "amount", type: "number" },
+      { key: "amount", label: "amount", type: "text" },
       { key: "currency", label: "currency", type: "select", options: CURRENCY_OPTIONS },
-      { key: "amount_counter", label: "amount_counter", type: "number", optional: true },
+      { key: "amount_counter", label: "amount_counter", type: "text", optional: true },
       { key: "category", label: "category", type: "text", optional: true },
       { key: "merchant", label: "merchant", type: "text", optional: true },
       { key: "notes", label: "notes", type: "textarea", optional: true },
@@ -455,11 +456,11 @@ export function formToDbPatch(kind, form) {
       return {
         date: form.date,
         time: strOrNull(form.time),
-        amount: numOrNull(form.amount) ?? 0,
+        amount: parseAmount(form.amount) ?? 0,
         currency: form.currency || "VND",
         account: strOrNull(form.account),
         counter_account: txn_type === "transfer" ? strOrNull(form.counter_account) : null,
-        amount_counter: txn_type === "transfer" ? numOrNull(form.amount_counter) : null,
+        amount_counter: txn_type === "transfer" ? parseAmount(form.amount_counter) : null,
         category: strOrNull(form.category) || (txn_type === "transfer" ? "transfer" : null),
         merchant: strOrNull(form.merchant),
         txn_type,
