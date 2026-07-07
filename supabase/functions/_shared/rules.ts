@@ -393,7 +393,7 @@ Always confirm meal entries (set needs_confirmation=true).
 
 const FINANCE = `
 # finance
-Accounts (use the slug as data.account — display names live in DB `accounts.name`, not in repo):
+Accounts (use the slug as data.account — display names live in DB accounts.name, not in repo):
 - savings_rub — RUB savings
 - ip_rub — RUB business / sole prop
 - vcb_vnd — VND bank card
